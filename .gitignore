@@ -1,0 +1,10 @@
+.DS_Store
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+*.local
+
+# Tauri generated signing keys and local build output
+src-tauri/*.key
+src-tauri/*.key.pub
