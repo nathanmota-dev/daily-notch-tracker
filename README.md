@@ -52,11 +52,23 @@ O comando `tauri:dev` inicia o Vite automaticamente e abre a janela desktop.
 A tela inicial possui um botão que verifica a ponte de comunicação com o
 comando Rust `greet`.
 
+Para executar o teste E2E da interface no navegador, instale o navegador do
+Playwright uma vez e rode:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+O teste sobe o servidor Vite automaticamente, valida a tela inicial e verifica
+que a interface informa corretamente quando é executada fora do runtime Tauri.
+
 ## Verificações
 
 ```bash
 npm run build
 npm test
+npm run test:e2e
 npm run test:rust
 cargo check --manifest-path src-tauri/Cargo.toml
 cargo test --manifest-path src-tauri/Cargo.toml
