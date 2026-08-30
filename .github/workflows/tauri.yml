@@ -14,8 +14,16 @@ concurrency:
 
 jobs:
   validate:
-    name: Rust Checks
+    name: Rust ${{ matrix.name }}
     runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - task: lint
+            name: Lints
+          - task: test
+            name: Tests
     defaults:
       run:
         working-directory: src-tauri
@@ -49,15 +57,16 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
+          key: ${{ matrix.task }}
 
       - name: Check formatting
+        if: matrix.task == 'lint'
         run: cargo fmt --all -- --check
 
       - name: Run Clippy
+        if: matrix.task == 'lint'
         run: cargo clippy --locked --all-targets --all-features -- -D warnings
 
-      - name: Typecheck
-        run: cargo check --locked --all-targets
-
       - name: Unit tests
+        if: matrix.task == 'test'
         run: cargo test --locked
