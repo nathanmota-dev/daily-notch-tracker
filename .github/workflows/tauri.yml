@@ -1,0 +1,72 @@
+name: Tauri CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tauri-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Rust ${{ matrix.name }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - task: lint
+            name: Lints
+          - task: test
+            name: Tests
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            patchelf \
+            pkg-config \
+            wget
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.task }}
+
+      - name: Check formatting
+        if: matrix.task == 'lint'
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        if: matrix.task == 'lint'
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+      - name: Unit tests
+        if: matrix.task == 'test'
+        run: cargo test --locked
