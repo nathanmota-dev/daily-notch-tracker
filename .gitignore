@@ -4,6 +4,8 @@ dist/
 src-tauri/target/
 src-tauri/gen/
 *.local
+playwright-report/
+test-results/
 
 # Tauri generated signing keys and local build output
 src-tauri/*.key
