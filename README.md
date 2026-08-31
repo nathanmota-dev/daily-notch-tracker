@@ -87,6 +87,21 @@ O bundle compartilhado seleciona a superfície pelo label da janela Tauri:
 testada com `?surface=overlay`, `?surface=tasks` ou `?surface=settings`; sem o
 parâmetro, o shell usa `overlay`.
 
+### Posicionamento do overlay
+
+No desktop, o overlay é centralizado no monitor primário e posicionado 6 px
+abaixo do início da `workArea`, usando coordenadas físicas e a escala informada
+pelo Tauri. Quando o compositor não fornece uma `workArea` válida, o cálculo
+usa o topo do monitor, uma altura estimada de painel de 32 px e a mesma margem
+de 6 px. Mudanças de escala, resolução, conexão ou monitor primário são
+detectadas pelo evento de escala e por uma consulta periódica.
+
+Wayland e alguns compositores podem atrasar ou rejeitar a alteração de posição
+de uma janela sempre no topo, ou não expor métricas completas durante uma
+reconfiguração. Nesses casos, o app mantém a posição atual e continua
+funcionando; use a tray do overlay ou a superfície `Tasks` como fallback para
+acessar as tarefas.
+
 Durante o desenvolvimento, o widget pode ser renderizado com uma fixture pelo
 parâmetro `?fixture=`. As opções recolhidas são `running`, `paused`, `no-task`,
 `long-title`, `minimal`, `timeline-off` e `rgb`. O dashboard expandido usa

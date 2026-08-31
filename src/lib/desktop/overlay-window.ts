@@ -1,9 +1,15 @@
-import {
-  getCurrentWindow,
-  PhysicalPosition as TauriPhysicalPosition,
-  PhysicalSize as TauriPhysicalSize,
-  type Window as TauriWindow,
-} from "@tauri-apps/api/window"
+import type {
+  OverlayDisplayMetrics,
+  OverlayPhysicalPosition,
+  OverlayPhysicalSize,
+} from "./overlay-position"
+
+export type {
+  OverlayDisplayMetrics,
+  OverlayPhysicalPosition,
+  OverlayPhysicalSize,
+  OverlayWorkArea,
+} from "./overlay-position"
 
 export const OVERLAY_WINDOW_SIZES = {
   collapsed: { width: 360, height: 72 },
@@ -26,16 +32,6 @@ export type OverlayLogicalSize = {
   height: number
 }
 
-export type OverlayPhysicalSize = {
-  width: number
-  height: number
-}
-
-export type OverlayPhysicalPosition = {
-  x: number
-  y: number
-}
-
 export type OverlayWindowState = {
   size: OverlayPhysicalSize
   position: OverlayPhysicalPosition
@@ -52,8 +48,12 @@ export interface OverlayWindowAdapter {
   innerSize(): Promise<OverlayPhysicalSize>
   innerPosition(): Promise<OverlayPhysicalPosition>
   scaleFactor(): Promise<number>
+  primaryMonitor(): Promise<OverlayDisplayMetrics | null>
   setSize(size: OverlayPhysicalSize): Promise<void>
   setPosition(position: OverlayPhysicalPosition): Promise<void>
+  subscribeToDisplayChanges(
+    listener: () => void,
+  ): Promise<OverlayWindowUnlisten>
 }
 
 type OverlayTargetOptions = {
@@ -175,32 +175,23 @@ export async function readOverlayWindowState(
   return { size, position, scaleFactor }
 }
 
-type TauriWindowAdapter = Pick<
-  TauriWindow,
-  "innerSize" | "innerPosition" | "scaleFactor" | "setSize" | "setPosition"
->
-
-export function createTauriOverlayWindowAdapter(
-  appWindow: TauriWindowAdapter = getCurrentWindow(),
-): OverlayWindowAdapter {
-  return {
-    innerSize: async () => {
-      const size = await appWindow.innerSize()
-      return { width: size.width, height: size.height }
-    },
-    innerPosition: async () => {
-      const position = await appWindow.innerPosition()
-      return { x: position.x, y: position.y }
-    },
-    scaleFactor: () => appWindow.scaleFactor(),
-    setSize: (size) =>
-      appWindow.setSize(new TauriPhysicalSize(size.width, size.height)),
-    setPosition: (position) =>
-      appWindow.setPosition(
-        new TauriPhysicalPosition(position.x, position.y),
-      ),
+export async function readOverlayDisplayMetrics(
+  adapter: OverlayWindowAdapter,
+): Promise<OverlayDisplayMetrics | null> {
+  try {
+    return await adapter.primaryMonitor()
+  } catch {
+    return null
   }
 }
+
+export type OverlayWindowUnlisten = () => void
+
+export {
+  createTauriOverlayWindowAdapter,
+  OVERLAY_DISPLAY_POLL_INTERVAL_MS,
+} from "./overlay-window-adapter"
+export type { TauriOverlayWindowAdapterOptions } from "./overlay-window-adapter"
 
 export type OverlayWindowGeometry = Pick<
   AnchoredOverlayGeometry,
