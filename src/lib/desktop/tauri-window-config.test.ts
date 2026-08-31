@@ -31,6 +31,10 @@ describe("Tauri overlay window configuration", () => {
 
   it("keeps the overlay capability scoped to its current permissions", () => {
     expect(defaultCapability.windows).toEqual(["overlay"])
-    expect(defaultCapability.permissions).toEqual(["core:default"])
+    expect(defaultCapability.permissions).toEqual([
+      "core:default",
+      "core:window:allow-set-size",
+      "core:window:allow-set-position",
+    ])
   })
 })
