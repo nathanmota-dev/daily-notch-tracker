@@ -14,12 +14,16 @@
       {
         "label": "overlay",
         "title": "DailyNotch Linux",
-        "width": 960,
-        "height": 640,
-        "minWidth": 640,
-        "minHeight": 480,
-        "resizable": true,
-        "fullscreen": false
+        "width": 360,
+        "height": 72,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "resizable": false,
+        "skipTaskbar": true,
+        "shadow": false,
+        "fullscreen": false,
+        "visible": true
       }
     ],
     "security": {
