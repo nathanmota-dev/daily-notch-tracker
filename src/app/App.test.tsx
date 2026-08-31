@@ -78,6 +78,27 @@ describe("App", () => {
     expect(screen.getByText("Plan the next focused block")).toBeInTheDocument()
   })
 
+  it("renders the expanded dashboard only when its presentation mode is selected", () => {
+    render(
+      <AppShell
+        presentationMode="expanded"
+        snapshot={createEmptyAppSnapshot()}
+      />,
+    )
+
+    expect(screen.getByRole("main")).toHaveAttribute(
+      "data-presentation-mode",
+      "expanded",
+    )
+    expect(screen.getByRole("main")).toHaveClass(
+      "expanded-dashboard-surface",
+    )
+    expect(
+      screen.getByRole("region", { name: "Expanded dashboard" }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("progressbar")).toBeInTheDocument()
+  })
+
   it("shows a safe error and retries the snapshot request", async () => {
     const getSnapshot = vi
       .fn<() => Promise<AppSnapshot>>()

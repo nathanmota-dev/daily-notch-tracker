@@ -15,6 +15,15 @@ const widgetFixtures = [
   { name: "rgb", state: "running", mode: "rgb" },
 ] as const
 
+const expandedFixtures = [
+  { name: "expanded", taskCount: 2 },
+  { name: "expanded-empty", taskCount: 0 },
+  { name: "expanded-one", taskCount: 1 },
+  { name: "expanded-overflow", taskCount: 6 },
+  { name: "expanded-completed", taskCount: 3 },
+  { name: "expanded-long-title", taskCount: 2 },
+] as const
+
 test.describe("DailyNotch surface router", () => {
   test("loads the deterministic browser snapshot as idle", async ({ page }) => {
     await page.goto("/")
@@ -66,6 +75,89 @@ test.describe("DailyNotch surface router", () => {
       }
     })
   }
+
+  for (const { name, taskCount } of expandedFixtures) {
+    test(`renders the ${name} expanded dashboard fixture`, async ({ page }) => {
+      await page.goto(`/?surface=overlay&fixture=${name}`)
+
+      const main = page.locator('[data-surface="overlay"]')
+      const dashboard = page.locator('[data-slot="expanded-dashboard"]')
+
+      await expect(main).toHaveAttribute("data-presentation-mode", "expanded")
+      await expect(dashboard).toBeVisible()
+      await expect(
+        page.getByRole("heading", { name: "Journey Streak" }),
+      ).toBeVisible()
+      await expect(page.getByRole("progressbar")).toBeVisible()
+      await expect(
+        page.locator('[data-slot="compact-task-row"]'),
+      ).toHaveCount(taskCount)
+
+      if (name === "expanded-empty") {
+        await expect(page.getByText("No tasks yet")).toBeVisible()
+      }
+    })
+  }
+
+  test("keeps the expanded dashboard near 620px wide and 190px tall", async ({
+    page,
+  }) => {
+    await page.goto("/?surface=overlay&fixture=expanded")
+
+    const tray = page.locator('[data-slot="progress-tray"]')
+    await expect(tray).toBeVisible()
+    const box = await tray.boundingBox()
+
+    expect(box?.width).toBe(620)
+    expect(box?.height ?? 0).toBeGreaterThanOrEqual(190)
+  })
+
+  test("shows two task rows and scrolls overflow without a visible bar", async ({
+    page,
+  }) => {
+    await page.goto("/?surface=overlay&fixture=expanded-overflow")
+
+    const scrollArea = page.locator('[data-slot="scroll-area"]')
+    await expect(scrollArea).toHaveAttribute("data-visible-rows", "2")
+    await expect(scrollArea).toHaveAttribute("data-overflow", "on")
+    await expect(
+      page.locator('[data-slot="scroll-area-viewport"]'),
+    ).toBeVisible()
+    await expect(
+      page.locator('[data-slot="scroll-area-scrollbar"]'),
+    ).toBeHidden()
+  })
+
+  test("keeps the activity column fixed when a task title is long", async ({
+    page,
+  }) => {
+    await page.goto("/?surface=overlay&fixture=expanded-long-title")
+
+    const activity = page.locator('[data-slot="activity-panel"]')
+    const box = await activity.boundingBox()
+
+    expect(box?.width).toBe(204)
+    await expect(
+      page.locator('[data-slot="task-title"]').first(),
+    ).toHaveAttribute(
+      "title",
+      "Review and refine the complete DailyNotch Linux focus workflow before the next implementation milestone",
+    )
+  })
+
+  test("places completed tasks after pending tasks", async ({ page }) => {
+    await page.goto("/?surface=overlay&fixture=expanded-completed")
+
+    await expect(
+      page.locator('[data-slot="compact-task-row"]').nth(0),
+    ).toHaveAttribute("data-completed", "false")
+    await expect(
+      page.locator('[data-slot="compact-task-row"]').nth(1),
+    ).toHaveAttribute("data-completed", "false")
+    await expect(
+      page.locator('[data-slot="compact-task-row"]').nth(2),
+    ).toHaveAttribute("data-completed", "true")
+  })
 
   for (const { label, heading } of normalSurfaces) {
     test(`renders the ${label} surface from the browser query`, async ({
