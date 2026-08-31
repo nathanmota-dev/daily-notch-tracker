@@ -1,0 +1,261 @@
+name: PR Microbenchmarks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: microbenchmarks-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    name: Tauri & Frontend Microbenchmarks
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Detect benchmark-relevant changes
+        id: changes
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          tauri_changed=false
+          frontend_changed=false
+
+          while IFS= read -r file; do
+            case "$file" in
+              src-tauri/src/*|src-tauri/benches/*|src-tauri/Cargo.toml|src-tauri/Cargo.lock)
+                tauri_changed=true
+                ;;
+              src/*|benchmarks/*|package.json|package-lock.json|tsconfig*.json|vite.config.ts|vitest*.ts)
+                frontend_changed=true
+                ;;
+              scripts/benchmark-*|scripts/run-rust-benchmark*|.github/workflows/performance.yml)
+                tauri_changed=true
+                frontend_changed=true
+                ;;
+            esac
+          done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+
+          projects=()
+          [[ "$tauri_changed" == "true" ]] && projects+=("tauri")
+          [[ "$frontend_changed" == "true" ]] && projects+=("frontend")
+          projects_csv=$(IFS=,; echo "${projects[*]}")
+
+          echo "tauri=$tauri_changed" >> "$GITHUB_OUTPUT"
+          echo "frontend=$frontend_changed" >> "$GITHUB_OUTPUT"
+          echo "projects=$projects_csv" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        if: steps.changes.outputs.tauri == 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        if: steps.changes.outputs.tauri == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: microbenchmarks
+
+      - name: Prepare report directories
+        run: mkdir -p reports/benchmarks
+
+      - name: Select trusted benchmark baseline
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          baseline_path="$RUNNER_TEMP/benchmark-baseline.json"
+          if git cat-file -e "${BASE_SHA}:scripts/benchmark-baseline.json"; then
+            git show "${BASE_SHA}:scripts/benchmark-baseline.json" > "$baseline_path"
+            echo "BENCHMARK_BASELINE_PATH=$baseline_path" >> "$GITHUB_ENV"
+            echo "BENCHMARK_BASELINE_LABEL=main@${BASE_SHA:0:12}:scripts/benchmark-baseline.json" >> "$GITHUB_ENV"
+            echo "BENCHMARK_BASELINE_TRUSTED=true" >> "$GITHUB_ENV"
+          else
+            echo "BENCHMARK_BASELINE_PATH=$GITHUB_WORKSPACE/scripts/benchmark-baseline.json" >> "$GITHUB_ENV"
+            echo "BENCHMARK_BASELINE_LABEL=bootstrap:scripts/benchmark-baseline.json" >> "$GITHUB_ENV"
+            echo "BENCHMARK_BASELINE_TRUSTED=false" >> "$GITHUB_ENV"
+            echo "::notice::The base branch has no benchmark baseline; capturing a non-blocking bootstrap reference."
+          fi
+
+      - name: Install frontend dependencies
+        id: install_frontend
+        if: steps.changes.outputs.frontend == 'true'
+        continue-on-error: true
+        run: npm ci
+
+      - name: Install Tauri system dependencies
+        id: install_tauri_dependencies
+        if: steps.changes.outputs.tauri == 'true'
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            patchelf \
+            pkg-config \
+            wget
+
+      - name: Run Tauri microbenchmarks
+        id: benchmark_tauri
+        if: >-
+          steps.changes.outputs.tauri == 'true'
+          && steps.install_tauri_dependencies.outcome == 'success'
+        continue-on-error: true
+        run: npm run benchmark:rust
+
+      - name: Run frontend microbenchmarks
+        id: benchmark_frontend
+        if: >-
+          steps.changes.outputs.frontend == 'true'
+          && steps.install_frontend.outcome == 'success'
+        continue-on-error: true
+        run: npm run benchmark:ci
+
+      - name: Test benchmark gates
+        id: benchmark_gate_tests
+        if: always()
+        continue-on-error: true
+        run: node --test scripts/benchmark-gate.test.js scripts/run-rust-benchmark.test.js
+
+      - name: Compare benchmark results
+        id: benchmark_gate
+        if: >-
+          always()
+          && (steps.changes.outputs.tauri != 'true' || steps.benchmark_tauri.outcome == 'success')
+          && (steps.changes.outputs.frontend != 'true' || steps.benchmark_frontend.outcome == 'success')
+        continue-on-error: true
+        env:
+          SELECTED_PROJECTS: ${{ steps.changes.outputs.projects }}
+        run: |
+          args=(--projects "$SELECTED_PROJECTS")
+          if [[ "$BENCHMARK_BASELINE_TRUSTED" != "true" ]]; then
+            args+=(--bootstrap)
+          fi
+          node scripts/benchmark-gate.js "${args[@]}"
+
+      - name: Compose performance report
+        if: always()
+        env:
+          TAURI_CHANGED: ${{ steps.changes.outputs.tauri }}
+          FRONTEND_CHANGED: ${{ steps.changes.outputs.frontend }}
+          INSTALL_TAURI_DEPENDENCIES: ${{ steps.install_tauri_dependencies.outcome }}
+          INSTALL_FRONTEND: ${{ steps.install_frontend.outcome }}
+          BENCHMARK_TAURI: ${{ steps.benchmark_tauri.outcome }}
+          BENCHMARK_FRONTEND: ${{ steps.benchmark_frontend.outcome }}
+          BENCHMARK_GATE_TESTS: ${{ steps.benchmark_gate_tests.outcome }}
+          BENCHMARK_GATE: ${{ steps.benchmark_gate.outcome }}
+        run: |
+          failures=()
+          [[ "$BENCHMARK_GATE_TESTS" == "success" ]] || failures+=("benchmark-gate tests")
+          [[ "$BENCHMARK_GATE" == "success" ]] || failures+=("benchmark comparison")
+          if [[ "$TAURI_CHANGED" == "true" ]]; then
+            [[ "$INSTALL_TAURI_DEPENDENCIES" == "success" ]] || failures+=("Tauri system dependencies")
+            [[ "$BENCHMARK_TAURI" == "success" ]] || failures+=("Tauri microbenchmarks")
+          fi
+          if [[ "$FRONTEND_CHANGED" == "true" ]]; then
+            [[ "$INSTALL_FRONTEND" == "success" ]] || failures+=("npm ci")
+            [[ "$BENCHMARK_FRONTEND" == "success" ]] || failures+=("frontend microbenchmarks")
+          fi
+
+          report="reports/performance.md"
+          composed="reports/pr-performance.md"
+          {
+            echo "# PR Microbenchmarks"
+            echo
+            if (( ${#failures[@]} == 0 )); then
+              echo "✅ **PASS** — All blocking performance checks passed."
+            else
+              echo "❌ **FAIL** — Blocking checks failed: ${failures[*]}."
+            fi
+            echo
+            echo "## Workflow checks"
+            echo
+            echo "| Check | Result | Selected | Blocking |"
+            echo "|---|---|---:|---:|"
+            echo "| Tauri system dependencies | \`$INSTALL_TAURI_DEPENDENCIES\` | $TAURI_CHANGED | When selected |"
+            echo "| Tauri microbenchmarks | \`$BENCHMARK_TAURI\` | $TAURI_CHANGED | When selected |"
+            echo "| npm ci | \`$INSTALL_FRONTEND\` | $FRONTEND_CHANGED | When selected |"
+            echo "| Frontend microbenchmarks | \`$BENCHMARK_FRONTEND\` | $FRONTEND_CHANGED | When selected |"
+            echo "| Benchmark-gate tests | \`$BENCHMARK_GATE_TESTS\` | Always | Yes |"
+            echo "| Baseline comparison/bootstrap | \`$BENCHMARK_GATE\` | Always | Yes |"
+            echo
+            echo "---"
+            echo
+            if [[ -f "$report" ]]; then
+              cat "$report"
+            else
+              echo "The performance report was not generated. Inspect the failed steps above."
+            fi
+          } > "$composed"
+          mv "$composed" "$report"
+
+      - name: Publish job summary
+        if: always()
+        run: cat reports/performance.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload performance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            reports/benchmarks/
+            reports/performance.md
+            reports/performance.json
+            reports/benchmark-candidate-baseline.json
+            scripts/benchmark-current.json
+
+      - name: Enforce blocking performance checks
+        if: always()
+        env:
+          TAURI_CHANGED: ${{ steps.changes.outputs.tauri }}
+          FRONTEND_CHANGED: ${{ steps.changes.outputs.frontend }}
+          INSTALL_TAURI_DEPENDENCIES: ${{ steps.install_tauri_dependencies.outcome }}
+          INSTALL_FRONTEND: ${{ steps.install_frontend.outcome }}
+          BENCHMARK_TAURI: ${{ steps.benchmark_tauri.outcome }}
+          BENCHMARK_FRONTEND: ${{ steps.benchmark_frontend.outcome }}
+          BENCHMARK_GATE_TESTS: ${{ steps.benchmark_gate_tests.outcome }}
+          BENCHMARK_GATE: ${{ steps.benchmark_gate.outcome }}
+        run: |
+          failures=()
+          [[ "$BENCHMARK_GATE_TESTS" == "success" ]] || failures+=("benchmark-gate tests")
+          [[ "$BENCHMARK_GATE" == "success" ]] || failures+=("benchmark comparison")
+          if [[ "$TAURI_CHANGED" == "true" ]]; then
+            [[ "$INSTALL_TAURI_DEPENDENCIES" == "success" ]] || failures+=("Tauri system dependencies")
+            [[ "$BENCHMARK_TAURI" == "success" ]] || failures+=("Tauri microbenchmarks")
+          fi
+          if [[ "$FRONTEND_CHANGED" == "true" ]]; then
+            [[ "$INSTALL_FRONTEND" == "success" ]] || failures+=("npm ci")
+            [[ "$BENCHMARK_FRONTEND" == "success" ]] || failures+=("frontend microbenchmarks")
+          fi
+          if (( ${#failures[@]} > 0 )); then
+            printf 'Blocking performance checks failed: %s\n' "${failures[*]}"
+            exit 1
+          fi

@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "generatedFromCommit": "ef97f4a8a9a5",
+  "runtime": {
+    "node": "v24.18.0",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "policy": {
+    "maxRegressionPercent": 20
+  },
+  "projects": {
+    "tauri": {
+      "benchmarks": {
+        "src-tauri/benches/commands.rs > rust commands > greet command": {
+          "hz": 45441352.12434996,
+          "mean": 0.000022006387425785805,
+          "median": 0.000022037436108848865,
+          "rme": 0.5037207222858167,
+          "sampleCount": 100
+        }
+      }
+    },
+    "frontend": {
+      "benchmarks": {
+        "benchmarks/app-render.bench.ts > app render > starter screen to static markup": {
+          "hz": 23934.62200051477,
+          "mean": 0.041780480175475206,
+          "median": 0.03671000000008462,
+          "rme": 0.8510565439905625,
+          "sampleCount": 23935
+        }
+      }
+    }
+  }
+}
