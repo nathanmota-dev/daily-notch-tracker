@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   OVERLAY_RESIZE_DURATION_MS,
+  type OverlayDisplayMetrics,
   type OverlayPhysicalPosition,
   type OverlayPhysicalSize,
   type OverlayPresentationMode,
@@ -73,10 +74,21 @@ function createAnimationFrameController(): AnimationFrameController {
 }
 
 function createAdapter() {
-  return {
+  let display: OverlayDisplayMetrics | null = {
+    position: { x: 0, y: 0 },
+    size: { width: 1920, height: 1080 },
+    scaleFactor: 1,
+    workArea: {
+      position: { x: 0, y: 32 },
+      size: { width: 1920, height: 1048 },
+    },
+  }
+  const displayListeners = new Set<() => void>()
+  const adapter = {
     innerSize: vi.fn(async () => ({ width: 360, height: 72 })),
     innerPosition: vi.fn(async () => ({ x: 100, y: 48 })),
     scaleFactor: vi.fn(async () => 1),
+    primaryMonitor: vi.fn(async () => display),
     setSize: vi.fn(async (size: OverlayPhysicalSize): Promise<void> => {
       void size
     }),
@@ -85,7 +97,20 @@ function createAdapter() {
         void position
       },
     ),
+    subscribeToDisplayChanges: vi.fn(async (listener: () => void) => {
+      displayListeners.add(listener)
+      return () => displayListeners.delete(listener)
+    }),
   } satisfies OverlayWindowAdapter
+
+  return Object.assign(adapter, {
+    emitDisplayChange() {
+      displayListeners.forEach((listener) => listener())
+    },
+    setDisplay(nextDisplay: OverlayDisplayMetrics | null) {
+      display = nextDisplay
+    },
+  })
 }
 
 function OverlayResizeHarness({
@@ -185,17 +210,15 @@ describe("useOverlayResize", () => {
     )
 
     await settleAsyncWork()
-    expect(animationFrame.pending()).toBe(1)
-    animationFrame.flush(performance.now() + OVERLAY_RESIZE_DURATION_MS + 1)
-    await settleAsyncWork()
 
     expect(adapter.setSize).toHaveBeenLastCalledWith({ width: 104, height: 72 })
-    expect(adapter.setPosition).toHaveBeenLastCalledWith({ x: 228, y: 48 })
+    expect(adapter.setPosition).toHaveBeenLastCalledWith({ x: 908, y: 38 })
 
     rerender(
       <OverlayResizeHarness adapter={adapter} presentationMode="expanded" />,
     )
     await settleAsyncWork()
+    expect(animationFrame.pending()).toBe(1)
     animationFrame.flush(performance.now() + OVERLAY_RESIZE_DURATION_MS + 1)
     await settleAsyncWork()
 
@@ -218,18 +241,37 @@ describe("useOverlayResize", () => {
     )
 
     await settleAsyncWork()
+    const initialSetSizeCalls = adapter.setSize.mock.calls.length
     rerender(
       <OverlayResizeHarness adapter={adapter} presentationMode="expanded" />,
+    )
+    await settleAsyncWork()
+
+    expect(animationFrame.pending()).toBe(1)
+
+    rerender(
+      <OverlayResizeHarness
+        adapter={adapter}
+        minimalMode
+        presentationMode="collapsed"
+      />,
     )
     await settleAsyncWork()
 
     expect(animationFrame.cancel).toHaveBeenCalled()
     expect(animationFrame.pending()).toBe(1)
 
+    rerender(
+      <OverlayResizeHarness adapter={adapter} presentationMode="expanded" />,
+    )
+    await settleAsyncWork()
+
     animationFrame.flush(performance.now() + OVERLAY_RESIZE_DURATION_MS + 1)
     await settleAsyncWork()
 
-    expect(adapter.setSize).not.toHaveBeenCalledWith({ width: 104, height: 72 })
+    expect(
+      adapter.setSize.mock.calls.slice(initialSetSizeCalls),
+    ).not.toContainEqual([{ width: 104, height: 72 }])
     expect(adapter.setSize).toHaveBeenLastCalledWith({ width: 620, height: 206 })
   })
 
@@ -295,5 +337,160 @@ describe("useOverlayResize", () => {
       "false",
     )
     expect(animationFrame.pending()).toBe(0)
+  })
+
+  it("uses the primary display scale for its initial physical placement", async () => {
+    const adapter = createAdapter()
+    adapter.setDisplay({
+      position: { x: -1280, y: -40 },
+      size: { width: 1920, height: 1200 },
+      scaleFactor: 1.5,
+      workArea: {
+        position: { x: -1280, y: 8 },
+        size: { width: 1920, height: 1152 },
+      },
+    })
+
+    render(
+      <OverlayResizeHarness
+        adapter={adapter}
+        presentationMode="collapsed"
+      />,
+    )
+    await settleAsyncWork()
+
+    expect(adapter.setSize).toHaveBeenLastCalledWith({
+      width: 540,
+      height: 108,
+    })
+    expect(adapter.setPosition).toHaveBeenLastCalledWith({
+      x: -590,
+      y: 14,
+    })
+  })
+
+  it("recalculates size and position when the primary display changes", async () => {
+    const adapter = createAdapter()
+
+    render(<OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />)
+    await settleAsyncWork()
+
+    adapter.setDisplay({
+      position: { x: -1280, y: -20 },
+      size: { width: 1280, height: 720 },
+      scaleFactor: 1.25,
+      workArea: {
+        position: { x: -1280, y: 20 },
+        size: { width: 1280, height: 680 },
+      },
+    })
+    act(() => adapter.emitDisplayChange())
+    await settleAsyncWork()
+
+    expect(adapter.setSize).toHaveBeenLastCalledWith({
+      width: 450,
+      height: 90,
+    })
+    expect(adapter.setPosition).toHaveBeenLastCalledWith({
+      x: -865,
+      y: 26,
+    })
+  })
+
+  it("preserves the current position when the primary display is unavailable", async () => {
+    const adapter = createAdapter()
+    adapter.setDisplay(null)
+
+    render(
+      <OverlayResizeHarness
+        adapter={adapter}
+        minimalMode
+        presentationMode="collapsed"
+      />,
+    )
+    await settleAsyncWork()
+
+    expect(adapter.setSize).toHaveBeenLastCalledWith({ width: 104, height: 72 })
+    expect(adapter.setPosition).toHaveBeenLastCalledWith({ x: 100, y: 48 })
+    expect(document.querySelector("main")).toHaveAttribute(
+      "data-resizing",
+      "false",
+    )
+  })
+
+  it("cleans up display listeners when the hook unmounts", async () => {
+    const adapter = createAdapter()
+    const unlisten = vi.fn()
+    adapter.subscribeToDisplayChanges = vi.fn(async () => unlisten)
+    const { unmount } = render(
+      <OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />,
+    )
+
+    await settleAsyncWork()
+    unmount()
+    await settleAsyncWork()
+
+    expect(unlisten).toHaveBeenCalledOnce()
+  })
+
+  it("ignores a stale display response after a newer display request", async () => {
+    const adapter = createAdapter()
+
+    render(<OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />)
+    await settleAsyncWork()
+
+    const nextDisplay: OverlayDisplayMetrics = {
+      position: { x: -1280, y: 0 },
+      size: { width: 1280, height: 720 },
+      scaleFactor: 1,
+      workArea: {
+        position: { x: -1280, y: 32 },
+        size: { width: 1280, height: 688 },
+      },
+    }
+    let releaseStale: ((display: OverlayDisplayMetrics) => void) | undefined
+    const staleResponse = new Promise<OverlayDisplayMetrics>((resolve) => {
+      releaseStale = resolve
+    })
+    adapter.primaryMonitor
+      .mockReset()
+      .mockImplementationOnce(() => staleResponse)
+      .mockResolvedValueOnce(nextDisplay)
+
+    act(() => {
+      adapter.emitDisplayChange()
+      adapter.emitDisplayChange()
+    })
+    await settleAsyncWork()
+
+    expect(adapter.setPosition).toHaveBeenLastCalledWith({ x: -820, y: 38 })
+    const positionCalls = adapter.setPosition.mock.calls.length
+
+    releaseStale?.({
+      position: { x: 0, y: 0 },
+      size: { width: 1920, height: 1080 },
+      scaleFactor: 1,
+      workArea: {
+        position: { x: 0, y: 32 },
+        size: { width: 1920, height: 1048 },
+      },
+    })
+    await settleAsyncWork()
+
+    expect(adapter.setPosition).toHaveBeenCalledTimes(positionCalls)
+  })
+
+  it("keeps native position failures out of the React surface", async () => {
+    const adapter = createAdapter()
+    adapter.setPosition.mockRejectedValue(new Error("compositor rejected"))
+
+    render(<OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />)
+    await settleAsyncWork()
+
+    expect(adapter.setPosition).toHaveBeenCalled()
+    expect(document.querySelector("main")).toHaveAttribute(
+      "data-resizing",
+      "false",
+    )
   })
 })

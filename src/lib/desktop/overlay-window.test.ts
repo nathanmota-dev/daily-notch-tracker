@@ -147,6 +147,83 @@ describe("Tauri overlay window adapter", () => {
       expect.objectContaining({ type: "Physical", x: -140, y: 24 }),
     )
   })
+
+  it("reads and normalizes the primary monitor", async () => {
+    const appWindow = {
+      innerSize: vi.fn(async () => new PhysicalSize(360, 72)),
+      innerPosition: vi.fn(async () => new PhysicalPosition(0, 0)),
+      scaleFactor: vi.fn(async () => 1),
+      setSize: vi.fn(async () => undefined),
+      setPosition: vi.fn(async () => undefined),
+    }
+    const adapter = createTauriOverlayWindowAdapter(appWindow, {
+      monitorReader: async () => ({
+        position: { x: -1920, y: 0 },
+        size: { width: 1920, height: 1080 },
+        scaleFactor: 1.5,
+        workArea: undefined,
+      }),
+    })
+
+    await expect(adapter.primaryMonitor()).resolves.toEqual({
+      position: { x: -1920, y: 0 },
+      size: { width: 1920, height: 1080 },
+      scaleFactor: 1.5,
+    })
+  })
+
+  it("notifies scale changes immediately and polls changed metrics until cleanup", async () => {
+    vi.useFakeTimers()
+    let currentMonitor = {
+      position: { x: 0, y: 0 },
+      size: { width: 1920, height: 1080 },
+      scaleFactor: 1,
+    }
+    let emitScaleChange: (() => void) | undefined
+    const unlisten = vi.fn()
+    const appWindow = {
+      innerSize: vi.fn(async () => new PhysicalSize(360, 72)),
+      innerPosition: vi.fn(async () => new PhysicalPosition(0, 0)),
+      scaleFactor: vi.fn(async () => 1),
+      setSize: vi.fn(async () => undefined),
+      setPosition: vi.fn(async () => undefined),
+      onScaleChanged: vi.fn(async (handler: () => void) => {
+        emitScaleChange = handler
+        return unlisten
+      }),
+    }
+    const adapter = createTauriOverlayWindowAdapter(appWindow, {
+      monitorReader: async () => currentMonitor,
+      displayPollIntervalMs: 20,
+    })
+    const listener = vi.fn()
+    const cleanup = await adapter.subscribeToDisplayChanges(listener)
+
+    expect(listener).not.toHaveBeenCalled()
+    emitScaleChange?.()
+    expect(listener).toHaveBeenCalledOnce()
+
+    currentMonitor = {
+      ...currentMonitor,
+      position: { x: -1920, y: 0 },
+      scaleFactor: 1.25,
+    }
+    await vi.advanceTimersByTimeAsync(20)
+    expect(listener).toHaveBeenCalledTimes(2)
+
+    cleanup()
+    cleanup()
+    await Promise.resolve()
+    expect(unlisten).toHaveBeenCalledOnce()
+
+    currentMonitor = {
+      ...currentMonitor,
+      position: { x: 0, y: 0 },
+    }
+    await vi.advanceTimersByTimeAsync(40)
+    expect(listener).toHaveBeenCalledTimes(2)
+    vi.useRealTimers()
+  })
 })
 
 describe("overlay window operation queue", () => {
@@ -159,11 +236,13 @@ describe("overlay window operation queue", () => {
       innerSize: vi.fn(async () => ({ width: 360, height: 72 })),
       innerPosition: vi.fn(async () => ({ x: 0, y: 0 })),
       scaleFactor: vi.fn(async () => 1),
+      primaryMonitor: vi.fn(async () => null),
       setSize: vi
         .fn()
         .mockImplementationOnce(() => firstSize)
         .mockResolvedValue(undefined),
       setPosition: vi.fn().mockResolvedValue(undefined),
+      subscribeToDisplayChanges: vi.fn(async () => vi.fn()),
     }
     const queue = createOverlayWindowOperationQueue(adapter)
     const first = {
