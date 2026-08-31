@@ -80,6 +80,13 @@ Componentes React não devem importar `invoke` ou `listen` diretamente. O ESLint
 protege essa fronteira para que payloads e erros sejam normalizados em um único
 lugar.
 
+## Superfícies
+
+O bundle compartilhado seleciona a superfície pelo label da janela Tauri:
+`overlay`, `tasks` ou `settings`. No navegador, a mesma seleção pode ser
+testada com `?surface=overlay`, `?surface=tasks` ou `?surface=settings`; sem o
+parâmetro, o shell usa `overlay`.
+
 ## Verificações
 
 ```bash

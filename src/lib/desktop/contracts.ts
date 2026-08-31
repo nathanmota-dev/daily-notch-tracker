@@ -4,7 +4,16 @@ export type IsoDateTimeString = string
 export type FocusState = "idle" | "running" | "paused"
 export type ShortcutStatus = "registered" | "unavailable" | "error"
 export type IntegrationStatus = "available" | "unavailable" | "error"
-export type SurfaceLabel = "overlay" | "tasks" | "settings"
+
+export const SURFACE_LABELS = ["overlay", "tasks", "settings"] as const
+export type SurfaceLabel = (typeof SURFACE_LABELS)[number]
+
+export function isSurfaceLabel(value: unknown): value is SurfaceLabel {
+  return (
+    typeof value === "string" &&
+    (SURFACE_LABELS as readonly string[]).includes(value)
+  )
+}
 
 export type Task = {
   id: string
