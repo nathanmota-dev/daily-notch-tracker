@@ -1,77 +1,164 @@
-import { useState } from "react"
-import { invoke } from "@tauri-apps/api/core"
+import { useEffect, useState } from "react"
 
-const starterFeatures = [
-  "React + TypeScript",
-  "Vite + Tailwind CSS",
-  "Tauri 2 + Rust",
-  "Vitest pronto para testes",
-]
+import {
+  desktopApi,
+  normalizeDesktopApiError,
+  type AppSnapshot,
+  type DesktopApi,
+  type DesktopApiError,
+} from "../lib/desktopApi"
 
-export function App() {
-  const [status, setStatus] = useState<"idle" | "success" | "browser">("idle")
+type AppProps = {
+  api?: DesktopApi
+}
 
-  async function checkRustBridge() {
-    try {
-      await invoke("greet", { name: "DailyNotch" })
-      setStatus("success")
-    } catch {
-      setStatus("browser")
-    }
-  }
+type ShellState =
+  | { status: "loading" }
+  | { status: "ready"; snapshot: AppSnapshot }
+  | { status: "error"; error: DesktopApiError }
 
+type AppShellProps = {
+  snapshot: AppSnapshot
+}
+
+function countLabel(count: number, singular: string, plural: string) {
+  return `${count} ${count === 1 ? singular : plural}`
+}
+
+export function AppShell({ snapshot }: AppShellProps) {
   return (
     <main className="min-h-screen bg-zinc-950 px-6 py-12 text-zinc-100 sm:px-10">
-      <section className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-5xl flex-col justify-center">
-        <div className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-blue-400/20 bg-blue-400/10 px-3 py-1 text-sm text-blue-200">
-          <span className="size-2 rounded-full bg-blue-400" aria-hidden="true" />
-          Tauri 2 + Rust
+      <section className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-4xl flex-col justify-center">
+        <div className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-sm text-emerald-200">
+          <span className="size-2 rounded-full bg-emerald-400" aria-hidden="true" />
+          Contrato desktop conectado
         </div>
 
-        <div className="grid gap-12 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
-          <div>
-            <p className="mb-4 text-sm font-medium uppercase tracking-[0.24em] text-zinc-500">
-              DailyNotch Linux
-            </p>
-            <h1 className="max-w-3xl text-5xl font-semibold tracking-tight text-white sm:text-7xl">
-              Um foco de cada vez.
-            </h1>
-            <p className="mt-6 max-w-xl text-lg leading-8 text-zinc-400">
-              A fundação do app está pronta. O próximo passo é transformar essa
-              superfície em um espaço rápido para tarefas e foco no Linux.
-            </p>
+        <p className="mb-4 text-sm font-medium uppercase tracking-[0.24em] text-zinc-500">
+          DailyNotch Linux
+        </p>
+        <h1 className="max-w-3xl text-5xl font-semibold tracking-tight text-white sm:text-7xl">
+          Seu espaço de foco está pronto.
+        </h1>
+        <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">
+          O shell compartilha o mesmo snapshot entre o navegador e o app
+          desktop. As superfícies de tarefas e foco serão adicionadas nas
+          próximas etapas.
+        </p>
 
-            <button
-              className="mt-8 rounded-xl bg-blue-500 px-5 py-3 font-medium text-white transition hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-zinc-950"
-              onClick={checkRustBridge}
-              type="button"
-            >
-              {status === "success" ? "Rust conectado" : "Verificar a fundação"}
-            </button>
-            {status === "browser" && (
-              <p className="mt-3 text-sm text-zinc-500">
-                Frontend funcionando. Execute <code>npm run tauri:dev</code> para abrir o app desktop.
-              </p>
-            )}
+        <dl className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <dt className="text-sm text-zinc-500">Tarefas</dt>
+            <dd className="mt-2 text-xl font-medium text-white">
+              {countLabel(snapshot.tasks.length, "tarefa", "tarefas")}
+            </dd>
           </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <dt className="text-sm text-zinc-500">Sessões</dt>
+            <dd className="mt-2 text-xl font-medium text-white">
+              {countLabel(snapshot.sessions.length, "sessão", "sessões")}
+            </dd>
+          </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <dt className="text-sm text-zinc-500">Foco</dt>
+            <dd className="mt-2 text-xl font-medium capitalize text-white">
+              {snapshot.focus.state}
+            </dd>
+          </div>
+        </dl>
 
-          <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-blue-950/20">
-            <p className="mb-5 text-sm font-medium text-zinc-300">
-              Stack inicial
-            </p>
-            <ul className="space-y-3">
-              {starterFeatures.map((feature) => (
-                <li className="flex items-center gap-3 text-sm text-zinc-400" key={feature}>
-                  <span className="flex size-6 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300" aria-hidden="true">
-                    ✓
-                  </span>
-                  {feature}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        {snapshot.tasks.length === 0 && (
+          <p className="mt-6 text-sm text-zinc-500">Nenhuma tarefa ainda.</p>
+        )}
       </section>
     </main>
   )
+}
+
+function LoadingShell() {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-zinc-100">
+      <p className="text-sm text-zinc-400" role="status">
+        Carregando o DailyNotch…
+      </p>
+    </main>
+  )
+}
+
+type ErrorShellProps = {
+  error: DesktopApiError
+  onRetry: () => void
+}
+
+function ErrorShell({ error, onRetry }: ErrorShellProps) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-zinc-100">
+      <section className="max-w-lg rounded-3xl border border-red-400/20 bg-red-400/[0.06] p-8">
+        <p className="text-sm font-medium uppercase tracking-[0.2em] text-red-300">
+          DailyNotch Linux
+        </p>
+        <h1 className="mt-4 text-3xl font-semibold text-white">
+          Não foi possível carregar o estado.
+        </h1>
+        <p className="mt-4 text-zinc-400" role="alert">
+          A integração desktop está temporariamente indisponível. Código:{" "}
+          <code>{error.code}</code>.
+        </p>
+        <button
+          className="mt-6 rounded-xl bg-white px-4 py-2 font-medium text-zinc-950 transition hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-zinc-950"
+          onClick={onRetry}
+          type="button"
+        >
+          Tentar novamente
+        </button>
+      </section>
+    </main>
+  )
+}
+
+export function App({ api = desktopApi }: AppProps) {
+  const [reloadKey, setReloadKey] = useState(0)
+  const [shellState, setShellState] = useState<ShellState>({
+    status: "loading",
+  })
+
+  useEffect(() => {
+    let active = true
+    setShellState({ status: "loading" })
+
+    api.getSnapshot().then(
+      (snapshot) => {
+        if (active) {
+          setShellState({ status: "ready", snapshot })
+        }
+      },
+      (error: unknown) => {
+        if (active) {
+          setShellState({
+            status: "error",
+            error: normalizeDesktopApiError(error, "getSnapshot"),
+          })
+        }
+      },
+    )
+
+    return () => {
+      active = false
+    }
+  }, [api, reloadKey])
+
+  if (shellState.status === "loading") {
+    return <LoadingShell />
+  }
+
+  if (shellState.status === "error") {
+    return (
+      <ErrorShell
+        error={shellState.error}
+        onRetry={() => setReloadKey((currentKey) => currentKey + 1)}
+      />
+    )
+  }
+
+  return <AppShell snapshot={shellState.snapshot} />
 }

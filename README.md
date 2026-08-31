@@ -49,8 +49,14 @@ npm run tauri:dev
 ```
 
 O comando `tauri:dev` inicia o Vite automaticamente e abre a janela desktop.
-A tela inicial possui um botão que verifica a ponte de comunicação com o
-comando Rust `greet`.
+O shell seleciona automaticamente o `desktopApi` real no webview Tauri. Até os
+comandos de domínio serem implementados no Rust, a ausência de `get_snapshot`
+é apresentada como um erro recuperável. O comando temporário `greet` continua
+coberto pelo teste Rust da ponte.
+
+Ao executar somente a UI no navegador, o shell usa um snapshot mockado,
+determinístico e sem persistência. Testes e futuras superfícies podem criar
+outros snapshots ou falhas com `createMockDesktopApi`.
 
 Para executar o teste E2E da interface no navegador, instale o navegador do
 Playwright uma vez e rode:
@@ -60,8 +66,19 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-O teste sobe o servidor Vite automaticamente, valida a tela inicial e verifica
-que a interface informa corretamente quando é executada fora do runtime Tauri.
+O teste sobe o servidor Vite automaticamente e valida o shell com o snapshot
+mockado do navegador.
+
+## Contrato desktop
+
+O entrypoint `src/lib/desktopApi.ts` expõe os tipos compartilhados, os comandos
+camelCase e as assinaturas tipadas dos eventos do MVP. O transport Tauri traduz
+essa API para os nomes snake_case dos comandos Rust; o transport mock permite
+injetar snapshots, respostas, falhas e eventos sem depender do webview.
+
+Componentes React não devem importar `invoke` ou `listen` diretamente. O ESLint
+protege essa fronteira para que payloads e erros sejam normalizados em um único
+lugar.
 
 ## Verificações
 
@@ -90,6 +107,8 @@ componente `rustfmt` estiver instalado.
 │   ├── pages/
 │   ├── styles/
 │   └── lib/
+│       ├── desktop/      # Contratos e transports Tauri/mock
+│       └── desktopApi.ts # API pública do frontend
 ├── src-tauri/            # Rust e integração com Linux
 │   ├── src/
 │   │   ├── main.rs
