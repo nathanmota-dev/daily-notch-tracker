@@ -19,6 +19,10 @@ import {
   type DesktopApiError,
   type SurfaceLabel,
 } from "../lib/desktopApi"
+import {
+  type OverlayWindowAdapter,
+} from "../lib/desktop/overlay-window"
+import { useOverlayResize } from "./use-overlay-resize"
 
 export type PresentationMode = "collapsed" | "expanded"
 
@@ -38,23 +42,33 @@ type ShellState =
 type AppShellProps = {
   snapshot: AppSnapshot
   presentationMode?: PresentationMode
+  overlayWindowAdapter?: OverlayWindowAdapter | null
 } & PresentationCallbacks
 
 export function AppShell({
   presentationMode = "collapsed",
   snapshot,
+  overlayWindowAdapter,
   ...callbacks
 }: AppShellProps) {
   const isExpanded = presentationMode === "expanded"
+  const { isResizing, surfaceRef } = useOverlayResize({
+    adapter: overlayWindowAdapter,
+    minimalMode: snapshot.settings.minimalMode,
+    presentationMode,
+    showTimeline: snapshot.settings.showTimeline,
+  })
 
   return (
     <main
+      ref={surfaceRef}
       className={
         isExpanded
           ? "expanded-dashboard-surface"
           : "collapsed-focus-surface"
       }
       data-presentation-mode={presentationMode}
+      data-resizing={isResizing ? "true" : "false"}
       data-surface="overlay"
     >
       {isExpanded ? (
