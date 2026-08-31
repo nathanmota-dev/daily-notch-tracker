@@ -6,10 +6,12 @@ import {
   type AppSnapshot,
   type DesktopApi,
   type DesktopApiError,
+  type SurfaceLabel,
 } from "../lib/desktopApi"
 
 type AppProps = {
   api?: DesktopApi
+  surface?: SurfaceLabel
 }
 
 type ShellState =
@@ -25,9 +27,43 @@ function countLabel(count: number, singular: string, plural: string) {
   return `${count} ${count === 1 ? singular : plural}`
 }
 
+function SnapshotSummary({ snapshot }: AppShellProps) {
+  return (
+    <>
+      <dl className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+          <dt className="text-sm text-zinc-500">Tarefas</dt>
+          <dd className="mt-2 text-xl font-medium text-white">
+            {countLabel(snapshot.tasks.length, "tarefa", "tarefas")}
+          </dd>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+          <dt className="text-sm text-zinc-500">Sessões</dt>
+          <dd className="mt-2 text-xl font-medium text-white">
+            {countLabel(snapshot.sessions.length, "sessão", "sessões")}
+          </dd>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+          <dt className="text-sm text-zinc-500">Foco</dt>
+          <dd className="mt-2 text-xl font-medium capitalize text-white">
+            {snapshot.focus.state}
+          </dd>
+        </div>
+      </dl>
+
+      {snapshot.tasks.length === 0 && (
+        <p className="mt-6 text-sm text-zinc-500">Nenhuma tarefa ainda.</p>
+      )}
+    </>
+  )
+}
+
 export function AppShell({ snapshot }: AppShellProps) {
   return (
-    <main className="min-h-screen bg-zinc-950 px-6 py-12 text-zinc-100 sm:px-10">
+    <main
+      className="min-h-screen bg-zinc-950 px-6 py-12 text-zinc-100 sm:px-10"
+      data-surface="overlay"
+    >
       <section className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-4xl flex-col justify-center">
         <div className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-sm text-emerald-200">
           <span className="size-2 rounded-full bg-emerald-400" aria-hidden="true" />
@@ -46,38 +82,60 @@ export function AppShell({ snapshot }: AppShellProps) {
           próximas etapas.
         </p>
 
-        <dl className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-            <dt className="text-sm text-zinc-500">Tarefas</dt>
-            <dd className="mt-2 text-xl font-medium text-white">
-              {countLabel(snapshot.tasks.length, "tarefa", "tarefas")}
-            </dd>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-            <dt className="text-sm text-zinc-500">Sessões</dt>
-            <dd className="mt-2 text-xl font-medium text-white">
-              {countLabel(snapshot.sessions.length, "sessão", "sessões")}
-            </dd>
-          </div>
-          <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-            <dt className="text-sm text-zinc-500">Foco</dt>
-            <dd className="mt-2 text-xl font-medium capitalize text-white">
-              {snapshot.focus.state}
-            </dd>
-          </div>
-        </dl>
-
-        {snapshot.tasks.length === 0 && (
-          <p className="mt-6 text-sm text-zinc-500">Nenhuma tarefa ainda.</p>
-        )}
+        <SnapshotSummary snapshot={snapshot} />
       </section>
     </main>
   )
 }
 
-function LoadingShell() {
+type PlaceholderSurface = Exclude<SurfaceLabel, "overlay">
+
+type SurfacePlaceholderProps = {
+  surface: PlaceholderSurface
+  snapshot: AppSnapshot
+}
+
+const surfaceTitles: Record<PlaceholderSurface, string> = {
+  tasks: "Tasks",
+  settings: "Settings",
+}
+
+function SurfacePlaceholder({
+  surface,
+  snapshot,
+}: SurfacePlaceholderProps) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-zinc-100">
+    <main
+      className="min-h-screen bg-zinc-950 px-6 py-12 text-zinc-100 sm:px-10"
+      data-surface={surface}
+    >
+      <section className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-3xl flex-col justify-center">
+        <p className="mb-4 text-sm font-medium uppercase tracking-[0.24em] text-zinc-500">
+          DailyNotch Linux
+        </p>
+        <h1 className="text-5xl font-semibold tracking-tight text-white">
+          {surfaceTitles[surface]}
+        </h1>
+        <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">
+          Esta superfície está conectada ao snapshot compartilhado do desktop.
+        </p>
+
+        <SnapshotSummary snapshot={snapshot} />
+      </section>
+    </main>
+  )
+}
+
+type LoadingShellProps = {
+  surface: SurfaceLabel
+}
+
+function LoadingShell({ surface }: LoadingShellProps) {
+  return (
+    <main
+      className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-zinc-100"
+      data-surface={surface}
+    >
       <p className="text-sm text-zinc-400" role="status">
         Carregando o DailyNotch…
       </p>
@@ -88,11 +146,15 @@ function LoadingShell() {
 type ErrorShellProps = {
   error: DesktopApiError
   onRetry: () => void
+  surface: SurfaceLabel
 }
 
-function ErrorShell({ error, onRetry }: ErrorShellProps) {
+function ErrorShell({ error, onRetry, surface }: ErrorShellProps) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-zinc-100">
+    <main
+      className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-zinc-100"
+      data-surface={surface}
+    >
       <section className="max-w-lg rounded-3xl border border-red-400/20 bg-red-400/[0.06] p-8">
         <p className="text-sm font-medium uppercase tracking-[0.2em] text-red-300">
           DailyNotch Linux
@@ -116,7 +178,15 @@ function ErrorShell({ error, onRetry }: ErrorShellProps) {
   )
 }
 
-export function App({ api = desktopApi }: AppProps) {
+function renderSurface(surface: SurfaceLabel, snapshot: AppSnapshot) {
+  if (surface === "overlay") {
+    return <AppShell snapshot={snapshot} />
+  }
+
+  return <SurfacePlaceholder snapshot={snapshot} surface={surface} />
+}
+
+export function App({ api = desktopApi, surface = "overlay" }: AppProps) {
   const [reloadKey, setReloadKey] = useState(0)
   const [shellState, setShellState] = useState<ShellState>({
     status: "loading",
@@ -148,7 +218,7 @@ export function App({ api = desktopApi }: AppProps) {
   }, [api, reloadKey])
 
   if (shellState.status === "loading") {
-    return <LoadingShell />
+    return <LoadingShell surface={surface} />
   }
 
   if (shellState.status === "error") {
@@ -156,9 +226,10 @@ export function App({ api = desktopApi }: AppProps) {
       <ErrorShell
         error={shellState.error}
         onRetry={() => setReloadKey((currentKey) => currentKey + 1)}
+        surface={surface}
       />
     )
   }
 
-  return <AppShell snapshot={shellState.snapshot} />
+  return renderSurface(surface, shellState.snapshot)
 }

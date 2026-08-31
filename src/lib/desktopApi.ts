@@ -56,6 +56,7 @@ export type {
   UpdateTaskInput,
   WindowPlacementSnapshot,
 } from "./desktop/contracts"
+export { isSurfaceLabel, SURFACE_LABELS } from "./desktop/contracts"
 export {
   DesktopApiError,
   desktopOperationErrorCodes,
