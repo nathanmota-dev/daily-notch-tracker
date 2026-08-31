@@ -212,11 +212,43 @@ jobs:
               echo "The performance report was not generated. Inspect the failed steps above."
             fi
           } > "$composed"
-          mv "$composed" "$report"
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const checks = [
+            ["Tauri system dependencies", process.env.INSTALL_TAURI_DEPENDENCIES, process.env.TAURI_CHANGED === "true", true, "when-selected"],
+            ["Tauri microbenchmarks", process.env.BENCHMARK_TAURI, process.env.TAURI_CHANGED === "true", true, "when-selected"],
+            ["npm ci", process.env.INSTALL_FRONTEND, process.env.FRONTEND_CHANGED === "true", true, "when-selected"],
+            ["Frontend microbenchmarks", process.env.BENCHMARK_FRONTEND, process.env.FRONTEND_CHANGED === "true", true, "when-selected"],
+            ["Benchmark-gate tests", process.env.BENCHMARK_GATE_TESTS, true, true, "always"],
+            ["Baseline comparison/bootstrap", process.env.BENCHMARK_GATE, true, true, "always"],
+          ].map(([name, outcome, selected, blocking, blockingRule]) => ({
+            name,
+            outcome: outcome || "unknown",
+            selected,
+            blocking,
+            blockingRule,
+            result: !selected
+              ? "SKIPPED"
+              : outcome === "success"
+                ? "PASS"
+                : "FAIL",
+          }));
+
+          const overall = checks.some((check) => check.selected && check.blocking && check.result === "FAIL")
+            ? "FAIL"
+            : "PASS";
+          fs.writeFileSync(
+            "reports/performance-workflow.json",
+            `${JSON.stringify({ schemaVersion: 1, workflow: "Performance", overall, checks }, null, 2)}\n`,
+            "utf8",
+          );
+          NODE
 
       - name: Publish job summary
         if: always()
-        run: cat reports/performance.md >> "$GITHUB_STEP_SUMMARY"
+        run: cat reports/pr-performance.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload performance artifacts
         if: always()
@@ -228,7 +260,9 @@ jobs:
           path: |
             reports/benchmarks/
             reports/performance.md
+            reports/pr-performance.md
             reports/performance.json
+            reports/performance-workflow.json
             reports/benchmark-candidate-baseline.json
             scripts/benchmark-current.json
 
