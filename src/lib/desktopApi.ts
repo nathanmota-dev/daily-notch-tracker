@@ -68,12 +68,21 @@ export {
 } from "./desktop/errors"
 export {
   COLLAPSED_WIDGET_FIXTURE_NAMES,
+  EXPANDED_DASHBOARD_FIXTURE_NAMES,
+  WIDGET_FIXTURE_NAMES,
   createBrowserDiagnostics,
   createCollapsedWidgetFixtureSnapshot,
+  createExpandedDashboardFixtureSnapshot,
   createEmptyAppSnapshot,
+  createWidgetFixtureSnapshot,
   isCollapsedWidgetFixture,
+  isExpandedDashboardFixture,
+  isWidgetFixture,
   resolveCollapsedWidgetFixture,
+  resolveWidgetFixture,
   type CollapsedWidgetFixture,
+  type ExpandedDashboardFixture,
+  type WidgetFixture,
 } from "./desktop/fixtures"
 export {
   createMockDesktopApi,

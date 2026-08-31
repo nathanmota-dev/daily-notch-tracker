@@ -8,6 +8,8 @@ import {
   FiChevronsDown,
   FiChevronsUp,
   FiClock,
+  FiList,
+  FiMaximize2,
   FiMinus,
   FiMove,
   FiPause,
@@ -36,6 +38,8 @@ export const icons = {
   chevronRight: FiChevronRight,
   chevronsUp: FiChevronsUp,
   chevronsDown: FiChevronsDown,
+  list: FiList,
+  expand: FiMaximize2,
 } satisfies Record<string, AppIcon>
 
 export const {
@@ -54,4 +58,6 @@ export const {
   chevronRight: ChevronRightIcon,
   chevronsUp: ChevronsUpIcon,
   chevronsDown: ChevronsDownIcon,
+  list: ListIcon,
+  expand: ExpandIcon,
 } = icons

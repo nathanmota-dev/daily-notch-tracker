@@ -87,17 +87,27 @@ O bundle compartilhado seleciona a superfície pelo label da janela Tauri:
 testada com `?surface=overlay`, `?surface=tasks` ou `?surface=settings`; sem o
 parâmetro, o shell usa `overlay`.
 
-Durante o desenvolvimento, o widget recolhido pode ser renderizado com uma
-fixture pelo parâmetro `?fixture=`. As opções são `running`, `paused`,
-`no-task`, `long-title`, `minimal`, `timeline-off` e `rgb`; por exemplo:
+Durante o desenvolvimento, o widget pode ser renderizado com uma fixture pelo
+parâmetro `?fixture=`. As opções recolhidas são `running`, `paused`, `no-task`,
+`long-title`, `minimal`, `timeline-off` e `rgb`. O dashboard expandido usa
+`expanded`, `expanded-empty`, `expanded-one`, `expanded-overflow`,
+`expanded-completed` e `expanded-long-title`; por exemplo:
 
 ```text
 http://localhost:5173/?surface=overlay&fixture=running
+http://localhost:5173/?surface=overlay&fixture=expanded
+http://localhost:5173/?surface=overlay&fixture=expanded-overflow
 ```
 
 Para visualizar a mesma fixture no webview Tauri antes da implementação do
 domínio Rust, use `VITE_WIDGET_FIXTURE=running npm run tauri:dev`. Esse
 override é habilitado apenas no modo de desenvolvimento.
+
+O MVP-006 reproduz apenas a apresentação estática do dashboard com snapshots
+mockados. Hover real, resize da janela Tauri e drag-and-drop funcional ficam
+para etapas posteriores. A janela completa `Tasks` também permanece como
+placeholder até uma issue futura; o botão `Open Tasks` desta fixture apenas
+expõe o callback de apresentação.
 
 ## Verificações
 

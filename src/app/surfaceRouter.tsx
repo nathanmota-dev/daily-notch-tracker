@@ -5,17 +5,30 @@ import {
   type DesktopApi,
   type SurfaceLabel,
 } from "../lib/desktopApi"
-import { App } from "./App"
+import type { ExpandedDashboardCallbacks } from "../components/ExpandedDashboard"
+import { App, type PresentationMode } from "./App"
 import { getRuntimeSurfaceLabel } from "./surfaceResolver"
 
 type SurfaceComponentProps = {
   api: DesktopApi
-}
+  presentationMode: PresentationMode
+} & Partial<ExpandedDashboardCallbacks>
 
 type SurfaceComponent = ComponentType<SurfaceComponentProps>
 
-function OverlaySurface({ api }: SurfaceComponentProps) {
-  return <App api={api} surface="overlay" />
+function OverlaySurface({
+  api,
+  presentationMode,
+  ...callbacks
+}: SurfaceComponentProps) {
+  return (
+    <App
+      api={api}
+      presentationMode={presentationMode}
+      surface="overlay"
+      {...callbacks}
+    />
+  )
 }
 
 function TasksSurface({ api }: SurfaceComponentProps) {
@@ -35,14 +48,23 @@ const surfaceComponents: Record<SurfaceLabel, SurfaceComponent> = {
 export type SurfaceRouterProps = {
   api?: DesktopApi
   surface?: SurfaceLabel
-}
+  presentationMode?: PresentationMode
+} & Partial<ExpandedDashboardCallbacks>
 
 export function SurfaceRouter({
   api = desktopApi,
+  presentationMode = "collapsed",
   surface,
+  ...callbacks
 }: SurfaceRouterProps) {
   const resolvedSurface = surface ?? getRuntimeSurfaceLabel()
   const Surface = surfaceComponents[resolvedSurface]
 
-  return <Surface api={api} />
+  return (
+    <Surface
+      api={api}
+      presentationMode={presentationMode}
+      {...callbacks}
+    />
+  )
 }

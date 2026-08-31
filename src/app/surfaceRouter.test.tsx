@@ -90,6 +90,24 @@ describe("SurfaceRouter", () => {
     expect(screen.getByRole("main")).toHaveAttribute("data-surface", "tasks")
   })
 
+  it("forwards the expanded presentation mode to the overlay", async () => {
+    render(
+      <SurfaceRouter
+        api={createMockDesktopApi().api}
+        presentationMode="expanded"
+        surface="overlay"
+      />,
+    )
+
+    expect(
+      await screen.findByRole("region", { name: "Expanded dashboard" }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("main")).toHaveAttribute(
+      "data-presentation-mode",
+      "expanded",
+    )
+  })
+
   it("preserves the selected surface when snapshot loading fails", async () => {
     const api = createMockDesktopApi({
       failures: { getSnapshot: "command-unavailable" },
