@@ -3,26 +3,31 @@ import { createRoot } from "react-dom/client"
 
 import { SurfaceRouter } from "./app/surfaceRouter"
 import {
-  createCollapsedWidgetFixtureSnapshot,
+  createWidgetFixtureSnapshot,
   createMockDesktopApi,
-  resolveCollapsedWidgetFixture,
+  isExpandedDashboardFixture,
+  resolveWidgetFixture,
 } from "./lib/desktopApi"
 import "./styles/index.css"
 
 const developmentFixture = import.meta.env.DEV
-  ? resolveCollapsedWidgetFixture(
+  ? resolveWidgetFixture(
       window.location.search,
       import.meta.env.VITE_WIDGET_FIXTURE,
     )
   : null
 const fixtureApi = developmentFixture
   ? createMockDesktopApi({
-      snapshot: createCollapsedWidgetFixtureSnapshot(developmentFixture),
+      snapshot: createWidgetFixtureSnapshot(developmentFixture),
     }).api
   : undefined
+const presentationMode =
+  developmentFixture && isExpandedDashboardFixture(developmentFixture)
+    ? "expanded"
+    : "collapsed"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <SurfaceRouter api={fixtureApi} />
+    <SurfaceRouter api={fixtureApi} presentationMode={presentationMode} />
   </StrictMode>,
 )

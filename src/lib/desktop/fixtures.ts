@@ -5,6 +5,20 @@ import type {
   FocusState,
   Task,
 } from "./contracts"
+import { createEmptyAppSnapshot } from "./baseSnapshot"
+import {
+  createExpandedDashboardFixtureSnapshot,
+  EXPANDED_DASHBOARD_FIXTURE_NAMES,
+  isExpandedDashboardFixture,
+} from "./expandedFixtures"
+
+export {
+  createExpandedDashboardFixtureSnapshot,
+  EXPANDED_DASHBOARD_FIXTURE_NAMES,
+  isExpandedDashboardFixture,
+  type ExpandedDashboardFixture,
+} from "./expandedFixtures"
+export { createEmptyAppSnapshot } from "./baseSnapshot"
 
 export const COLLAPSED_WIDGET_FIXTURE_NAMES = [
   "running",
@@ -19,6 +33,13 @@ export const COLLAPSED_WIDGET_FIXTURE_NAMES = [
 export type CollapsedWidgetFixture =
   (typeof COLLAPSED_WIDGET_FIXTURE_NAMES)[number]
 
+export const WIDGET_FIXTURE_NAMES = [
+  ...COLLAPSED_WIDGET_FIXTURE_NAMES,
+  ...EXPANDED_DASHBOARD_FIXTURE_NAMES,
+] as const
+
+export type WidgetFixture = (typeof WIDGET_FIXTURE_NAMES)[number]
+
 export function isCollapsedWidgetFixture(
   value: unknown,
 ): value is CollapsedWidgetFixture {
@@ -26,6 +47,10 @@ export function isCollapsedWidgetFixture(
     typeof value === "string" &&
     (COLLAPSED_WIDGET_FIXTURE_NAMES as readonly string[]).includes(value)
   )
+}
+
+export function isWidgetFixture(value: unknown): value is WidgetFixture {
+  return isCollapsedWidgetFixture(value) || isExpandedDashboardFixture(value)
 }
 
 export function resolveCollapsedWidgetFixture(
@@ -38,35 +63,18 @@ export function resolveCollapsedWidgetFixture(
   return isCollapsedWidgetFixture(candidate) ? candidate : null
 }
 
-export function cloneDesktopValue<Value>(value: Value): Value {
-  return structuredClone(value)
+export function resolveWidgetFixture(
+  search = "",
+  environmentFixture?: string,
+): WidgetFixture | null {
+  const queryFixture = new URLSearchParams(search).get("fixture")
+  const candidate = queryFixture ?? environmentFixture
+
+  return isWidgetFixture(candidate) ? candidate : null
 }
 
-export function createEmptyAppSnapshot(): AppSnapshot {
-  return {
-    revision: 0,
-    tasks: [],
-    sessions: [],
-    settings: {
-      focusMinutes: 25,
-      notificationsEnabled: true,
-      playSound: true,
-      showTimeline: true,
-      rainbowTimeline: false,
-      minimalMode: false,
-      launchAtLogin: false,
-    },
-    focus: {
-      state: "idle",
-      activeTaskId: null,
-      activeTaskTitle: null,
-      startedAt: null,
-      endAt: null,
-      pausedRemainingMs: null,
-      totalMs: 0,
-    },
-    shortcutStatus: "unavailable",
-  }
+export function cloneDesktopValue<Value>(value: Value): Value {
+  return structuredClone(value)
 }
 
 const FIXTURE_TOTAL_MS = 25 * 60 * 1000
@@ -115,10 +123,7 @@ function createFixtureFocus(
     activeTaskId: activeTaskTitle ? FIXTURE_TASK_ID : null,
     activeTaskTitle,
     startedAt: fixtureTimestamp(now - elapsedMs),
-    endAt:
-      state === "running"
-        ? fixtureTimestamp(now + remainingMs)
-        : null,
+    endAt: state === "running" ? fixtureTimestamp(now + remainingMs) : null,
     pausedRemainingMs: state === "paused" ? remainingMs : null,
     totalMs: FIXTURE_TOTAL_MS,
   }
@@ -147,9 +152,7 @@ export function createCollapsedWidgetFixtureSnapshot(
   const activeTaskTitle = taskTitleByFixture[fixture] ?? null
   const state: FocusState = fixture === "paused" ? "paused" : "running"
   const remainingMs =
-    fixture === "paused"
-      ? PAUSED_FIXTURE_REMAINING_MS
-      : FIXTURE_REMAINING_MS
+    fixture === "paused" ? PAUSED_FIXTURE_REMAINING_MS : FIXTURE_REMAINING_MS
 
   snapshot.revision = 1
   snapshot.focus = createFixtureFocus(
@@ -178,6 +181,15 @@ export function createCollapsedWidgetFixtureSnapshot(
   }
 
   return snapshot
+}
+
+export function createWidgetFixtureSnapshot(
+  fixture: WidgetFixture,
+  now = Date.now(),
+): AppSnapshot {
+  return isExpandedDashboardFixture(fixture)
+    ? createExpandedDashboardFixtureSnapshot(fixture, now)
+    : createCollapsedWidgetFixtureSnapshot(fixture, now)
 }
 
 export function createBrowserDiagnostics(): AppDiagnostics {

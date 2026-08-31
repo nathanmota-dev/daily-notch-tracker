@@ -1,8 +1,15 @@
 import { useEffect, useRef, useState } from "react"
 
 import { CollapsedFocusWidget } from "../components/CollapsedFocusWidget"
-import { Panel } from "../components/Panel"
-import { Button } from "../components/ui/button"
+import {
+  ExpandedDashboard,
+  type ExpandedDashboardCallbacks,
+} from "../components/ExpandedDashboard"
+import {
+  ErrorShell,
+  LoadingShell,
+  SurfacePlaceholder,
+} from "./AppStates"
 
 import {
   desktopApi,
@@ -13,10 +20,15 @@ import {
   type SurfaceLabel,
 } from "../lib/desktopApi"
 
+export type PresentationMode = "collapsed" | "expanded"
+
+type PresentationCallbacks = Partial<ExpandedDashboardCallbacks>
+
 type AppProps = {
   api?: DesktopApi
   surface?: SurfaceLabel
-}
+  presentationMode?: PresentationMode
+} & PresentationCallbacks
 
 type ShellState =
   | { status: "loading" }
@@ -25,151 +37,52 @@ type ShellState =
 
 type AppShellProps = {
   snapshot: AppSnapshot
-}
+  presentationMode?: PresentationMode
+} & PresentationCallbacks
 
-function countLabel(count: number, singular: string, plural: string) {
-  return `${count} ${count === 1 ? singular : plural}`
-}
-
-function SnapshotSummary({ snapshot }: AppShellProps) {
-  return (
-    <>
-      <dl className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
-        <Panel className="gap-2 px-5 py-5">
-          <dt className="text-caption font-medium text-muted">Tarefas</dt>
-          <dd className="mt-2 text-title font-semibold text-content">
-            {countLabel(snapshot.tasks.length, "tarefa", "tarefas")}
-          </dd>
-        </Panel>
-        <Panel className="gap-2 px-5 py-5">
-          <dt className="text-caption font-medium text-muted">Sessões</dt>
-          <dd className="mt-2 text-title font-semibold text-content">
-            {countLabel(snapshot.sessions.length, "sessão", "sessões")}
-          </dd>
-        </Panel>
-        <Panel className="gap-2 px-5 py-5">
-          <dt className="text-caption font-medium text-muted">Foco</dt>
-          <dd className="mt-2 text-title font-semibold capitalize text-content">
-            {snapshot.focus.state}
-          </dd>
-        </Panel>
-      </dl>
-
-      {snapshot.tasks.length === 0 && (
-        <p className="mt-6 text-body text-muted">Nenhuma tarefa ainda.</p>
-      )}
-    </>
-  )
-}
-
-export function AppShell({ snapshot }: AppShellProps) {
-  return (
-    <main className="collapsed-focus-surface" data-surface="overlay">
-      <CollapsedFocusWidget
-        focus={snapshot.focus}
-        settings={snapshot.settings}
-      />
-    </main>
-  )
-}
-
-type PlaceholderSurface = Exclude<SurfaceLabel, "overlay">
-
-type SurfacePlaceholderProps = {
-  surface: PlaceholderSurface
-  snapshot: AppSnapshot
-}
-
-const surfaceTitles: Record<PlaceholderSurface, string> = {
-  tasks: "Tasks",
-  settings: "Settings",
-}
-
-function SurfacePlaceholder({
-  surface,
+export function AppShell({
+  presentationMode = "collapsed",
   snapshot,
-}: SurfacePlaceholderProps) {
+  ...callbacks
+}: AppShellProps) {
+  const isExpanded = presentationMode === "expanded"
+
   return (
     <main
-      className="min-h-screen bg-canvas px-6 py-12 text-content sm:px-10"
-      data-surface={surface}
+      className={
+        isExpanded
+          ? "expanded-dashboard-surface"
+          : "collapsed-focus-surface"
+      }
+      data-presentation-mode={presentationMode}
+      data-surface="overlay"
     >
-      <section className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-3xl flex-col justify-center">
-        <p className="mb-4 text-caption font-medium uppercase tracking-[0.24em] text-muted">
-          DailyNotch Linux
-        </p>
-        <h1 className="text-display font-semibold text-content sm:text-display-lg">
-          {surfaceTitles[surface]}
-        </h1>
-        <p className="mt-6 max-w-2xl text-body text-muted">
-          Esta superfície está conectada ao snapshot compartilhado do desktop.
-        </p>
-
-        <SnapshotSummary snapshot={snapshot} />
-      </section>
+      {isExpanded ? (
+        <ExpandedDashboard snapshot={snapshot} {...callbacks} />
+      ) : (
+        <CollapsedFocusWidget
+          focus={snapshot.focus}
+          settings={snapshot.settings}
+        />
+      )}
     </main>
   )
 }
 
-type LoadingShellProps = {
-  surface: SurfaceLabel
-}
-
-function LoadingShell({ surface }: LoadingShellProps) {
-  const backgroundClass = surface === "overlay" ? "bg-transparent" : "bg-canvas"
-
-  return (
-    <main
-      className={`flex min-h-screen items-center justify-center px-6 text-content ${backgroundClass}`}
-      data-surface={surface}
-    >
-      <p className="text-body text-muted" role="status">
-        Carregando o DailyNotch…
-      </p>
-    </main>
-  )
-}
-
-type ErrorShellProps = {
-  error: DesktopApiError
-  onRetry: () => void
-  surface: SurfaceLabel
-}
-
-function ErrorShell({ error, onRetry, surface }: ErrorShellProps) {
-  const backgroundClass = surface === "overlay" ? "bg-transparent" : "bg-canvas"
-
-  return (
-    <main
-      className={`flex min-h-screen items-center justify-center px-6 text-content ${backgroundClass}`}
-      data-surface={surface}
-    >
-      <Panel className="max-w-lg p-8" variant="danger">
-        <p className="text-caption font-medium uppercase tracking-[0.2em] text-danger">
-          DailyNotch Linux
-        </p>
-        <h1 className="mt-4 text-title font-semibold text-content">
-          Não foi possível carregar o estado.
-        </h1>
-        <p className="mt-4 text-body text-muted" role="alert">
-          A integração desktop está temporariamente indisponível. Código:{" "}
-          <code className="font-mono text-danger">{error.code}</code>.
-        </p>
-        <Button
-          className="mt-6"
-          onClick={onRetry}
-          type="button"
-        >
-          Tentar novamente
-        </Button>
-      </Panel>
-    </main>
-  )
-}
-
-function renderSurface(surface: SurfaceLabel, snapshot: AppSnapshot) {
+function renderSurface(
+  surface: SurfaceLabel,
+  snapshot: AppSnapshot,
+  presentationMode: PresentationMode,
+  callbacks: PresentationCallbacks,
+) {
   if (surface === "overlay") {
-    return <AppShell snapshot={snapshot} />
+    return (
+      <AppShell
+        presentationMode={presentationMode}
+        snapshot={snapshot}
+        {...callbacks}
+      />
+    )
   }
 
   return <SurfacePlaceholder snapshot={snapshot} surface={surface} />
@@ -187,7 +100,12 @@ function acceptSnapshot(
   return true
 }
 
-export function App({ api = desktopApi, surface = "overlay" }: AppProps) {
+export function App({
+  api = desktopApi,
+  presentationMode = "collapsed",
+  surface = "overlay",
+  ...callbacks
+}: AppProps) {
   const [reloadKey, setReloadKey] = useState(0)
   const latestRevision = useRef(-1)
   const [shellState, setShellState] = useState<ShellState>({
@@ -259,5 +177,10 @@ export function App({ api = desktopApi, surface = "overlay" }: AppProps) {
     )
   }
 
-  return renderSurface(surface, shellState.snapshot)
+  return renderSurface(
+    surface,
+    shellState.snapshot,
+    presentationMode,
+    callbacks,
+  )
 }
