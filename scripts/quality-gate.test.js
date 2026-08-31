@@ -188,7 +188,23 @@ test("renderMarkdown includes metrics and escapes the baseline label", () => {
     assert.match(markdown, /main\\\|trusted\\`baseline/);
 });
 
+test("renderMarkdown describes bootstrap without claiming a comparison", () => {
+    const trusted = baseline();
+    const comparison = compareMetrics(trusted, metrics());
+    comparison.bootstrap = true;
+    const markdown = renderMarkdown({
+        baseline: trusted,
+        metrics: metrics(),
+        comparison,
+        baselineLabel: "bootstrap",
+    });
+
+    assert.match(markdown, /Baseline captured for this quality suite/);
+    assert.doesNotMatch(markdown, /No quality regression detected/);
+});
+
 test("markdownEscape and parseArguments reject injection and invalid options", () => {
+    assert.equal(parseArguments(["--bootstrap"]).bootstrap, true);
     assert.equal(
         markdownEscape("one|two\n`three` <tag> @team"),
         "one\\|two \\`three\\` &lt;tag&gt; &#64;team",

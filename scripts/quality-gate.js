@@ -619,9 +619,11 @@ function renderMarkdown({ baseline, metrics, comparison, baselineLabel = "script
     const lines = [
         "# Quality Gate",
         "",
-        comparison.passed
-            ? "✅ **PASS** — No quality regression detected."
-            : `❌ **FAIL** — ${comparison.failures.length} regression(s) detected.`,
+        comparison.bootstrap
+            ? "✅ **PASS** — Baseline captured for this quality suite. Blocking comparisons start after this reference is merged to the base branch."
+            : comparison.passed
+                ? "✅ **PASS** — No quality regression detected."
+                : `❌ **FAIL** — ${comparison.failures.length} regression(s) detected.`,
         "",
         `Baseline: \`${markdownEscape(baselineLabel)}\` (commit \`${markdownEscape(baseline.generatedFromCommit)}\`)`,
         "",
@@ -672,6 +674,7 @@ function currentCommit() {
 
 function parseArguments(args) {
     const options = {
+        bootstrap: false,
         updateBaseline: false,
         collectToolReports: true,
         baselinePath: process.env.QUALITY_GATE_BASELINE_PATH || DEFAULT_BASELINE_PATH,
@@ -680,7 +683,9 @@ function parseArguments(args) {
     for (let index = 0; index < args.length; index += 1) {
         const argument = args[index];
 
-        if (argument === "--update-baseline") {
+        if (argument === "--bootstrap") {
+            options.bootstrap = true;
+        } else if (argument === "--update-baseline") {
             options.updateBaseline = true;
         } else if (argument === "--no-collect") {
             options.collectToolReports = false;
@@ -724,13 +729,41 @@ function runCli(args = process.argv.slice(2)) {
             throw new QualityGateInputError("Baseline updates are disabled in CI.");
         }
 
-        const existingBaseline = fs.existsSync(options.baselinePath)
+        if (options.bootstrap && options.updateBaseline) {
+            throw new QualityGateInputError("Bootstrap mode cannot be combined with --update-baseline.");
+        }
+
+        const existingBaseline = !options.bootstrap && fs.existsSync(options.baselinePath)
             ? validateBaseline(readJson(options.baselinePath, "quality baseline"))
             : null;
         const policy = existingBaseline?.policy ?? DEFAULT_POLICY;
         const metrics = collectMetrics({ policy, collectToolReports: options.collectToolReports });
         const candidate = buildBaseline(metrics, policy, currentCommit());
         writeJson(CANDIDATE_BASELINE_PATH, candidate);
+
+        if (options.bootstrap) {
+            const comparison = compareMetrics(candidate, metrics);
+            comparison.bootstrap = true;
+            const markdown = renderMarkdown({
+                baseline: candidate,
+                metrics,
+                comparison,
+                baselineLabel: "bootstrap",
+            });
+            fs.writeFileSync(MARKDOWN_PATH, markdown, "utf8");
+            writeJson(JSON_PATH, {
+                schemaVersion: 1,
+                status: "bootstrap",
+                baseline: {
+                    label: "bootstrap",
+                    generatedFromCommit: candidate.generatedFromCommit,
+                },
+                metrics,
+                comparison,
+            });
+            process.stdout.write(markdown);
+            return 0;
+        }
 
         if (options.updateBaseline) {
             writeJson(options.baselinePath, candidate);

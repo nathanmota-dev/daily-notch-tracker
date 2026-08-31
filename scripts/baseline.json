@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "generatedFromCommit": "ef97f4a8a9a5",
+  "generatedFromCommit": "395d2c178f82",
   "policy": {
     "maxFileLines": 300,
     "sourceRoot": "src",
@@ -38,25 +38,25 @@
   },
   "coverage": {
     "lines": {
-      "covered": 4,
-      "total": 9
+      "covered": 111,
+      "total": 149
     },
     "statements": {
-      "covered": 4,
-      "total": 9
+      "covered": 115,
+      "total": 153
     },
     "functions": {
-      "covered": 2,
-      "total": 3
+      "covered": 56,
+      "total": 86
     },
     "branches": {
-      "covered": 2,
-      "total": 4
+      "covered": 56,
+      "total": 85
     }
   },
   "duplication": {
     "duplicatedLines": 0,
-    "totalLines": 103,
+    "totalLines": 862,
     "fragments": 0
   },
   "violations": {
@@ -64,7 +64,14 @@
     "oversizedFiles": 0
   },
   "fileLines": {
-    "src/app/App.tsx": 77,
+    "src/app/App.tsx": 164,
+    "src/lib/desktop/api.ts": 40,
+    "src/lib/desktop/contracts.ts": 194,
+    "src/lib/desktop/errors.ts": 195,
+    "src/lib/desktop/fixtures.ts": 48,
+    "src/lib/desktop/mock.ts": 255,
+    "src/lib/desktop/tauri.ts": 94,
+    "src/lib/desktopApi.ts": 80,
     "src/main.tsx": 11,
     "src/vite-env.d.ts": 2
   }

@@ -33,7 +33,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --locked
 
 Coverage percentages cannot decrease. Duplication percentage, duplicate fragments, ESLint violations, and oversized-file debt cannot increase. Files over 300 physical lines are grandfathered only at their recorded size; new oversized files, files crossing the limit, and growth in an existing oversized file are blocking.
 
-The workflow reads the baseline from the pull request's base SHA. A branch therefore cannot weaken its own comparison. The first pull request uses its checked-in bootstrap baseline because `main` does not contain one yet.
+The workflow reads the baseline from the pull request's base SHA. A branch therefore cannot weaken its own comparison. When `main` does not contain a baseline yet, the first pull request runs in bootstrap mode: it validates and records the current metrics without comparing them with an older branch snapshot. Later pull requests use the baseline stored in their base SHA.
 
 ## Microbenchmarks
 

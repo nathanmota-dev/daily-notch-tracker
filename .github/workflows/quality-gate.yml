@@ -52,10 +52,12 @@ jobs:
             git show "${BASE_SHA}:scripts/baseline.json" > "$baseline_path"
             echo "QUALITY_GATE_BASELINE_PATH=$baseline_path" >> "$GITHUB_ENV"
             echo "QUALITY_GATE_BASELINE_LABEL=main@${BASE_SHA:0:12}:scripts/baseline.json" >> "$GITHUB_ENV"
+            echo "QUALITY_GATE_BASELINE_TRUSTED=true" >> "$GITHUB_ENV"
           else
             echo "QUALITY_GATE_BASELINE_PATH=$GITHUB_WORKSPACE/scripts/baseline.json" >> "$GITHUB_ENV"
             echo "QUALITY_GATE_BASELINE_LABEL=bootstrap:scripts/baseline.json" >> "$GITHUB_ENV"
-            echo "::notice::The base branch has no quality baseline; using the checked-in bootstrap baseline."
+            echo "QUALITY_GATE_BASELINE_TRUSTED=false" >> "$GITHUB_ENV"
+            echo "::notice::The base branch has no quality baseline; capturing a non-blocking bootstrap reference."
           fi
 
       - name: Install Node dependencies
@@ -149,7 +151,12 @@ jobs:
           && steps.install_node.outcome == 'success'
           && steps.frontend_coverage.outcome == 'success'
         continue-on-error: true
-        run: node scripts/quality-gate.js
+        run: |
+          args=()
+          if [[ "$QUALITY_GATE_BASELINE_TRUSTED" != "true" ]]; then
+            args+=(--bootstrap)
+          fi
+          node scripts/quality-gate.js "${args[@]}"
 
       - name: Compose PR quality report
         if: always()
@@ -209,7 +216,7 @@ jobs:
             echo "| Rust Clippy | \`$RUST_CLIPPY\` | Yes |"
             echo "| Rust tests | \`$RUST_TESTS\` | Yes |"
             echo "| Quality-gate tests | \`$QUALITY_GATE_TESTS\` | Yes |"
-            echo "| Quality metric comparison | \`$QUALITY_GATE\` | Yes |"
+            echo "| Quality metric comparison/bootstrap | \`$QUALITY_GATE\` | Yes |"
             echo
             echo "---"
             echo
