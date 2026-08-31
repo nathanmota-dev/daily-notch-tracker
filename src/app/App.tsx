@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react"
 
+import { Panel } from "../components/Panel"
+import { Button } from "../components/ui/button"
+
 import {
   desktopApi,
   normalizeDesktopApiError,
@@ -31,28 +34,28 @@ function SnapshotSummary({ snapshot }: AppShellProps) {
   return (
     <>
       <dl className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-          <dt className="text-sm text-zinc-500">Tarefas</dt>
-          <dd className="mt-2 text-xl font-medium text-white">
+        <Panel className="gap-2 px-5 py-5">
+          <dt className="text-caption font-medium text-muted">Tarefas</dt>
+          <dd className="mt-2 text-title font-semibold text-content">
             {countLabel(snapshot.tasks.length, "tarefa", "tarefas")}
           </dd>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-          <dt className="text-sm text-zinc-500">Sessões</dt>
-          <dd className="mt-2 text-xl font-medium text-white">
+        </Panel>
+        <Panel className="gap-2 px-5 py-5">
+          <dt className="text-caption font-medium text-muted">Sessões</dt>
+          <dd className="mt-2 text-title font-semibold text-content">
             {countLabel(snapshot.sessions.length, "sessão", "sessões")}
           </dd>
-        </div>
-        <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-          <dt className="text-sm text-zinc-500">Foco</dt>
-          <dd className="mt-2 text-xl font-medium capitalize text-white">
+        </Panel>
+        <Panel className="gap-2 px-5 py-5">
+          <dt className="text-caption font-medium text-muted">Foco</dt>
+          <dd className="mt-2 text-title font-semibold capitalize text-content">
             {snapshot.focus.state}
           </dd>
-        </div>
+        </Panel>
       </dl>
 
       {snapshot.tasks.length === 0 && (
-        <p className="mt-6 text-sm text-zinc-500">Nenhuma tarefa ainda.</p>
+        <p className="mt-6 text-body text-muted">Nenhuma tarefa ainda.</p>
       )}
     </>
   )
@@ -61,22 +64,22 @@ function SnapshotSummary({ snapshot }: AppShellProps) {
 export function AppShell({ snapshot }: AppShellProps) {
   return (
     <main
-      className="min-h-screen bg-zinc-950 px-6 py-12 text-zinc-100 sm:px-10"
+      className="min-h-screen px-6 py-12 text-content sm:px-10"
       data-surface="overlay"
     >
       <section className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-4xl flex-col justify-center">
-        <div className="mb-8 inline-flex w-fit items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-sm text-emerald-200">
-          <span className="size-2 rounded-full bg-emerald-400" aria-hidden="true" />
+        <div className="mb-8 inline-flex w-fit items-center gap-2 rounded-pill border border-accent/20 bg-accent/10 px-3 py-1 text-caption text-accent">
+          <span className="size-2 rounded-full bg-accent" aria-hidden="true" />
           Contrato desktop conectado
         </div>
 
-        <p className="mb-4 text-sm font-medium uppercase tracking-[0.24em] text-zinc-500">
+        <p className="mb-4 text-caption font-medium uppercase tracking-[0.24em] text-muted">
           DailyNotch Linux
         </p>
-        <h1 className="max-w-3xl text-5xl font-semibold tracking-tight text-white sm:text-7xl">
+        <h1 className="max-w-3xl text-display font-semibold text-content sm:text-display-lg">
           Seu espaço de foco está pronto.
         </h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">
+        <p className="mt-6 max-w-2xl text-body text-muted">
           O shell compartilha o mesmo snapshot entre o navegador e o app
           desktop. As superfícies de tarefas e foco serão adicionadas nas
           próximas etapas.
@@ -106,17 +109,17 @@ function SurfacePlaceholder({
 }: SurfacePlaceholderProps) {
   return (
     <main
-      className="min-h-screen bg-zinc-950 px-6 py-12 text-zinc-100 sm:px-10"
+      className="min-h-screen bg-canvas px-6 py-12 text-content sm:px-10"
       data-surface={surface}
     >
       <section className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-3xl flex-col justify-center">
-        <p className="mb-4 text-sm font-medium uppercase tracking-[0.24em] text-zinc-500">
+        <p className="mb-4 text-caption font-medium uppercase tracking-[0.24em] text-muted">
           DailyNotch Linux
         </p>
-        <h1 className="text-5xl font-semibold tracking-tight text-white">
+        <h1 className="text-display font-semibold text-content sm:text-display-lg">
           {surfaceTitles[surface]}
         </h1>
-        <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-400">
+        <p className="mt-6 max-w-2xl text-body text-muted">
           Esta superfície está conectada ao snapshot compartilhado do desktop.
         </p>
 
@@ -131,12 +134,14 @@ type LoadingShellProps = {
 }
 
 function LoadingShell({ surface }: LoadingShellProps) {
+  const backgroundClass = surface === "overlay" ? "bg-transparent" : "bg-canvas"
+
   return (
     <main
-      className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-zinc-100"
+      className={`flex min-h-screen items-center justify-center px-6 text-content ${backgroundClass}`}
       data-surface={surface}
     >
-      <p className="text-sm text-zinc-400" role="status">
+      <p className="text-body text-muted" role="status">
         Carregando o DailyNotch…
       </p>
     </main>
@@ -150,30 +155,32 @@ type ErrorShellProps = {
 }
 
 function ErrorShell({ error, onRetry, surface }: ErrorShellProps) {
+  const backgroundClass = surface === "overlay" ? "bg-transparent" : "bg-canvas"
+
   return (
     <main
-      className="flex min-h-screen items-center justify-center bg-zinc-950 px-6 text-zinc-100"
+      className={`flex min-h-screen items-center justify-center px-6 text-content ${backgroundClass}`}
       data-surface={surface}
     >
-      <section className="max-w-lg rounded-3xl border border-red-400/20 bg-red-400/[0.06] p-8">
-        <p className="text-sm font-medium uppercase tracking-[0.2em] text-red-300">
+      <Panel className="max-w-lg p-8" variant="danger">
+        <p className="text-caption font-medium uppercase tracking-[0.2em] text-danger">
           DailyNotch Linux
         </p>
-        <h1 className="mt-4 text-3xl font-semibold text-white">
+        <h1 className="mt-4 text-title font-semibold text-content">
           Não foi possível carregar o estado.
         </h1>
-        <p className="mt-4 text-zinc-400" role="alert">
+        <p className="mt-4 text-body text-muted" role="alert">
           A integração desktop está temporariamente indisponível. Código:{" "}
-          <code>{error.code}</code>.
+          <code className="font-mono text-danger">{error.code}</code>.
         </p>
-        <button
-          className="mt-6 rounded-xl bg-white px-4 py-2 font-medium text-zinc-950 transition hover:bg-zinc-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-zinc-950"
+        <Button
+          className="mt-6"
           onClick={onRetry}
           type="button"
         >
           Tentar novamente
-        </button>
-      </section>
+        </Button>
+      </Panel>
     </main>
   )
 }
