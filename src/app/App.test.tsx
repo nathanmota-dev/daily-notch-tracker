@@ -2,42 +2,13 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { vi } from "vitest"
 
 import {
+  createCollapsedWidgetFixtureSnapshot,
   createEmptyAppSnapshot,
   createMockDesktopApi,
   DesktopApiError,
   type AppSnapshot,
 } from "../lib/desktopApi"
 import { App, AppShell } from "./App"
-
-function createPopulatedSnapshot(): AppSnapshot {
-  return {
-    ...createEmptyAppSnapshot(),
-    revision: 4,
-    tasks: [
-      {
-        id: "task-1",
-        title: "Review the desktop contract",
-        notes: "",
-        scheduledDate: "2026-08-30",
-        estimateMinutes: 25,
-        isDone: false,
-        createdAt: "2026-08-30T12:00:00Z",
-        focusedSeconds: 0,
-        sortOrder: 0,
-      },
-    ],
-    sessions: [
-      {
-        id: "session-1",
-        taskId: "task-1",
-        startedAt: "2026-08-30T12:00:00Z",
-        endedAt: "2026-08-30T12:25:00Z",
-        focusedSeconds: 1500,
-        completed: true,
-      },
-    ],
-  }
-}
 
 describe("App", () => {
   it("renders loading before the desktop snapshot resolves", async () => {
@@ -60,28 +31,30 @@ describe("App", () => {
       resolveSnapshot?.(createEmptyAppSnapshot())
     })
 
-    expect(
-      await screen.findByRole("heading", {
-        name: "Seu espaço de foco está pronto.",
-      }),
-    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot="collapsed-focus-widget"]'),
+      ).toHaveAttribute("data-state", "idle"),
+    )
   })
 
-  it("renders the empty browser shell from a deterministic mock", async () => {
+  it("renders the empty browser overlay as an idle widget", async () => {
     const { api } = createMockDesktopApi()
 
     render(<App api={api} />)
 
-    expect(
-      await screen.findByText("Contrato desktop conectado"),
-    ).toBeInTheDocument()
-    expect(screen.getByRole("main")).toHaveAttribute(
-      "data-surface",
-      "overlay",
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot="collapsed-focus-widget"]'),
+      ).toBeInTheDocument(),
     )
-    expect(screen.getByText("0 tarefas")).toBeInTheDocument()
-    expect(screen.getByText("Nenhuma tarefa ainda.")).toBeInTheDocument()
-    expect(screen.getByRole("main")).not.toHaveClass("bg-canvas")
+
+    expect(screen.getByRole("main")).toHaveAttribute("data-surface", "overlay")
+    expect(screen.getByRole("main")).toHaveClass("collapsed-focus-surface")
+    expect(
+      document.querySelector('[data-slot="collapsed-focus-widget"]'),
+    ).toHaveAttribute("data-state", "idle")
+    expect(screen.queryByText("Contrato desktop conectado")).not.toBeInTheDocument()
   })
 
   it("uses an opaque canvas for normal window surfaces", async () => {
@@ -91,12 +64,18 @@ describe("App", () => {
     expect(screen.getByRole("main")).toHaveClass("bg-canvas")
   })
 
-  it("renders a supplied snapshot without coupling the shell to Tauri", () => {
-    render(<AppShell snapshot={createPopulatedSnapshot()} />)
+  it("renders a supplied focus snapshot without coupling the shell to Tauri", () => {
+    render(
+      <AppShell
+        snapshot={createCollapsedWidgetFixtureSnapshot(
+          "running",
+          Date.now(),
+        )}
+      />,
+    )
 
-    expect(screen.getByText("1 tarefa")).toBeInTheDocument()
-    expect(screen.getByText("1 sessão")).toBeInTheDocument()
-    expect(screen.queryByText("Nenhuma tarefa ainda.")).not.toBeInTheDocument()
+    expect(screen.getByRole("timer")).toHaveTextContent("14:32")
+    expect(screen.getByText("Plan the next focused block")).toBeInTheDocument()
   })
 
   it("shows a safe error and retries the snapshot request", async () => {
@@ -121,10 +100,40 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Tentar novamente" }))
 
     await waitFor(() => expect(getSnapshot).toHaveBeenCalledTimes(2))
-    expect(
-      await screen.findByRole("heading", {
-        name: "Seu espaço de foco está pronto.",
-      }),
-    ).toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot="collapsed-focus-widget"]'),
+      ).toHaveAttribute("data-state", "idle"),
+    )
+  })
+
+  it("returns to idle when Rust emits an idle snapshot under the pointer", async () => {
+    const runningSnapshot = createCollapsedWidgetFixtureSnapshot(
+      "running",
+      Date.now(),
+    )
+    const controller = createMockDesktopApi({
+      snapshot: runningSnapshot,
+    })
+
+    render(<App api={controller.api} />)
+
+    const widget = await screen.findByRole("group", {
+      name: "Foco em andamento",
+    })
+    fireEvent.pointerEnter(widget)
+
+    act(() => {
+      controller.emit("focus-changed", {
+        ...createEmptyAppSnapshot(),
+        revision: runningSnapshot.revision + 1,
+      })
+    })
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot="collapsed-focus-widget"]'),
+      ).toHaveAttribute("hidden"),
+    )
   })
 })

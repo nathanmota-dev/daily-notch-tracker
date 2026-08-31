@@ -67,8 +67,13 @@ export {
   type DesktopApiOperation,
 } from "./desktop/errors"
 export {
+  COLLAPSED_WIDGET_FIXTURE_NAMES,
   createBrowserDiagnostics,
+  createCollapsedWidgetFixtureSnapshot,
   createEmptyAppSnapshot,
+  isCollapsedWidgetFixture,
+  resolveCollapsedWidgetFixture,
+  type CollapsedWidgetFixture,
 } from "./desktop/fixtures"
 export {
   createMockDesktopApi,
