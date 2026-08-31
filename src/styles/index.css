@@ -18,6 +18,12 @@
   --panel-translucent: rgb(26 26 26 / 0.78);
   --progress-track: rgb(255 255 255 / 0.12);
   --progress-fill: var(--accent);
+  --progress-rgb-start: var(--accent);
+  --progress-rgb-middle: #a78bfa;
+  --progress-rgb-end: #f472b6;
+  --progress-rgb-shadow: 0 0 6px rgb(96 165 250 / 0.52);
+  --progress-tray-height: 72px;
+  --progress-tray-height-off: 52px;
 
   --panel-shadow: 0 18px 48px rgb(0 0 0 / 0.34);
   --accent-glow: 0 0 28px rgb(96 165 250 / 0.28);
@@ -119,6 +125,53 @@ input {
 
 .surface-backdrop {
   background-color: var(--panel);
+}
+
+.progress-tray {
+  position: relative;
+  min-height: var(--progress-tray-height);
+  width: 100%;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: transparent;
+}
+
+.progress-tray[data-timeline="off"] {
+  min-height: var(--progress-tray-height-off);
+}
+
+.progress-tray__timeline {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.progress-tray__track,
+.progress-tray__fill {
+  fill: none;
+}
+
+.progress-tray__fill {
+  transition: stroke-dashoffset 180ms linear;
+}
+
+.progress-tray__fill--rainbow {
+  animation: progress-tray-rainbow 6s linear infinite;
+  filter: drop-shadow(var(--progress-rgb-shadow));
+}
+
+@keyframes progress-tray-rainbow {
+  from {
+    filter: drop-shadow(var(--progress-rgb-shadow)) hue-rotate(0deg);
+  }
+
+  to {
+    filter: drop-shadow(var(--progress-rgb-shadow)) hue-rotate(360deg);
+  }
 }
 
 @supports (backdrop-filter: blur(1px)) {
