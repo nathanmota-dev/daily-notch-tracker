@@ -6,6 +6,8 @@ An open-source notch app that turns the space around your linux app notch into a
 
 Built with React, Vite, TypeScript, Tailwind CSS, Vitest, Tauri 2 e Rust.
 
+When creating files, always use lowercase kebab-case filenames.
+
 
 
 ## Implementation Workflow
