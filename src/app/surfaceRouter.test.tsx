@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 
 import {
   createEmptyAppSnapshot,
@@ -65,17 +65,20 @@ describe("SurfaceRouter", () => {
       surface,
     )
 
-    const headingName =
-      surface === "overlay"
-        ? "Seu espaço de foco está pronto."
-        : surface === "tasks"
-          ? "Tasks"
-          : "Settings"
+    if (surface === "overlay") {
+      await waitFor(() =>
+        expect(
+          document.querySelector('[data-slot="collapsed-focus-widget"]'),
+        ).toHaveAttribute("data-state", "idle"),
+      )
+    } else {
+      const headingName = surface === "tasks" ? "Tasks" : "Settings"
 
-    expect(
-      await screen.findByRole("heading", { name: headingName }),
-    ).toBeInTheDocument()
-    expect(screen.getByText("Nenhuma tarefa ainda.")).toBeInTheDocument()
+      expect(
+        await screen.findByRole("heading", { name: headingName }),
+      ).toBeInTheDocument()
+      expect(screen.getByText("Nenhuma tarefa ainda.")).toBeInTheDocument()
+    }
   })
 
   it("uses the browser query string when no surface override is provided", async () => {

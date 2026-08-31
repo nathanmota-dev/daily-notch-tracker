@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
+import { CollapsedFocusWidget } from "../components/CollapsedFocusWidget"
 import { Panel } from "../components/Panel"
 import { Button } from "../components/ui/button"
 
@@ -63,30 +64,11 @@ function SnapshotSummary({ snapshot }: AppShellProps) {
 
 export function AppShell({ snapshot }: AppShellProps) {
   return (
-    <main
-      className="min-h-screen px-6 py-12 text-content sm:px-10"
-      data-surface="overlay"
-    >
-      <section className="mx-auto flex min-h-[calc(100vh-6rem)] max-w-4xl flex-col justify-center">
-        <div className="mb-8 inline-flex w-fit items-center gap-2 rounded-pill border border-accent/20 bg-accent/10 px-3 py-1 text-caption text-accent">
-          <span className="size-2 rounded-full bg-accent" aria-hidden="true" />
-          Contrato desktop conectado
-        </div>
-
-        <p className="mb-4 text-caption font-medium uppercase tracking-[0.24em] text-muted">
-          DailyNotch Linux
-        </p>
-        <h1 className="max-w-3xl text-display font-semibold text-content sm:text-display-lg">
-          Seu espaço de foco está pronto.
-        </h1>
-        <p className="mt-6 max-w-2xl text-body text-muted">
-          O shell compartilha o mesmo snapshot entre o navegador e o app
-          desktop. As superfícies de tarefas e foco serão adicionadas nas
-          próximas etapas.
-        </p>
-
-        <SnapshotSummary snapshot={snapshot} />
-      </section>
+    <main className="collapsed-focus-surface" data-surface="overlay">
+      <CollapsedFocusWidget
+        focus={snapshot.focus}
+        settings={snapshot.settings}
+      />
     </main>
   )
 }
@@ -193,19 +175,33 @@ function renderSurface(surface: SurfaceLabel, snapshot: AppSnapshot) {
   return <SurfacePlaceholder snapshot={snapshot} surface={surface} />
 }
 
+function acceptSnapshot(
+  snapshot: AppSnapshot,
+  latestRevision: { current: number },
+) {
+  if (snapshot.revision < latestRevision.current) {
+    return false
+  }
+
+  latestRevision.current = snapshot.revision
+  return true
+}
+
 export function App({ api = desktopApi, surface = "overlay" }: AppProps) {
   const [reloadKey, setReloadKey] = useState(0)
+  const latestRevision = useRef(-1)
   const [shellState, setShellState] = useState<ShellState>({
     status: "loading",
   })
 
   useEffect(() => {
     let active = true
+    latestRevision.current = -1
     setShellState({ status: "loading" })
 
     api.getSnapshot().then(
       (snapshot) => {
-        if (active) {
+        if (active && acceptSnapshot(snapshot, latestRevision)) {
           setShellState({ status: "ready", snapshot })
         }
       },
@@ -223,6 +219,31 @@ export function App({ api = desktopApi, surface = "overlay" }: AppProps) {
       active = false
     }
   }, [api, reloadKey])
+
+  useEffect(() => {
+    if (surface !== "overlay") {
+      return
+    }
+
+    let active = true
+    const eventNames = ["focus-changed", "settings-changed"] as const
+    const unlistenPromises = eventNames.map((eventName) =>
+      api
+        .subscribe(eventName, (snapshot) => {
+          if (active && acceptSnapshot(snapshot, latestRevision)) {
+            setShellState({ status: "ready", snapshot })
+          }
+        })
+        .catch(() => undefined),
+    )
+
+    return () => {
+      active = false
+      void Promise.all(unlistenPromises).then((unlisteners) => {
+        unlisteners.forEach((unlisten) => unlisten?.())
+      })
+    }
+  }, [api, surface])
 
   if (shellState.status === "loading") {
     return <LoadingShell surface={surface} />
