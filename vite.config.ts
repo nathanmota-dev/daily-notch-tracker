@@ -1,5 +1,6 @@
 import react from "@vitejs/plugin-react"
 import tailwindcss from "@tailwindcss/vite"
+import { fileURLToPath, URL } from "node:url"
 import { defineConfig } from "vitest/config"
 
 const host = process.env.TAURI_DEV_HOST
@@ -7,6 +8,11 @@ const host = process.env.TAURI_DEV_HOST
 export default defineConfig({
   clearScreen: false,
   plugins: [react(), tailwindcss()],
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    },
+  },
   server: {
     port: 5173,
     strictPort: true,
