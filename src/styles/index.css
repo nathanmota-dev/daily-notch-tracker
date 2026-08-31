@@ -413,56 +413,61 @@ input {
   text-transform: uppercase;
 }
 
+.activity-panel__heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .activity-panel h2 {
   font-size: 0.9rem;
 }
 
-.activity-panel__streak {
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-  margin-top: 10px;
-}
-
-.activity-panel__streak strong {
+.activity-panel__heading strong {
   color: var(--accent);
-  font-size: 1.65rem;
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: -0.04em;
   line-height: 1;
 }
 
-.activity-panel__streak span {
-  color: var(--muted);
-  font-size: 0.68rem;
-}
-
-.activity-preview-grid {
+.activity-heatmap {
   display: grid;
   width: 100%;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 4px;
   margin-top: 14px;
 }
 
-.activity-preview-grid__cell {
+.activity-heatmap__cell {
   aspect-ratio: 1;
   min-width: 0;
   border-radius: 3px;
   background: rgb(255 255 255 / 0.07);
 }
 
-.activity-preview-grid__cell[data-intensity="1"] {
+.activity-heatmap__cell[data-intensity="1"] {
   background: rgb(96 165 250 / 0.32);
 }
 
-.activity-preview-grid__cell[data-intensity="2"] {
+.activity-heatmap__cell[data-intensity="2"] {
   background: rgb(96 165 250 / 0.58);
 }
 
-.activity-preview-grid__cell[data-intensity="3"] {
+.activity-heatmap__cell[data-intensity="3"] {
+  background: rgb(96 165 250 / 0.8);
+}
+
+.activity-heatmap__cell[data-intensity="4"] {
   background: var(--accent);
   box-shadow: 0 0 8px rgb(96 165 250 / 0.22);
+}
+
+.activity-heatmap__cell[data-cell-state="future"],
+.activity-heatmap__cell[data-cell-state="outside-month"] {
+  background: transparent;
+  box-shadow: none;
 }
 
 .activity-panel__caption {

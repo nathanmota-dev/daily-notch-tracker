@@ -1,9 +1,9 @@
 import { PauseIcon, PlayIcon } from "../icons"
 import type { FocusSnapshot, Task } from "../lib/desktopApi"
 import { Checkbox } from "./ui/checkbox"
-import { DragHandle } from "./DragHandle"
-import { IconButton } from "./IconButton"
-import { formatTaskDuration } from "./expandedDashboard"
+import { DragHandle } from "./drag-handle"
+import { IconButton } from "./icon-button"
+import { formatTaskDuration } from "./expanded-dashboard-model"
 
 export type CompactTaskRowProps = {
   task: Task

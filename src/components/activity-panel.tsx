@@ -1,7 +1,15 @@
-import { Divider } from "./Divider"
-import { ActivityPreviewGrid } from "./ActivityPreviewGrid"
+import { Divider } from "./divider"
+import {
+  ActivityHeatmap,
+  type ActivityHeatmapProps,
+} from "./activity-heatmap"
 
-export function ActivityPanel() {
+export type ActivityPanelProps = Pick<
+  ActivityHeatmapProps,
+  "levelsByDay" | "today"
+>
+
+export function ActivityPanel({ levelsByDay, today }: ActivityPanelProps = {}) {
   return (
     <aside
       aria-labelledby="expanded-dashboard-activity-title"
@@ -15,12 +23,13 @@ export function ActivityPanel() {
         orientation="vertical"
       />
       <p className="activity-panel__eyebrow">Activity</p>
-      <h2 id="expanded-dashboard-activity-title">Journey Streak</h2>
-      <div className="activity-panel__streak">
-        <strong data-slot="streak-count">12</strong>
-        <span>day streak</span>
+      <div className="activity-panel__heading">
+        <h2 id="expanded-dashboard-activity-title">Journey Streak</h2>
+        <strong aria-label="5 day streak" data-slot="streak-count">
+          5d
+        </strong>
       </div>
-      <ActivityPreviewGrid />
+      <ActivityHeatmap levelsByDay={levelsByDay} today={today} />
       <p className="activity-panel__caption">Keep showing up</p>
     </aside>
   )

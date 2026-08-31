@@ -103,11 +103,13 @@ Para visualizar a mesma fixture no webview Tauri antes da implementação do
 domínio Rust, use `VITE_WIDGET_FIXTURE=running npm run tauri:dev`. Esse
 override é habilitado apenas no modo de desenvolvimento.
 
-O MVP-006 reproduz apenas a apresentação estática do dashboard com snapshots
-mockados. Hover real, resize da janela Tauri e drag-and-drop funcional ficam
-para etapas posteriores. A janela completa `Tasks` também permanece como
-placeholder até uma issue futura; o botão `Open Tasks` desta fixture apenas
-expõe o callback de apresentação.
+Os MVPs-006 e 007 reproduzem a apresentação estática do dashboard com
+snapshots e atividade mockados. O dashboard exibe um heatmap mensal
+Monday-first, limitado ao dia atual e sem dados de sessões reais. Hover real,
+resize da janela Tauri e drag-and-drop funcional ficam para etapas posteriores.
+A janela completa `Tasks` também permanece como placeholder até uma issue
+futura; o botão `Open Tasks` desta fixture apenas expõe o callback de
+apresentação.
 
 ## Verificações
 

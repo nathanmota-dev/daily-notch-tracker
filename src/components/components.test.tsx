@@ -3,14 +3,14 @@ import userEvent from "@testing-library/user-event"
 import { useState } from "react"
 import { vi } from "vitest"
 
-import { Divider } from "@/components/Divider"
+import { Divider } from "@/components/divider"
 import {
   FocusTimePicker,
   type FocusTimePickerProps,
-} from "@/components/FocusTimePicker"
-import { IconButton } from "@/components/IconButton"
-import { Panel } from "@/components/Panel"
-import { Toggle } from "@/components/Toggle"
+} from "@/components/focus-time-picker"
+import { IconButton } from "@/components/icon-button"
+import { Panel } from "@/components/panel"
+import { Toggle } from "@/components/toggle"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { ScrollArea } from "@/components/ui/scroll-area"

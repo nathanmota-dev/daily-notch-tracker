@@ -6,11 +6,11 @@ import {
   createExpandedDashboardFixtureSnapshot,
   type Task,
 } from "../lib/desktopApi"
-import { ExpandedDashboard } from "./ExpandedDashboard"
+import { ExpandedDashboard } from "./expanded-dashboard"
 import {
   formatTaskDuration,
   sortTasksForDashboard,
-} from "./expandedDashboard"
+} from "./expanded-dashboard-model"
 
 const FIXTURE_NOW = Date.parse("2026-08-31T12:00:00.000Z")
 
@@ -49,8 +49,9 @@ describe("ExpandedDashboard", () => {
       screen.getByRole("heading", { name: "Journey Streak" }),
     ).toBeInTheDocument()
     expect(
-      screen.getByRole("img", { name: "Activity heatmap preview" }),
+      screen.getByRole("img", { name: /Activity heatmap for/ }),
     ).toBeInTheDocument()
+    expect(screen.getByText("5d")).toBeInTheDocument()
     expect(screen.getByRole("progressbar", { name: "Focus timeline" })).toBeInTheDocument()
     expect(
       document.querySelectorAll('[data-slot="compact-task-row"]'),

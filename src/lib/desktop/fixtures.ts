@@ -5,20 +5,20 @@ import type {
   FocusState,
   Task,
 } from "./contracts"
-import { createEmptyAppSnapshot } from "./baseSnapshot"
+import { createEmptyAppSnapshot } from "./base-snapshot"
 import {
   createExpandedDashboardFixtureSnapshot,
   EXPANDED_DASHBOARD_FIXTURE_NAMES,
   isExpandedDashboardFixture,
-} from "./expandedFixtures"
+} from "./expanded-fixtures"
 
 export {
   createExpandedDashboardFixtureSnapshot,
   EXPANDED_DASHBOARD_FIXTURE_NAMES,
   isExpandedDashboardFixture,
   type ExpandedDashboardFixture,
-} from "./expandedFixtures"
-export { createEmptyAppSnapshot } from "./baseSnapshot"
+} from "./expanded-fixtures"
+export { createEmptyAppSnapshot } from "./base-snapshot"
 
 export const COLLAPSED_WIDGET_FIXTURE_NAMES = [
   "running",

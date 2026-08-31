@@ -1,6 +1,6 @@
 import type { DragEvent } from "react"
 
-import { IconButton } from "./IconButton"
+import { IconButton } from "./icon-button"
 
 export type DragHandleProps = {
   taskId: string

@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react"
 
-import { ProgressTray } from "./ProgressTray"
+import { ProgressTray } from "./progress-tray"
 import { clampProgress } from "./progress"
 
 describe("clampProgress", () => {

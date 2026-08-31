@@ -6,12 +6,12 @@ import {
   createCollapsedWidgetFixtureSnapshot,
   createEmptyAppSnapshot,
 } from "../lib/desktopApi"
-import { CollapsedFocusWidget } from "./CollapsedFocusWidget"
+import { CollapsedFocusWidget } from "./collapsed-focus-widget"
 import {
   deriveCollapsedFocusPresentation,
   formatFocusTime,
   getFocusProgress,
-} from "./collapsedFocus"
+} from "./collapsed-focus"
 
 const FIXTURE_NOW = Date.parse("2026-08-31T12:00:00.000Z")
 

@@ -88,6 +88,10 @@ test.describe("DailyNotch surface router", () => {
       await expect(
         page.getByRole("heading", { name: "Journey Streak" }),
       ).toBeVisible()
+      await expect(page.getByText("5d")).toBeVisible()
+      await expect(
+        page.getByRole("img", { name: /Activity heatmap for/ }),
+      ).toBeVisible()
       await expect(page.getByRole("progressbar")).toBeVisible()
       await expect(
         page.locator('[data-slot="compact-task-row"]'),
@@ -143,6 +147,56 @@ test.describe("DailyNotch surface router", () => {
       "title",
       "Review and refine the complete DailyNotch Linux focus workflow before the next implementation milestone",
     )
+  })
+
+  test("renders a Monday-first seven-column heatmap through today", async ({
+    page,
+  }) => {
+    await page.goto("/?surface=overlay&fixture=expanded")
+
+    const heatmap = page.locator('[data-slot="activity-heatmap"]')
+    const cellMetadata = await heatmap
+      .locator(".activity-heatmap__cell")
+      .evaluateAll((cells) =>
+        cells.map((cell) => ({
+          column: Number(cell.getAttribute("data-column")),
+          day: cell.getAttribute("data-day"),
+          intensity: cell.getAttribute("data-intensity"),
+          state: cell.getAttribute("data-cell-state"),
+        })),
+      )
+
+    expect(new Set(cellMetadata.map((cell) => cell.column))).toEqual(
+      new Set([0, 1, 2, 3, 4, 5, 6]),
+    )
+
+    const rowCount = Number(await heatmap.getAttribute("data-row-count"))
+    expect(rowCount).toBeGreaterThanOrEqual(1)
+    expect(rowCount).toBeLessThanOrEqual(6)
+    expect(cellMetadata).toHaveLength(rowCount * 7)
+
+    const activityCells = cellMetadata.filter(
+      (cell) => cell.state === "activity",
+    )
+    const emptyCells = cellMetadata.filter(
+      (cell) => cell.state !== "activity",
+    )
+
+    expect(activityCells.length).toBeGreaterThan(0)
+    expect(
+      activityCells.every((cell) =>
+        ["0", "1", "2", "3", "4"].includes(cell.intensity ?? ""),
+      ),
+    ).toBe(true)
+    expect(emptyCells.every((cell) => cell.intensity === null)).toBe(true)
+
+    const firstDay = cellMetadata.find((cell) => cell.day === "1")
+    const month = await heatmap.getAttribute("data-month")
+    const [year, monthNumber] = month!.split("-").map(Number)
+    const expectedMondayFirstColumn =
+      (new Date(year, monthNumber - 1, 1).getDay() + 6) % 7
+
+    expect(firstDay?.column).toBe(expectedMondayFirstColumn)
   })
 
   test("places completed tasks after pending tasks", async ({ page }) => {
