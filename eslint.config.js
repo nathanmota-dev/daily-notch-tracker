@@ -12,6 +12,27 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: ["src/lib/desktop/**"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@tauri-apps/api/core",
+              message: "Use the typed desktopApi adapter instead.",
+            },
+            {
+              name: "@tauri-apps/api/event",
+              message: "Use the typed desktopApi adapter instead.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       globals: {

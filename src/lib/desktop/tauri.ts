@@ -1,0 +1,94 @@
+import { invoke as tauriInvoke, isTauri } from "@tauri-apps/api/core"
+import { listen as tauriListen } from "@tauri-apps/api/event"
+
+import type {
+  DesktopApi,
+  DesktopEventListener,
+  DesktopEventName,
+  DesktopUnlisten,
+} from "./api"
+import type { DesktopCommandMap, DesktopEventMap } from "./contracts"
+import { normalizeDesktopApiError } from "./errors"
+
+export interface TauriTransport {
+  invoke(command: string, args?: Record<string, unknown>): Promise<unknown>
+  listen(
+    eventName: string,
+    listener: (payload: unknown) => void,
+  ): Promise<DesktopUnlisten>
+}
+
+const defaultTauriTransport: TauriTransport = {
+  invoke: (command, args) => tauriInvoke(command, args),
+  listen: (eventName, listener) =>
+    tauriListen<unknown>(eventName, (event) => listener(event.payload)),
+}
+
+type DesktopCommandName = keyof DesktopCommandMap
+
+export function isTauriRuntime() {
+  return isTauri()
+}
+
+export function createTauriDesktopApi(
+  transport: TauriTransport = defaultTauriTransport,
+): DesktopApi {
+  async function execute<CommandName extends DesktopCommandName>(
+    operation: string,
+    commandName: CommandName,
+    args: DesktopCommandMap[CommandName]["args"],
+  ): Promise<DesktopCommandMap[CommandName]["result"]> {
+    try {
+      return (await transport.invoke(
+        commandName,
+        args === undefined
+          ? undefined
+          : (args as Record<string, unknown>),
+      )) as DesktopCommandMap[CommandName]["result"]
+    } catch (error) {
+      throw normalizeDesktopApiError(error, operation)
+    }
+  }
+
+  async function subscribe<EventName extends DesktopEventName>(
+    eventName: EventName,
+    listener: DesktopEventListener<EventName>,
+  ): Promise<DesktopUnlisten> {
+    try {
+      return await transport.listen(eventName, (payload) => {
+        listener(payload as DesktopEventMap[EventName])
+      })
+    } catch (error) {
+      throw normalizeDesktopApiError(error, `subscribe:${eventName}`)
+    }
+  }
+
+  return {
+    getSnapshot: () => execute("getSnapshot", "get_snapshot", undefined),
+    addTask: (input) => execute("addTask", "add_task", { input }),
+    updateTask: (input) => execute("updateTask", "update_task", { input }),
+    deleteTask: (taskId) => execute("deleteTask", "delete_task", { taskId }),
+    toggleTask: (taskId) => execute("toggleTask", "toggle_task", { taskId }),
+    moveTasks: (input) => execute("moveTasks", "move_tasks", { input }),
+    startFocus: (taskId) => execute("startFocus", "start_focus", { taskId }),
+    pauseFocus: () => execute("pauseFocus", "pause_focus", undefined),
+    resumeFocus: () => execute("resumeFocus", "resume_focus", undefined),
+    stopFocus: () => execute("stopFocus", "stop_focus", undefined),
+    toggleFocus: () => execute("toggleFocus", "toggle_focus", undefined),
+    updateSettings: (patch) =>
+      execute("updateSettings", "update_settings", { patch }),
+    getAppDiagnostics: () =>
+      execute("getAppDiagnostics", "get_app_diagnostics", undefined),
+    setAutostart: (enabled) =>
+      execute("setAutostart", "set_autostart", { enabled }),
+    openTasksWindow: (intent) =>
+      execute("openTasksWindow", "open_tasks_window", {
+        intent: intent ?? null,
+      }),
+    openSettingsWindow: () =>
+      execute("openSettingsWindow", "open_settings_window", undefined),
+    openExternalRelease: (url) =>
+      execute("openExternalRelease", "open_external_release", { url }),
+    subscribe,
+  }
+}
