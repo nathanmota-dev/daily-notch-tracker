@@ -4,11 +4,15 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "benchmark": "vitest bench --run --config vitest.benchmark.config.ts",
+    "benchmark:ci": "npm run benchmark -- --outputJson=reports/benchmarks/frontend.json",
+    "benchmark:rust": "node scripts/run-rust-benchmark.js",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:coverage:ci": "vitest run --coverage --coverage.include=\"src/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" --coverage.exclude=\"src/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}\" --coverage.exclude=\"src/**/__tests__/**\" --coverage.exclude=\"src/test/**\" --coverage.exclude=\"src/tests/**\" --coverage.exclude=\"src/**/*.d.{ts,mts,cts}\" --coverage.thresholds.lines=0 --coverage.thresholds.statements=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0 --coverage.reporter=text --coverage.reporter=json-summary --coverage.reporter=html",
     "test:e2e": "playwright test",
     "test:watch": "vitest",
     "typecheck": "tsc -b --pretty false",
@@ -33,16 +37,18 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "@vitest/coverage-v8": "4.1.10",
     "eslint": "^9.0.0",
     "eslint-plugin-react": "^7.0.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.0",
     "globals": "^15.0.0",
+    "jscpd": "5.0.16",
     "jsdom": "^26.0.0",
     "tailwindcss": "^4.0.0",
     "typescript": "~5.8.0",
     "typescript-eslint": "^8.0.0",
     "vite": "^7.0.0",
-    "vitest": "^4.0.0"
+    "vitest": "4.1.10"
   }
 }

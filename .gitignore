@@ -6,6 +6,9 @@ src-tauri/gen/
 *.local
 playwright-report/
 test-results/
+coverage/
+reports/
+scripts/benchmark-current.json
 
 # Tauri generated signing keys and local build output
 src-tauri/*.key

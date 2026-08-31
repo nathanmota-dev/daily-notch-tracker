@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "generatedFromCommit": "ef97f4a8a9a5",
+  "policy": {
+    "maxFileLines": 300,
+    "sourceRoot": "src",
+    "sourceExtensions": [
+      ".js",
+      ".jsx",
+      ".mjs",
+      ".cjs",
+      ".ts",
+      ".tsx",
+      ".mts",
+      ".cts"
+    ],
+    "excludeTestsFromFileSize": true,
+    "duplication": {
+      "minLines": 5,
+      "minTokens": 50,
+      "maxLines": 10000,
+      "mode": "strict",
+      "crossFormats": "js-ts",
+      "ignore": [
+        "**/__tests__/**",
+        "**/test/**",
+        "**/tests/**",
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/*.d.ts",
+        "**/*.d.mts",
+        "**/*.d.cts",
+        "**/node_modules/**",
+        "**/coverage/**",
+        "**/dist/**"
+      ]
+    }
+  },
+  "coverage": {
+    "lines": {
+      "covered": 4,
+      "total": 9
+    },
+    "statements": {
+      "covered": 4,
+      "total": 9
+    },
+    "functions": {
+      "covered": 2,
+      "total": 3
+    },
+    "branches": {
+      "covered": 2,
+      "total": 4
+    }
+  },
+  "duplication": {
+    "duplicatedLines": 0,
+    "totalLines": 103,
+    "fragments": 0
+  },
+  "violations": {
+    "eslint": 0,
+    "oversizedFiles": 0
+  },
+  "fileLines": {
+    "src/app/App.tsx": 77,
+    "src/main.tsx": 11,
+    "src/vite-env.d.ts": 2
+  }
+}

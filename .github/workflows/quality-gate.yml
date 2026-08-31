@@ -1,0 +1,271 @@
+name: PR Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gate-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  evaluate:
+    name: Audit & Quality Metrics
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: quality-gate
+
+      - name: Prepare report directory
+        run: mkdir -p reports
+
+      - name: Select trusted quality baseline
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          baseline_path="$RUNNER_TEMP/quality-gate-baseline.json"
+          if git cat-file -e "${BASE_SHA}:scripts/baseline.json"; then
+            git show "${BASE_SHA}:scripts/baseline.json" > "$baseline_path"
+            echo "QUALITY_GATE_BASELINE_PATH=$baseline_path" >> "$GITHUB_ENV"
+            echo "QUALITY_GATE_BASELINE_LABEL=main@${BASE_SHA:0:12}:scripts/baseline.json" >> "$GITHUB_ENV"
+          else
+            echo "QUALITY_GATE_BASELINE_PATH=$GITHUB_WORKSPACE/scripts/baseline.json" >> "$GITHUB_ENV"
+            echo "QUALITY_GATE_BASELINE_LABEL=bootstrap:scripts/baseline.json" >> "$GITHUB_ENV"
+            echo "::notice::The base branch has no quality baseline; using the checked-in bootstrap baseline."
+          fi
+
+      - name: Install Node dependencies
+        id: install_node
+        continue-on-error: true
+        run: npm ci
+
+      - name: Install Tauri system dependencies
+        id: install_tauri_dependencies
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            patchelf \
+            pkg-config \
+            wget
+
+      - name: Critical vulnerability audit
+        id: audit_critical
+        if: always() && steps.install_node.outcome == 'success'
+        continue-on-error: true
+        run: npm audit --audit-level=critical | tee reports/npm-audit-critical.txt
+
+      - name: High vulnerability audit (warning only)
+        id: audit_high
+        if: always() && steps.install_node.outcome == 'success'
+        continue-on-error: true
+        run: npm audit --audit-level=high | tee reports/npm-audit-high.txt
+
+      - name: Frontend build
+        id: frontend_build
+        if: always() && steps.install_node.outcome == 'success'
+        continue-on-error: true
+        run: npm run build
+
+      - name: Frontend lint
+        id: frontend_lint
+        if: always() && steps.install_node.outcome == 'success'
+        continue-on-error: true
+        run: npm run lint -- --max-warnings=0
+
+      - name: Frontend typecheck
+        id: frontend_typecheck
+        if: always() && steps.install_node.outcome == 'success'
+        continue-on-error: true
+        run: npm run typecheck
+
+      - name: Frontend tests with coverage
+        id: frontend_coverage
+        if: always() && steps.install_node.outcome == 'success'
+        continue-on-error: true
+        run: npm run test:coverage:ci
+
+      - name: Rust formatting
+        id: rust_format
+        if: always()
+        continue-on-error: true
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+
+      - name: Rust Clippy
+        id: rust_clippy
+        if: always() && steps.install_tauri_dependencies.outcome == 'success'
+        continue-on-error: true
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --all-features -- -D warnings
+
+      - name: Rust tests
+        id: rust_tests
+        if: always() && steps.install_tauri_dependencies.outcome == 'success'
+        continue-on-error: true
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Test quality gate
+        id: quality_gate_tests
+        if: always()
+        continue-on-error: true
+        run: node --test scripts/quality-gate.test.js
+
+      - name: Collect and compare quality metrics
+        id: quality_gate
+        if: >-
+          always()
+          && steps.install_node.outcome == 'success'
+          && steps.frontend_coverage.outcome == 'success'
+        continue-on-error: true
+        run: node scripts/quality-gate.js
+
+      - name: Compose PR quality report
+        if: always()
+        env:
+          INSTALL_NODE: ${{ steps.install_node.outcome }}
+          INSTALL_TAURI_DEPENDENCIES: ${{ steps.install_tauri_dependencies.outcome }}
+          AUDIT_CRITICAL: ${{ steps.audit_critical.outcome }}
+          AUDIT_HIGH: ${{ steps.audit_high.outcome }}
+          FRONTEND_BUILD: ${{ steps.frontend_build.outcome }}
+          FRONTEND_LINT: ${{ steps.frontend_lint.outcome }}
+          FRONTEND_TYPECHECK: ${{ steps.frontend_typecheck.outcome }}
+          FRONTEND_COVERAGE: ${{ steps.frontend_coverage.outcome }}
+          RUST_FORMAT: ${{ steps.rust_format.outcome }}
+          RUST_CLIPPY: ${{ steps.rust_clippy.outcome }}
+          RUST_TESTS: ${{ steps.rust_tests.outcome }}
+          QUALITY_GATE_TESTS: ${{ steps.quality_gate_tests.outcome }}
+          QUALITY_GATE: ${{ steps.quality_gate.outcome }}
+        run: |
+          failures=()
+          [[ "$INSTALL_NODE" == "success" ]] || failures+=("npm ci")
+          [[ "$INSTALL_TAURI_DEPENDENCIES" == "success" ]] || failures+=("Tauri system dependencies")
+          [[ "$AUDIT_CRITICAL" == "success" ]] || failures+=("critical npm audit")
+          [[ "$FRONTEND_BUILD" == "success" ]] || failures+=("frontend build")
+          [[ "$FRONTEND_LINT" == "success" ]] || failures+=("frontend lint")
+          [[ "$FRONTEND_TYPECHECK" == "success" ]] || failures+=("frontend typecheck")
+          [[ "$FRONTEND_COVERAGE" == "success" ]] || failures+=("frontend coverage")
+          [[ "$RUST_FORMAT" == "success" ]] || failures+=("Rust formatting")
+          [[ "$RUST_CLIPPY" == "success" ]] || failures+=("Rust Clippy")
+          [[ "$RUST_TESTS" == "success" ]] || failures+=("Rust tests")
+          [[ "$QUALITY_GATE_TESTS" == "success" ]] || failures+=("quality-gate tests")
+          [[ "$QUALITY_GATE" == "success" ]] || failures+=("quality metric comparison")
+
+          report="reports/quality-gate.md"
+          composed="reports/pr-quality-gate.md"
+          {
+            echo "# PR Quality Gate"
+            echo
+            if (( ${#failures[@]} == 0 )); then
+              echo "✅ **PASS** — All blocking quality checks passed."
+            else
+              echo "❌ **FAIL** — Blocking checks failed: ${failures[*]}."
+            fi
+            echo
+            echo "## Workflow checks"
+            echo
+            echo "| Check | Result | Blocking |"
+            echo "|---|---|---:|"
+            echo "| npm ci | \`$INSTALL_NODE\` | Yes |"
+            echo "| Tauri system dependencies | \`$INSTALL_TAURI_DEPENDENCIES\` | Yes |"
+            echo "| Critical npm audit | \`$AUDIT_CRITICAL\` | Yes |"
+            echo "| High npm audit | \`$AUDIT_HIGH\` | No (warning) |"
+            echo "| Frontend build | \`$FRONTEND_BUILD\` | Yes |"
+            echo "| Frontend lint | \`$FRONTEND_LINT\` | Yes |"
+            echo "| Frontend typecheck | \`$FRONTEND_TYPECHECK\` | Yes |"
+            echo "| Frontend coverage | \`$FRONTEND_COVERAGE\` | Yes |"
+            echo "| Rust formatting | \`$RUST_FORMAT\` | Yes |"
+            echo "| Rust Clippy | \`$RUST_CLIPPY\` | Yes |"
+            echo "| Rust tests | \`$RUST_TESTS\` | Yes |"
+            echo "| Quality-gate tests | \`$QUALITY_GATE_TESTS\` | Yes |"
+            echo "| Quality metric comparison | \`$QUALITY_GATE\` | Yes |"
+            echo
+            echo "---"
+            echo
+            if [[ -f "$report" ]]; then
+              cat "$report"
+            else
+              echo "The metric report was not generated. Inspect the failed steps above."
+            fi
+          } > "$composed"
+          mv "$composed" "$report"
+
+      - name: Publish job summary
+        if: always()
+        run: cat reports/quality-gate.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gate-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            coverage/
+            reports/
+
+      - name: Enforce blocking quality checks
+        if: always()
+        env:
+          INSTALL_NODE: ${{ steps.install_node.outcome }}
+          INSTALL_TAURI_DEPENDENCIES: ${{ steps.install_tauri_dependencies.outcome }}
+          AUDIT_CRITICAL: ${{ steps.audit_critical.outcome }}
+          FRONTEND_BUILD: ${{ steps.frontend_build.outcome }}
+          FRONTEND_LINT: ${{ steps.frontend_lint.outcome }}
+          FRONTEND_TYPECHECK: ${{ steps.frontend_typecheck.outcome }}
+          FRONTEND_COVERAGE: ${{ steps.frontend_coverage.outcome }}
+          RUST_FORMAT: ${{ steps.rust_format.outcome }}
+          RUST_CLIPPY: ${{ steps.rust_clippy.outcome }}
+          RUST_TESTS: ${{ steps.rust_tests.outcome }}
+          QUALITY_GATE_TESTS: ${{ steps.quality_gate_tests.outcome }}
+          QUALITY_GATE: ${{ steps.quality_gate.outcome }}
+        run: |
+          failures=()
+          [[ "$INSTALL_NODE" == "success" ]] || failures+=("npm ci")
+          [[ "$INSTALL_TAURI_DEPENDENCIES" == "success" ]] || failures+=("Tauri system dependencies")
+          [[ "$AUDIT_CRITICAL" == "success" ]] || failures+=("critical npm audit")
+          [[ "$FRONTEND_BUILD" == "success" ]] || failures+=("frontend build")
+          [[ "$FRONTEND_LINT" == "success" ]] || failures+=("frontend lint")
+          [[ "$FRONTEND_TYPECHECK" == "success" ]] || failures+=("frontend typecheck")
+          [[ "$FRONTEND_COVERAGE" == "success" ]] || failures+=("frontend coverage")
+          [[ "$RUST_FORMAT" == "success" ]] || failures+=("Rust formatting")
+          [[ "$RUST_CLIPPY" == "success" ]] || failures+=("Rust Clippy")
+          [[ "$RUST_TESTS" == "success" ]] || failures+=("Rust tests")
+          [[ "$QUALITY_GATE_TESTS" == "success" ]] || failures+=("quality-gate tests")
+          [[ "$QUALITY_GATE" == "success" ]] || failures+=("quality metric comparison")
+          if (( ${#failures[@]} > 0 )); then
+            printf 'Blocking quality checks failed: %s\n' "${failures[*]}"
+            exit 1
+          fi
