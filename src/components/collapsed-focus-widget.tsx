@@ -3,11 +3,11 @@ import { useEffect, useState } from "react"
 import { ClockIcon, PauseIcon } from "../icons"
 import type { FocusSettings, FocusSnapshot } from "../lib/desktopApi"
 import { cn } from "../lib/utils"
-import { ProgressTray } from "./ProgressTray"
+import { ProgressTray } from "./progress-tray"
 import {
   deriveCollapsedFocusPresentation,
   formatFocusTime,
-} from "./collapsedFocus"
+} from "./collapsed-focus"
 
 const PRESENTATION_TICK_MS = 250
 

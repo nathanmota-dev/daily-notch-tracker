@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react"
 
-import { CollapsedFocusWidget } from "../components/CollapsedFocusWidget"
+import { CollapsedFocusWidget } from "../components/collapsed-focus-widget"
 import {
   ExpandedDashboard,
   type ExpandedDashboardCallbacks,
-} from "../components/ExpandedDashboard"
+} from "../components/expanded-dashboard"
 import {
   ErrorShell,
   LoadingShell,

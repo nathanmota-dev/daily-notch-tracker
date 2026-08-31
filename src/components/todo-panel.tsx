@@ -2,9 +2,9 @@ import { ExpandIcon, ListIcon, PlusIcon } from "../icons"
 import type { FocusSnapshot, Task } from "../lib/desktopApi"
 import { Button } from "./ui/button"
 import { ScrollArea } from "./ui/scroll-area"
-import { CompactTaskRow } from "./CompactTaskRow"
-import { IconButton } from "./IconButton"
-import { EXPANDED_DASHBOARD_MAX_VISIBLE_ROWS } from "./expandedDashboard"
+import { CompactTaskRow } from "./compact-task-row"
+import { IconButton } from "./icon-button"
+import { EXPANDED_DASHBOARD_MAX_VISIBLE_ROWS } from "./expanded-dashboard-model"
 
 export type TodoPanelProps = {
   tasks: readonly Task[]

@@ -1,5 +1,5 @@
 import type { AppSnapshot, DesktopApiError, SurfaceLabel } from "../lib/desktopApi"
-import { Panel } from "../components/Panel"
+import { Panel } from "../components/panel"
 import { Button } from "../components/ui/button"
 
 type PlaceholderSurface = Exclude<SurfaceLabel, "overlay">

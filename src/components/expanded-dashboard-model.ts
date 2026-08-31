@@ -3,7 +3,7 @@ import type { FocusSnapshot, Task } from "../lib/desktopApi"
 import {
   getFocusProgress,
   getFocusRemainingMs,
-} from "./collapsedFocus"
+} from "./collapsed-focus"
 
 export const EXPANDED_DASHBOARD_MAX_VISIBLE_ROWS = 2
 

@@ -1,5 +1,5 @@
 import type { AppSnapshot, Task } from "./contracts"
-import { createEmptyAppSnapshot } from "./baseSnapshot"
+import { createEmptyAppSnapshot } from "./base-snapshot"
 
 export const EXPANDED_DASHBOARD_FIXTURE_NAMES = [
   "expanded",

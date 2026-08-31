@@ -1,13 +1,13 @@
 import type { AppSnapshot } from "../lib/desktopApi"
 import { cn } from "../lib/utils"
-import { ProgressTray } from "./ProgressTray"
-import { Panel } from "./Panel"
-import { ActivityPanel } from "./ActivityPanel"
-import { TodoPanel } from "./TodoPanel"
+import { ProgressTray } from "./progress-tray"
+import { Panel } from "./panel"
+import { ActivityPanel } from "./activity-panel"
+import { TodoPanel } from "./todo-panel"
 import {
   getExpandedDashboardProgress,
   sortTasksForDashboard,
-} from "./expandedDashboard"
+} from "./expanded-dashboard-model"
 
 export type ExpandedDashboardCallbacks = {
   onToggleTask: (taskId: string, isDone: boolean) => void

@@ -5,7 +5,7 @@ import {
   type DesktopApi,
   type SurfaceLabel,
 } from "../lib/desktopApi"
-import type { ExpandedDashboardCallbacks } from "../components/ExpandedDashboard"
+import type { ExpandedDashboardCallbacks } from "../components/expanded-dashboard"
 import { App, type PresentationMode } from "./App"
 import { getRuntimeSurfaceLabel } from "./surfaceResolver"
 

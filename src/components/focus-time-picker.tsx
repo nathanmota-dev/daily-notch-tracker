@@ -1,6 +1,6 @@
 import { useEffect, useId, useState, type ChangeEvent } from "react"
 
-import { IconButton } from "./IconButton"
+import { IconButton } from "./icon-button"
 import { Button } from "./ui/button"
 import { MinusIcon, PlusIcon } from "../icons"
 import { cn } from "../lib/utils"
