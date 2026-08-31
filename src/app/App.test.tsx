@@ -93,6 +93,7 @@ describe("App", () => {
     expect(screen.getByRole("main")).toHaveClass(
       "expanded-dashboard-surface",
     )
+    expect(screen.getByRole("main")).toHaveAttribute("data-resizing", "false")
     expect(
       screen.getByRole("region", { name: "Expanded dashboard" }),
     ).toBeInTheDocument()

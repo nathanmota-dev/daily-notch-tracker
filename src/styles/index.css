@@ -112,7 +112,7 @@
 html,
 body,
 #root {
-  min-width: 320px;
+  min-width: 0;
   min-height: 100%;
   margin: 0;
   background: transparent;
@@ -133,27 +133,29 @@ input {
   font: inherit;
 }
 
-.collapsed-focus-surface {
-  display: grid;
-  min-height: 100vh;
-  width: 100%;
-  place-items: center;
-  overflow: hidden;
-  background: transparent;
-}
-
+.collapsed-focus-surface,
 .expanded-dashboard-surface {
   display: grid;
   min-height: 100vh;
-  width: 100%;
+  min-width: 0;
+  width: 100vw;
   place-items: center;
   overflow: hidden;
   background: transparent;
-  padding: 8px;
+  transition: opacity 240ms ease;
+}
+
+.expanded-dashboard-surface {
+  padding: 8px 0;
+}
+
+.collapsed-focus-surface[data-resizing="true"],
+.expanded-dashboard-surface[data-resizing="true"] {
+  opacity: 0.98;
 }
 
 .expanded-dashboard.progress-tray {
-  width: min(var(--expanded-dashboard-width), calc(100vw - 16px));
+  width: var(--expanded-dashboard-width);
   min-height: var(--expanded-dashboard-min-height);
   border-radius: var(--radius-panel);
   background: transparent;
@@ -167,6 +169,7 @@ input {
   gap: 0;
   border-radius: var(--radius-panel);
   background-color: var(--panel);
+  box-shadow: none;
   padding: 0;
 }
 

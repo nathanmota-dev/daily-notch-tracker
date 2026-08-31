@@ -3,5 +3,9 @@
   "identifier": "default",
   "description": "Capability for the DailyNotch overlay window",
   "windows": ["overlay"],
-  "permissions": ["core:default"]
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position"
+  ]
 }
