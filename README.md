@@ -87,6 +87,18 @@ O bundle compartilhado seleciona a superfície pelo label da janela Tauri:
 testada com `?surface=overlay`, `?surface=tasks` ou `?surface=settings`; sem o
 parâmetro, o shell usa `overlay`.
 
+Durante o desenvolvimento, o widget recolhido pode ser renderizado com uma
+fixture pelo parâmetro `?fixture=`. As opções são `running`, `paused`,
+`no-task`, `long-title`, `minimal`, `timeline-off` e `rgb`; por exemplo:
+
+```text
+http://localhost:5173/?surface=overlay&fixture=running
+```
+
+Para visualizar a mesma fixture no webview Tauri antes da implementação do
+domínio Rust, use `VITE_WIDGET_FIXTURE=running npm run tauri:dev`. Esse
+override é habilitado apenas no modo de desenvolvimento.
+
 ## Verificações
 
 ```bash
