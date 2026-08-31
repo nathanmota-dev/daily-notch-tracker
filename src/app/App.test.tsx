@@ -81,6 +81,14 @@ describe("App", () => {
     )
     expect(screen.getByText("0 tarefas")).toBeInTheDocument()
     expect(screen.getByText("Nenhuma tarefa ainda.")).toBeInTheDocument()
+    expect(screen.getByRole("main")).not.toHaveClass("bg-canvas")
+  })
+
+  it("uses an opaque canvas for normal window surfaces", async () => {
+    render(<App api={createMockDesktopApi().api} surface="tasks" />)
+
+    expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument()
+    expect(screen.getByRole("main")).toHaveClass("bg-canvas")
   })
 
   it("renders a supplied snapshot without coupling the shell to Tauri", () => {
