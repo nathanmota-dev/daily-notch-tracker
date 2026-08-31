@@ -75,6 +75,10 @@ describe("App", () => {
     expect(
       await screen.findByText("Contrato desktop conectado"),
     ).toBeInTheDocument()
+    expect(screen.getByRole("main")).toHaveAttribute(
+      "data-surface",
+      "overlay",
+    )
     expect(screen.getByText("0 tarefas")).toBeInTheDocument()
     expect(screen.getByText("Nenhuma tarefa ainda.")).toBeInTheDocument()
   })
