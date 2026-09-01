@@ -8,6 +8,7 @@ import {
   LoadingShell,
   SurfacePlaceholder,
 } from "./AppStates"
+import { TasksSurface } from "../features/tasks/tasks-surface"
 
 import {
   desktopApi,
@@ -47,6 +48,11 @@ type AppShellProps = {
   overlayWindowAdapter?: OverlayWindowAdapter | null
   dashboardError?: DesktopApiError | null
 } & PresentationCallbacks
+
+type SurfaceRenderOptions = {
+  applySnapshot: (snapshot: AppSnapshot) => void
+  refreshSnapshot: () => Promise<AppSnapshot>
+}
 
 export function AppShell({
   presentationMode = "collapsed",
@@ -109,6 +115,8 @@ function renderSurface(
   callbacks: PresentationCallbacks,
   dashboardError: DesktopApiError | null,
   overlayWindowAdapter?: OverlayWindowAdapter | null,
+  api?: DesktopApi,
+  snapshotOptions?: SurfaceRenderOptions,
 ) {
   if (surface === "overlay") {
     return (
@@ -120,6 +128,21 @@ function renderSurface(
         {...callbacks}
       />
     )
+  }
+
+  if (surface === "tasks") {
+    if (api && snapshotOptions) {
+      return (
+        <TasksSurface
+          api={api}
+          applySnapshot={snapshotOptions.applySnapshot}
+          refreshSnapshot={snapshotOptions.refreshSnapshot}
+          snapshot={snapshot}
+        />
+      )
+    }
+
+    return <LoadingShell surface="tasks" />
   }
 
   return <SurfacePlaceholder snapshot={snapshot} surface={surface} />
@@ -166,5 +189,7 @@ export function App({
     { ...dashboardActions.callbacks, ...callbacks },
     dashboardActions.error,
     overlayWindowAdapter,
+    api,
+    { applySnapshot, refreshSnapshot },
   )
 }

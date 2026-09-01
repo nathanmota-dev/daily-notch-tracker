@@ -9,19 +9,12 @@ use crate::domain::task::{
 };
 use crate::domain::{
     AppError, AppSnapshot, CreateTaskInput, DomainResult, FocusSession, FocusSettingsPatch,
-    MoveTasksInput, Task, TaskBucket, UpdateTaskInput,
+    FocusSnapshot, MoveTasksInput, Task, TaskBucket, UpdateTaskInput,
 };
 
 impl AppState {
     pub fn add_task(&mut self, input: CreateTaskInput) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
-        let scheduled_date =
-            parse_scheduled_date(input.scheduled_date.as_deref(), "scheduledDate")?;
-        let sort_order = next_sort_order(&self.tasks, scheduled_date, &[])?;
-        let task = Task::from_input(input, Uuid::new_v4(), Utc::now(), sort_order)?;
-
-        self.tasks.push(task);
-        self.commit()
+        self.add_task_at(input, Uuid::new_v4(), Utc::now())
     }
 
     pub fn add_task_at(
@@ -30,122 +23,143 @@ impl AppState {
         id: Uuid,
         created_at: DateTime<Utc>,
     ) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
-        if self.tasks.iter().any(|task| task.id == id) {
-            return Err(AppError::conflict(
-                "A task with this id already exists.",
-                "id",
-            ));
-        }
-        let scheduled_date =
-            parse_scheduled_date(input.scheduled_date.as_deref(), "scheduledDate")?;
-        let sort_order = next_sort_order(&self.tasks, scheduled_date, &[])?;
-        let task = Task::from_input(input, id, created_at, sort_order)?;
+        self.mutate(|state| {
+            if state.tasks.iter().any(|task| task.id == id) {
+                return Err(AppError::conflict(
+                    "A task with this id already exists.",
+                    "id",
+                ));
+            }
+            let scheduled_date =
+                parse_scheduled_date(input.scheduled_date.as_deref(), "scheduledDate")?;
+            let sort_order = next_sort_order(&state.tasks, scheduled_date, &[])?;
+            let task = Task::from_input(input, id, created_at, sort_order)?;
 
-        self.tasks.push(task);
-        self.commit()
+            state.tasks.push(task);
+            reindex_bucket(&mut state.tasks, scheduled_date)?;
+            Ok(())
+        })
     }
 
     pub fn update_task(&mut self, input: UpdateTaskInput) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
-        let task_id = parse_task_id(&input.id, "id")?;
-        let task_index = self.find_task_index(task_id)?;
-        let fields = validate_task_fields(
-            &input.title,
-            &input.notes,
-            input.scheduled_date.as_deref(),
-            input.estimate_minutes,
-        )?;
-        let source_bucket = self.tasks[task_index].scheduled_date;
-        let destination_bucket = fields.scheduled_date;
+        self.mutate(|state| {
+            let task_id = parse_task_id(&input.id, "id")?;
+            let task_index = state.find_task_index(task_id)?;
+            let fields = validate_task_fields(
+                &input.title,
+                &input.notes,
+                input.scheduled_date.as_deref(),
+                input.estimate_minutes,
+            )?;
+            let source_bucket = state.tasks[task_index].scheduled_date;
+            let destination_bucket = fields.scheduled_date;
+            let previous_is_done = state.tasks[task_index].is_done;
 
-        if source_bucket != destination_bucket {
-            let destination_sort_order =
-                next_sort_order(&self.tasks, destination_bucket, &[task_id])?;
-            self.tasks[task_index].sort_order = destination_sort_order;
-        }
+            let destination_sort_order = if source_bucket != destination_bucket {
+                Some(next_sort_order(
+                    &state.tasks,
+                    destination_bucket,
+                    &[task_id],
+                )?)
+            } else {
+                None
+            };
 
-        let task = &mut self.tasks[task_index];
-        task.title = fields.title;
-        task.notes = fields.notes;
-        task.scheduled_date = fields.scheduled_date;
-        task.estimate_minutes = fields.estimate_minutes;
-        task.is_done = input.is_done;
+            let task = &mut state.tasks[task_index];
+            task.title = fields.title;
+            task.notes = fields.notes;
+            task.scheduled_date = fields.scheduled_date;
+            task.estimate_minutes = fields.estimate_minutes;
+            task.is_done = input.is_done;
+            if let Some(sort_order) = destination_sort_order {
+                task.sort_order = sort_order;
+            }
 
-        if source_bucket != destination_bucket {
-            reindex_bucket(&mut self.tasks, source_bucket)?;
-            reindex_bucket(&mut self.tasks, destination_bucket)?;
-        }
+            if source_bucket != destination_bucket {
+                reindex_bucket(&mut state.tasks, source_bucket)?;
+                reindex_bucket(&mut state.tasks, destination_bucket)?;
+            } else if previous_is_done != input.is_done {
+                reindex_bucket(&mut state.tasks, source_bucket)?;
+            }
 
-        self.commit()
+            if state.focus.active_task_id == Some(task_id) {
+                if input.is_done {
+                    state.focus = FocusSnapshot::default();
+                } else {
+                    state.focus.active_task_title = Some(state.tasks[task_index].title.clone());
+                }
+            }
+
+            Ok(())
+        })
     }
 
     pub fn delete_task(&mut self, task_id: &str) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
-        let task_id = parse_task_id(task_id, "taskId")?;
-        let task_index = self.find_task_index(task_id)?;
-        let source_bucket = self.tasks[task_index].scheduled_date;
-
-        self.tasks.remove(task_index);
-        reindex_bucket(&mut self.tasks, source_bucket)?;
-        self.commit()
+        self.mutate_task(task_id, |state, task_id, task_index, source_bucket| {
+            state.tasks.remove(task_index);
+            reindex_bucket(&mut state.tasks, source_bucket)?;
+            if state.focus.active_task_id == Some(task_id) {
+                state.focus = FocusSnapshot::default();
+            }
+            Ok(())
+        })
     }
 
     pub fn toggle_task(&mut self, task_id: &str) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
-        let task_id = parse_task_id(task_id, "taskId")?;
-        let task_index = self.find_task_index(task_id)?;
-        self.tasks[task_index].is_done = !self.tasks[task_index].is_done;
-        self.commit()
+        self.mutate_task(task_id, |state, task_id, task_index, source_bucket| {
+            state.tasks[task_index].is_done = !state.tasks[task_index].is_done;
+            if state.tasks[task_index].is_done && state.focus.active_task_id == Some(task_id) {
+                state.focus = FocusSnapshot::default();
+            }
+            reindex_bucket(&mut state.tasks, source_bucket)?;
+            Ok(())
+        })
     }
 
     pub fn move_tasks(&mut self, input: MoveTasksInput) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
-        let source_bucket = parse_bucket(&input.source, "source.scheduledDate")?;
-        let destination_bucket = parse_bucket(&input.destination, "destination.scheduledDate")?;
-        let task_ids = parse_move_task_ids(&input.task_ids)?;
+        self.mutate(|state| {
+            let source_bucket = parse_bucket(&input.source, "source.scheduledDate")?;
+            let destination_bucket = parse_bucket(&input.destination, "destination.scheduledDate")?;
+            let task_ids = parse_move_task_ids(&input.task_ids)?;
 
-        if source_bucket == destination_bucket {
-            self.reorder_same_bucket(&task_ids, source_bucket)?;
-        } else {
-            if task_ids.is_empty() {
-                return Err(AppError::validation(
-                    "At least one task must be moved.",
-                    "taskIds",
-                ));
+            if source_bucket == destination_bucket {
+                state.reorder_same_bucket(&task_ids, source_bucket)?;
+            } else {
+                state.move_between_buckets(&task_ids, source_bucket, destination_bucket)?;
             }
-            self.move_between_buckets(&task_ids, source_bucket, destination_bucket)?;
-        }
 
-        self.commit()
+            Ok(())
+        })
     }
 
     pub fn update_settings(&mut self, patch: FocusSettingsPatch) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
-        self.settings.apply_patch(patch);
-        self.commit()
+        self.mutate(|state| {
+            state.settings.apply_patch(patch);
+            Ok(())
+        })
     }
 
     pub fn record_session(&mut self, session: FocusSession) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
-        session.validate()?;
+        self.mutate(|state| {
+            session.validate()?;
 
-        if self.sessions.iter().any(|item| item.id == session.id) {
-            return Err(AppError::conflict(
-                "A focus session with this id already exists.",
-                "id",
-            ));
-        }
+            if state.sessions.iter().any(|item| item.id == session.id) {
+                return Err(AppError::conflict(
+                    "A focus session with this id already exists.",
+                    "id",
+                ));
+            }
 
-        if let Some(task_id) = session.task_id {
-            let task_index = self.find_task_index(task_id)?;
-            self.tasks[task_index].focused_seconds = self.tasks[task_index]
-                .focused_seconds
-                .saturating_add(session.focused_seconds);
-        }
+            if let Some(task_id) = session.task_id {
+                let task_index = state.find_task_index(task_id)?;
+                state.tasks[task_index].focused_seconds = state.tasks[task_index]
+                    .focused_seconds
+                    .saturating_add(session.focused_seconds);
+            }
 
-        self.sessions.push(session);
-        self.commit()
+            state.sessions.push(session);
+            Ok(())
+        })
     }
 
     fn reorder_same_bucket(
@@ -159,16 +173,6 @@ impl AppState {
             .filter(|task| task.scheduled_date == scheduled_date)
             .map(|task| task.id)
             .collect::<Vec<_>>();
-
-        let mut seen = HashSet::with_capacity(task_ids.len());
-        for task_id in task_ids {
-            if !seen.insert(*task_id) {
-                return Err(AppError::conflict(
-                    "A reorder must not contain duplicate task ids.",
-                    "taskIds",
-                ));
-            }
-        }
 
         if task_ids
             .iter()
@@ -252,6 +256,28 @@ impl AppState {
             .position(|task| task.id == task_id)
             .ok_or_else(|| AppError::not_found("The task was not found.", "taskId"))
     }
+
+    fn task_for_mutation(
+        &self,
+        task_id: &str,
+        field: &str,
+    ) -> DomainResult<(Uuid, usize, Option<NaiveDate>)> {
+        let task_id = parse_task_id(task_id, field)?;
+        let task_index = self.find_task_index(task_id)?;
+        let source_bucket = self.tasks[task_index].scheduled_date;
+        Ok((task_id, task_index, source_bucket))
+    }
+
+    fn mutate_task<F>(&mut self, task_id: &str, operation: F) -> DomainResult<AppSnapshot>
+    where
+        F: FnOnce(&mut Self, Uuid, usize, Option<NaiveDate>) -> DomainResult<()>,
+    {
+        self.mutate(|state| {
+            let (task_id, task_index, source_bucket) =
+                state.task_for_mutation(task_id, "taskId")?;
+            operation(state, task_id, task_index, source_bucket)
+        })
+    }
 }
 
 fn parse_bucket(bucket: &TaskBucket, field: &str) -> DomainResult<Option<NaiveDate>> {
@@ -259,6 +285,13 @@ fn parse_bucket(bucket: &TaskBucket, field: &str) -> DomainResult<Option<NaiveDa
 }
 
 fn parse_move_task_ids(values: &[String]) -> DomainResult<Vec<Uuid>> {
+    if values.is_empty() {
+        return Err(AppError::validation(
+            "At least one task must be moved.",
+            "taskIds",
+        ));
+    }
+
     let mut seen = HashSet::with_capacity(values.len());
     let mut ids = Vec::with_capacity(values.len());
 

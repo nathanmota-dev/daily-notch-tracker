@@ -1,6 +1,8 @@
 use std::sync::Mutex;
 
-use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+};
 
 use crate::domain::{
     parse_task_id, AppDiagnostics, AppError, AppSnapshot, CreateTaskInput, FocusSettingsPatch,
@@ -11,6 +13,7 @@ use crate::state::AppState;
 const STORE_EVENTS: &[&str] = &["store-changed"];
 const SETTINGS_EVENTS: &[&str] = &["store-changed", "settings-changed"];
 const FOCUS_EVENTS: &[&str] = &["focus-changed"];
+const TASKS_WINDOW_INTENT_EVENT: &str = "tasks-window-intent";
 
 #[tauri::command]
 pub fn greet(name: &str) -> String {
@@ -131,8 +134,9 @@ pub async fn open_tasks_window<R: Runtime>(
     app: AppHandle<R>,
     intent: Option<TasksWindowIntent>,
 ) -> Result<(), AppError> {
-    validate_tasks_window_intent(intent.as_ref())?;
-    open_window(&app, "tasks", "Tasks", 960.0, 720.0)
+    let intent = intent.unwrap_or(TasksWindowIntent::List);
+    validate_tasks_window_intent(Some(&intent))?;
+    open_tasks_window_with_intent(&app, &intent)
 }
 
 #[tauri::command]
@@ -200,6 +204,51 @@ fn validate_tasks_window_intent(intent: Option<&TasksWindowIntent>) -> Result<()
     parse_task_id(task_id, "intent.taskId").map(|_| ())
 }
 
+fn open_tasks_window_with_intent<R: Runtime>(
+    app: &AppHandle<R>,
+    intent: &TasksWindowIntent,
+) -> Result<(), AppError> {
+    let existing_window = app.get_webview_window("tasks");
+    let is_existing_window = existing_window.is_some();
+    let window = match existing_window {
+        Some(window) => window,
+        None => WebviewWindowBuilder::new(
+            app,
+            "tasks",
+            WebviewUrl::App(tasks_window_url(intent).into()),
+        )
+        .title("Tasks")
+        .inner_size(960.0, 720.0)
+        .center()
+        .build()
+        .map_err(|_| {
+            AppError::integration_unavailable("The desktop window could not be opened.")
+        })?,
+    };
+
+    show_and_focus_window(&window)?;
+
+    if is_existing_window {
+        window
+            .emit(TASKS_WINDOW_INTENT_EVENT, intent.clone())
+            .map_err(|_| {
+                AppError::integration_unavailable("The Tasks window could not receive its intent.")
+            })?;
+    }
+
+    Ok(())
+}
+
+fn tasks_window_url(intent: &TasksWindowIntent) -> String {
+    let intent_query = match intent {
+        TasksWindowIntent::List => "list".to_owned(),
+        TasksWindowIntent::Add => "add".to_owned(),
+        TasksWindowIntent::Task { task_id } => format!("task&taskId={task_id}"),
+    };
+
+    format!("index.html?surface=tasks&intent={intent_query}")
+}
+
 fn open_window<R: Runtime>(
     app: &AppHandle<R>,
     label: &str,
@@ -219,6 +268,11 @@ fn open_window<R: Runtime>(
             })?,
     };
 
+    show_and_focus_window(&window)?;
+    Ok(())
+}
+
+fn show_and_focus_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), AppError> {
     window
         .show()
         .map_err(|_| AppError::integration_unavailable("The desktop window could not be shown."))?;

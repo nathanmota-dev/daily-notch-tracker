@@ -1,13 +1,13 @@
-import { useCallback, useState } from "react"
+import { useCallback } from "react"
 
 import {
-  normalizeDesktopApiError,
   type AppSnapshot,
   type DesktopApi,
   type DesktopApiError,
   type TasksWindowIntent,
 } from "../lib/desktopApi"
 import { getLocalDateString } from "../lib/local-date"
+import { useDesktopMutations } from "./use-desktop-mutations"
 
 type DashboardActionCallbacks = {
   onToggleTask: (taskId: string, isDone: boolean) => void
@@ -31,18 +31,6 @@ type UseDashboardActionsResult = {
   error: DesktopApiError | null
 }
 
-type SnapshotAction = () => Promise<AppSnapshot | void>
-
-async function reconcileSnapshot(
-  refreshSnapshot: () => Promise<AppSnapshot>,
-) {
-  try {
-    await refreshSnapshot()
-  } catch {
-    return
-  }
-}
-
 export function useDashboardActions({
   api,
   applySnapshot,
@@ -50,31 +38,16 @@ export function useDashboardActions({
   refreshSnapshot,
   snapshot,
 }: UseDashboardActionsOptions): UseDashboardActionsResult {
-  const [error, setError] = useState<DesktopApiError | null>(null)
-
-  const runAction = useCallback(
-    async (operation: string, action: SnapshotAction) => {
-      setError(null)
-
-      try {
-        const result = await action()
-        if (result !== undefined) {
-          applySnapshot(result)
-        }
-      } catch (value) {
-        const actionError = normalizeDesktopApiError(value, operation)
-        await reconcileSnapshot(refreshSnapshot)
-        setError(actionError)
-      }
-    },
-    [applySnapshot, refreshSnapshot],
-  )
+  const { error, runMutation } = useDesktopMutations({
+    applySnapshot,
+    refreshSnapshot,
+  })
 
   const onToggleTask = useCallback(
     (taskId: string) => {
-      void runAction("toggleTask", () => api.toggleTask(taskId))
+      void runMutation("toggleTask", () => api.toggleTask(taskId))
     },
-    [api, runAction],
+    [api, runMutation],
   )
 
   const onToggleFocus = useCallback(
@@ -83,25 +56,25 @@ export function useDashboardActions({
       const isActiveTask = focus?.activeTaskId === taskId
 
       if (isActiveTask && focus?.state === "running") {
-        void runAction("pauseFocus", () => api.pauseFocus())
+        void runMutation("pauseFocus", () => api.pauseFocus())
         return
       }
 
       if (isActiveTask && focus?.state === "paused") {
-        void runAction("resumeFocus", () => api.resumeFocus())
+        void runMutation("resumeFocus", () => api.resumeFocus())
         return
       }
 
-      void runAction("startFocus", () => api.startFocus(taskId))
+      void runMutation("startFocus", () => api.startFocus(taskId))
     },
-    [api, runAction, snapshot],
+    [api, runMutation, snapshot],
   )
 
   const openTasksWindow = useCallback(
     (intent: TasksWindowIntent) => {
-      void runAction("openTasksWindow", () => api.openTasksWindow(intent))
+      void runMutation("openTasksWindow", () => api.openTasksWindow(intent))
     },
-    [api, runAction],
+    [api, runMutation],
   )
 
   const onAddTask = useCallback(() => {
@@ -124,7 +97,7 @@ export function useDashboardActions({
       const scheduledDate = getLocalDateString(now)
       const bucket = { scheduledDate }
 
-      void runAction("moveTasks", () =>
+      void runMutation("moveTasks", () =>
         api.moveTasks({
           taskIds,
           source: bucket,
@@ -132,7 +105,7 @@ export function useDashboardActions({
         }),
       )
     },
-    [api, now, runAction],
+    [api, now, runMutation],
   )
 
   return {

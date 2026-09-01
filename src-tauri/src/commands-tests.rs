@@ -39,6 +39,24 @@ fn task_window_intent_rejects_an_invalid_task_id() {
 }
 
 #[test]
+fn task_window_intents_are_encoded_for_new_window_urls() {
+    assert_eq!(
+        tasks_window_url(&TasksWindowIntent::List),
+        "index.html?surface=tasks&intent=list"
+    );
+    assert_eq!(
+        tasks_window_url(&TasksWindowIntent::Add),
+        "index.html?surface=tasks&intent=add"
+    );
+    assert_eq!(
+        tasks_window_url(&TasksWindowIntent::Task {
+            task_id: "11111111-1111-4111-8111-111111111111".to_owned(),
+        }),
+        "index.html?surface=tasks&intent=task&taskId=11111111-1111-4111-8111-111111111111"
+    );
+}
+
+#[test]
 fn release_url_validation_requires_an_https_host() {
     assert!(is_allowed_release_url("https://github.com/example/release"));
     assert!(!is_allowed_release_url("http://github.com/example/release"));

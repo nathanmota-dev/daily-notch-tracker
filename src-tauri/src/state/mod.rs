@@ -32,6 +32,16 @@ pub struct AppState {
     recovery_diagnostic: Option<RecoveryDiagnostic>,
 }
 
+#[derive(Clone, Debug)]
+struct MutableStateCheckpoint {
+    revision: u64,
+    tasks: Vec<Task>,
+    sessions: Vec<FocusSession>,
+    settings: FocusSettings,
+    focus: FocusSnapshot,
+    confirmed_payload: PersistedPayload,
+}
+
 impl Default for AppState {
     fn default() -> Self {
         Self::from_persisted_payload(PersistedPayload::empty())
@@ -107,6 +117,37 @@ impl AppState {
 
     pub fn focused_seconds_for_task(&self, task_id: Uuid) -> u64 {
         total_focused_seconds(&self.sessions, task_id)
+    }
+
+    fn mutate<F>(&mut self, operation: F) -> DomainResult<AppSnapshot>
+    where
+        F: FnOnce(&mut Self) -> DomainResult<()>,
+    {
+        let checkpoint = MutableStateCheckpoint {
+            revision: self.revision,
+            tasks: self.tasks.clone(),
+            sessions: self.sessions.clone(),
+            settings: self.settings.clone(),
+            focus: self.focus.clone(),
+            confirmed_payload: self.confirmed_payload.clone(),
+        };
+
+        let result = (|| {
+            self.ensure_revision_available()?;
+            operation(self)?;
+            self.commit()
+        })();
+
+        if result.is_err() {
+            self.revision = checkpoint.revision;
+            self.tasks = checkpoint.tasks;
+            self.sessions = checkpoint.sessions;
+            self.settings = checkpoint.settings;
+            self.focus = checkpoint.focus;
+            self.confirmed_payload = checkpoint.confirmed_payload;
+        }
+
+        result
     }
 }
 

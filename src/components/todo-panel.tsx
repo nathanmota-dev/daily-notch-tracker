@@ -1,15 +1,11 @@
-import { useState, type DragEvent } from "react"
-
 import { ExpandIcon, ListIcon, PlusIcon } from "../icons"
 import type { DesktopApiError, FocusSnapshot, Task } from "../lib/desktopApi"
 import { Button } from "./ui/button"
 import { ScrollArea } from "./ui/scroll-area"
 import { CompactTaskRow } from "./compact-task-row"
 import { IconButton } from "./icon-button"
-import {
-  EXPANDED_DASHBOARD_MAX_VISIBLE_ROWS,
-  reorderTaskIds,
-} from "./expanded-dashboard-model"
+import { EXPANDED_DASHBOARD_MAX_VISIBLE_ROWS } from "./expanded-dashboard-model"
+import { useTaskReorder } from "./use-task-reorder"
 
 export type TodoPanelProps = {
   tasks: readonly Task[]
@@ -41,35 +37,13 @@ function TodoTaskList({
   onToggleTask,
   tasks,
 }: TodoTaskListProps) {
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
   const taskIds = tasks.map((task) => task.id)
-
-  function handleDragOver(event: DragEvent<HTMLElement>) {
-    event.preventDefault()
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "move"
-    }
-  }
-
-  function handleDrop(event: DragEvent<HTMLElement>, targetTaskId: string) {
-    event.preventDefault()
-    const sourceTaskId = event.dataTransfer?.getData("text/plain") || draggedTaskId
-    setDraggedTaskId(null)
-
-    if (!sourceTaskId) {
-      return
-    }
-
-    const reorderedIds = reorderTaskIds(
-      taskIds,
-      sourceTaskId,
-      targetTaskId,
-    )
-
-    if (reorderedIds.join("\u0000") !== taskIds.join("\u0000")) {
-      onReorder(reorderedIds)
-    }
-  }
+  const {
+    handleDragOver,
+    handleDrop,
+    onReorderEnd,
+    onReorderStart,
+  } = useTaskReorder({ onReorder, taskIds })
 
   return (
     <div className="todo-panel__task-list">
@@ -77,11 +51,11 @@ function TodoTaskList({
         <CompactTaskRow
           focus={focus}
           key={task.id}
-          onDragEnd={() => setDraggedTaskId(null)}
+          onDragEnd={onReorderEnd}
           onDragOver={handleDragOver}
           onDrop={(event) => handleDrop(event, task.id)}
           onOpenTask={onOpenTask}
-          onReorderStart={setDraggedTaskId}
+          onReorderStart={onReorderStart}
           onToggleFocus={onToggleFocus}
           onToggleTask={onToggleTask}
           task={task}

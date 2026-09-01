@@ -164,31 +164,47 @@ ancorado da janela Tauri acompanha as mudanças de apresentação, e o
 drag-and-drop do resumo já reordena o bucket do dia.
 A janela completa `Tasks` e a janela `Settings` são abertas sob demanda por
 comandos Rust, reutilizando a janela existente pelo label e trazendo-a para
-frente sem criar duplicatas. As superfícies ainda são placeholders até as
-issues de CRUD e formulário; o argumento de intenção de `Tasks` já é validado,
-mas o consumo visual desses intents pertence às issues futuras da janela
-`Tasks`.
+frente sem criar duplicatas. `Settings` continua sendo a superfície reservada
+para configurações futuras; `Tasks` já é a superfície funcional descrita
+abaixo.
 
 O focus engine desta etapa é deliberadamente mínimo: iniciar, pausar, retomar,
 parar e alternar um bloco atualiza apenas o estado de runtime e a `revision`.
+Na janela `Tasks`, o CRUD é persistido pelo Rust: a lista separa os buckets
+`Day` e `Unscheduled`, permite escolher a data, mantém pendentes antes de
+concluídas e envia a permutação completa do bucket ao reordenar pelo handle.
+O formulário também permite editar título, notas, duração, data e conclusão,
+além de iniciar, pausar e retomar o foco da tarefa selecionada. Os intents
+`list`, `add` e `task` chegam pela URL na abertura da janela e por
+`tasks-window-intent` quando ela já existe; são transitórios e não entram no
+arquivo persistido. Concluir ou excluir a tarefa ativa limpa somente a
+referência de foco em runtime.
+
 Scheduler, conclusão automática, sessões e acumulação de `focusedSeconds`
-entram no MVP-017.
+continuam no MVP-017.
 
 ## Verificações
 
 ```bash
+npm ci
 npm run build
 npm test
-npm run test:e2e
+npm run test:coverage:ci
+npm run lint -- --max-warnings=0
+npm run typecheck
 npm run test:rust
-cargo check --manifest-path src-tauri/Cargo.toml
-cargo test --manifest-path src-tauri/Cargo.toml
+cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
+cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --all-features -- -D warnings
+node scripts/quality-gate.js
+npm run benchmark:ci
+npm run benchmark:rust
+node scripts/benchmark-gate.js
 ```
 
 `npm test` executa os testes do frontend com Vitest. `npm run test:rust` é um
 atalho para o `cargo test` do projeto Tauri. Os comandos Rust dependem das
-bibliotecas Linux listadas acima. O `cargo fmt` também pode ser usado quando o
-componente `rustfmt` estiver instalado.
+bibliotecas Linux listadas acima. O fluxo de qualidade também verifica cobertura,
+lint, typecheck, clippy, o quality gate e os benchmarks sem alterar suas regras.
 
 ## Estrutura
 
