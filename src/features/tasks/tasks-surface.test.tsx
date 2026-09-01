@@ -1,0 +1,349 @@
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import { vi } from "vitest"
+
+import {
+  createEmptyAppSnapshot,
+  createMockDesktopApi,
+  DesktopApiError,
+  type AppSnapshot,
+  type CreateTaskInput,
+  type Task,
+  type UpdateTaskInput,
+} from "../../lib/desktopApi"
+import { getLocalDateString } from "../../lib/local-date"
+import { App } from "../../app/App"
+import { TasksSurface } from "./tasks-surface"
+
+const today = getLocalDateString()
+
+function createTask(
+  id: string,
+  title: string,
+  overrides: Partial<Task> = {},
+): Task {
+  return {
+    id,
+    title,
+    notes: "",
+    scheduledDate: today,
+    estimateMinutes: 25,
+    isDone: false,
+    createdAt: `${today}T10:00:00.000Z`,
+    focusedSeconds: 0,
+    sortOrder: 0,
+    ...overrides,
+  }
+}
+
+function createSnapshot(tasks: Task[], overrides: Partial<AppSnapshot> = {}) {
+  return {
+    ...createEmptyAppSnapshot(),
+    revision: 1,
+    tasks,
+    ...overrides,
+  }
+}
+
+function renderStandaloneTasks(
+  snapshot: AppSnapshot,
+  options: { search?: string } = {},
+) {
+  const controller = createMockDesktopApi({ snapshot })
+  const applySnapshot = vi.fn()
+  const refreshSnapshot = vi.fn(async () => snapshot)
+
+  render(
+    <TasksSurface
+      api={controller.api}
+      applySnapshot={applySnapshot}
+      refreshSnapshot={refreshSnapshot}
+      search={options.search}
+      snapshot={snapshot}
+    />,
+  )
+
+  return { applySnapshot, controller, refreshSnapshot }
+}
+
+describe("Tasks surface", () => {
+  beforeEach(() => {
+    window.history.replaceState({}, "", "/")
+  })
+
+  afterEach(() => {
+    window.history.replaceState({}, "", "/")
+  })
+
+  it("keeps Day and Unscheduled buckets independent", async () => {
+    const snapshot = createSnapshot([
+      createTask("day-task", "Day task"),
+      createTask("other-day-task", "Other day task", {
+        scheduledDate: "2099-01-01",
+      }),
+      createTask("unscheduled-task", "Unscheduled task", {
+        scheduledDate: null,
+      }),
+    ])
+    const controller = createMockDesktopApi({ snapshot })
+
+    render(<AppForTasks api={controller.api} />)
+
+    expect(await screen.findByText("Day task")).toBeInTheDocument()
+    expect(screen.queryByText("Unscheduled task")).not.toBeInTheDocument()
+
+    await userEvent.setup().click(
+      screen.getByRole("tab", { name: "Unscheduled" }),
+    )
+    expect(await screen.findByText("Unscheduled task")).toBeInTheDocument()
+    expect(screen.queryByText("Day task")).not.toBeInTheDocument()
+
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Day" }))
+    fireEvent.change(screen.getByLabelText("Selected day"), {
+      target: { value: "2099-01-01" },
+    })
+    expect(await screen.findByText("Other day task")).toBeInTheDocument()
+    expect(screen.queryByText("Day task")).not.toBeInTheDocument()
+  })
+
+  it("creates a task from the focused form", async () => {
+    const snapshot = createSnapshot([])
+    const createdTask = createTask("created-task", "Created task", {
+      notes: "A note",
+      estimateMinutes: 40,
+    })
+    const addTask = vi.fn(async (input: CreateTaskInput) => {
+      expect(input).toEqual({
+        title: "Created task",
+        notes: "A note",
+        scheduledDate: today,
+        estimateMinutes: 40,
+      })
+      return createSnapshot([createdTask], { revision: 2 })
+    })
+    const controller = createMockDesktopApi({
+      handlers: { addTask },
+      snapshot,
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("button", { name: "Add task" }))
+    const title = screen.getByLabelText("Title")
+    expect(title).toHaveFocus()
+    await user.type(title, "Created task")
+    await user.type(screen.getByLabelText("Notes"), "A note")
+    await user.clear(screen.getByLabelText("Duration (minutes)"))
+    await user.type(screen.getByLabelText("Duration (minutes)"), "40")
+    await user.click(screen.getByRole("button", { name: "Save task" }))
+
+    await waitFor(() => expect(addTask).toHaveBeenCalledOnce())
+    expect(await screen.findByText("Created task")).toBeInTheDocument()
+  })
+
+  it("edits, completes, and deletes a task", async () => {
+    const initialTask = createTask("editable-task", "Original task")
+    const snapshot = createSnapshot([initialTask])
+    const updatedTask = {
+      ...initialTask,
+      title: "Updated task",
+      isDone: true,
+    }
+    const updateTask = vi.fn(async (input: UpdateTaskInput) => {
+      expect(input).toMatchObject({
+        id: initialTask.id,
+        title: "Updated task",
+        isDone: true,
+      })
+      return createSnapshot([updatedTask], { revision: 2 })
+    })
+    const deleteTask = vi.fn(async () => createSnapshot([], { revision: 3 }))
+    const controller = createMockDesktopApi({
+      handlers: { deleteTask, updateTask },
+      snapshot,
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+    await user.click(
+      screen.getByRole("button", { name: "Open details for Original task" }),
+    )
+    expect(await screen.findByRole("heading", { name: "Edit task" })).toBeInTheDocument()
+    await user.clear(screen.getByLabelText("Title"))
+    await user.type(screen.getByLabelText("Title"), "Updated task")
+    await user.click(
+      screen.getByRole("checkbox", { name: /Mark task as complete/ }),
+    )
+    await user.click(screen.getByRole("button", { name: "Save task" }))
+
+    await waitFor(() => expect(updateTask).toHaveBeenCalledOnce())
+    expect(screen.getByLabelText("Title")).toHaveValue("Updated task")
+    await user.click(screen.getByRole("button", { name: "Back to list" }))
+    expect(await screen.findByText("Updated task")).toBeInTheDocument()
+    expect(
+      screen.getByRole("checkbox", { name: "Mark Updated task as incomplete" }),
+    ).toBeChecked()
+
+    await user.click(
+      screen.getByRole("button", { name: "Open details for Updated task" }),
+    )
+    await user.click(screen.getByRole("button", { name: "Delete task" }))
+    await waitFor(() => expect(deleteTask).toHaveBeenCalledWith(initialTask.id))
+    expect(await screen.findByRole("button", { name: "Add your first task" })).toBeInTheDocument()
+  })
+
+  it("uses start, pause, and resume focus actions", async () => {
+    const task = createTask("focus-task", "Focus task")
+    const snapshot = createSnapshot([task])
+    const runningSnapshot = createSnapshot([task], {
+      revision: 2,
+      focus: {
+        ...snapshot.focus,
+        state: "running",
+        activeTaskId: task.id,
+        activeTaskTitle: task.title,
+      },
+    })
+    const pausedSnapshot = createSnapshot([task], {
+      revision: 3,
+      focus: {
+        ...runningSnapshot.focus,
+        state: "paused",
+      },
+    })
+    const startFocus = vi.fn(async () => runningSnapshot)
+    const pauseFocus = vi.fn(async () => pausedSnapshot)
+    const resumeFocus = vi.fn(async () => runningSnapshot)
+    const controller = createMockDesktopApi({
+      handlers: { pauseFocus, resumeFocus, startFocus },
+      snapshot,
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Start focus for Focus task" }))
+    await waitFor(() => expect(startFocus).toHaveBeenCalledWith(task.id))
+    await user.click(screen.getByRole("button", { name: "Pause focus for Focus task" }))
+    await waitFor(() => expect(pauseFocus).toHaveBeenCalledOnce())
+    await user.click(screen.getByRole("button", { name: "Resume focus for Focus task" }))
+    await waitFor(() => expect(resumeFocus).toHaveBeenCalledOnce())
+  })
+
+  it("sends the complete current bucket when reordering by its handle", async () => {
+    const firstTask = createTask("first-task", "First task", { sortOrder: 0 })
+    const secondTask = createTask("second-task", "Second task", { sortOrder: 1 })
+    const snapshot = createSnapshot([firstTask, secondTask])
+    const moveTasks = vi.fn(async () =>
+      createSnapshot(
+        [
+          { ...secondTask, sortOrder: 0 },
+          { ...firstTask, sortOrder: 1 },
+        ],
+        { revision: 2 },
+      ),
+    )
+    const controller = createMockDesktopApi({
+      handlers: { moveTasks },
+      snapshot,
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const rows = document.querySelectorAll('[data-slot="tasks-task-row"]')
+    const dataTransfer = {
+      effectAllowed: "none",
+      dropEffect: "none",
+      getData: vi.fn(() => firstTask.id),
+      setData: vi.fn(),
+    }
+
+    fireEvent.dragStart(
+      screen.getByRole("button", { name: "Reorder First task" }),
+      { dataTransfer },
+    )
+    fireEvent.dragOver(rows[1], { dataTransfer })
+    fireEvent.drop(rows[1], { dataTransfer })
+
+    await waitFor(() => expect(moveTasks).toHaveBeenCalledOnce())
+    expect(moveTasks).toHaveBeenCalledWith({
+      taskIds: [secondTask.id, firstTask.id],
+      source: { scheduledDate: today },
+      destination: { scheduledDate: today },
+    })
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll('[data-slot="tasks-task-row"]')).map(
+          (row) => row.getAttribute("data-task-id"),
+        ),
+      ).toEqual([secondTask.id, firstTask.id]),
+    )
+  })
+
+  it("reconciles failed mutations and prevents concurrent saves", async () => {
+    const snapshot = createSnapshot([])
+    const reconciledSnapshot = createSnapshot([], { revision: 2 })
+    const getSnapshot = vi
+      .fn<() => Promise<AppSnapshot>>()
+      .mockResolvedValueOnce(snapshot)
+      .mockResolvedValueOnce(reconciledSnapshot)
+    const addTask = vi.fn(async () => {
+      throw new DesktopApiError({
+        operation: "addTask",
+        code: "conflict",
+        message: "A private title must never be shown.",
+      })
+    })
+    const controller = createMockDesktopApi({
+      handlers: { addTask, getSnapshot },
+      snapshot,
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Add task" }))
+    await user.type(screen.getByLabelText("Title"), "Failed task")
+    const saveButton = screen.getByRole("button", { name: "Save task" })
+    fireEvent.click(saveButton)
+    fireEvent.click(saveButton)
+
+    const alert = await screen.findByRole("alert")
+    await waitFor(() => expect(addTask).toHaveBeenCalledOnce())
+    await waitFor(() => expect(getSnapshot).toHaveBeenCalledTimes(2))
+    expect(alert).toHaveTextContent("conflict")
+    expect(alert).not.toHaveTextContent("private")
+    expect(screen.getByRole("heading", { name: "New task" })).toBeInTheDocument()
+  })
+
+  it("routes initial and transient list, add, and task intents", async () => {
+    const task = createTask("intent-task", "Intent task")
+    const snapshot = createSnapshot([task])
+    const { controller } = renderStandaloneTasks(snapshot, {
+      search: "?surface=tasks&intent=add",
+    })
+
+    expect(await screen.findByRole("heading", { name: "New task" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Title")).toHaveFocus()
+
+    await act(async () => {
+      controller.emit("tasks-window-intent", {
+        kind: "task",
+        taskId: task.id,
+      })
+    })
+    expect(await screen.findByRole("heading", { name: "Edit task" })).toBeInTheDocument()
+
+    await act(async () => {
+      controller.emit("tasks-window-intent", { kind: "list" })
+    })
+    expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument()
+  })
+})
+
+function AppForTasks({ api }: { api: ReturnType<typeof createMockDesktopApi>["api"] }) {
+  return <App api={api} surface="tasks" />
+}

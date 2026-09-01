@@ -33,6 +33,13 @@ impl Drop for TestDirectory {
     }
 }
 
+fn loaded_state() -> (TestDirectory, AppState) {
+    let test_directory = TestDirectory::new();
+    let state = AppState::load(Repository::new(test_directory.path()))
+        .expect("empty repository should load");
+    (test_directory, state)
+}
+
 fn date(year: i32, month: u32, day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, day).expect("test date should be valid")
 }
@@ -92,6 +99,21 @@ fn add_task(
     id
 }
 
+fn add_active_task(state: &mut AppState) -> Uuid {
+    let task_id = Uuid::new_v4();
+    state
+        .add_task_at(
+            create_input("Active task", None, 25),
+            task_id,
+            timestamp(31, 9),
+        )
+        .expect("active task should be added");
+    state
+        .start_focus_at(Some(task_id), timestamp(31, 10))
+        .expect("active task focus should start");
+    task_id
+}
+
 #[test]
 fn empty_state_matches_the_typescript_snapshot_contract() {
     let snapshot = AppState::default().snapshot();
@@ -108,9 +130,7 @@ fn empty_state_matches_the_typescript_snapshot_contract() {
 
 #[test]
 fn diagnostics_expose_the_data_path_without_persistence_details() {
-    let test_directory = TestDirectory::new();
-    let state = AppState::load(Repository::new(test_directory.path()))
-        .expect("empty repository should load");
+    let (_test_directory, state) = loaded_state();
 
     let diagnostics = state.diagnostics("0.1.0".to_owned());
 
@@ -467,9 +487,7 @@ fn structured_errors_serialize_with_code_message_and_optional_field() {
 
 #[test]
 fn persisted_state_recovers_tasks_sessions_and_settings_after_reloading() {
-    let test_directory = TestDirectory::new();
-    let mut state = AppState::load(Repository::new(test_directory.path()))
-        .expect("empty repository should load");
+    let (test_directory, mut state) = loaded_state();
     let task_id = add_task(
         &mut state,
         "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
@@ -515,9 +533,7 @@ fn persisted_state_recovers_tasks_sessions_and_settings_after_reloading() {
 
 #[test]
 fn persistence_write_failure_restores_state_without_revision_increment() {
-    let test_directory = TestDirectory::new();
-    let mut state = AppState::load(Repository::new(test_directory.path()))
-        .expect("empty repository should load");
+    let (test_directory, mut state) = loaded_state();
     add_task(
         &mut state,
         "12121212-1212-4121-8121-121212121212",
@@ -551,9 +567,7 @@ fn persistence_write_failure_restores_state_without_revision_increment() {
 
 #[test]
 fn persistence_rename_failure_restores_state_without_revision_increment() {
-    let test_directory = TestDirectory::new();
-    let mut state = AppState::load(Repository::new(test_directory.path()))
-        .expect("empty repository should load");
+    let (_test_directory, mut state) = loaded_state();
     add_task(
         &mut state,
         "13131313-1313-4131-8131-131313131313",
@@ -575,4 +589,84 @@ fn persistence_rename_failure_restores_state_without_revision_increment() {
     assert_eq!(error.code, AppErrorCode::Persistence);
     assert_eq!(state.snapshot(), before);
     assert_eq!(state.revision(), before.revision);
+}
+
+#[test]
+fn completing_the_active_task_clears_runtime_focus() {
+    let (_test_directory, mut state) = loaded_state();
+    let task_id = add_active_task(&mut state);
+
+    state
+        .update_task(update_input(task_id, "Active task", None, 25, true))
+        .expect("completing the task should succeed");
+
+    assert_eq!(state.snapshot().focus, FocusSnapshot::default());
+}
+
+#[test]
+fn deleting_the_active_task_clears_runtime_focus() {
+    let (_test_directory, mut state) = loaded_state();
+    let task_id = add_active_task(&mut state);
+
+    state
+        .delete_task(&task_id.to_string())
+        .expect("deleting the task should succeed");
+
+    assert_eq!(state.snapshot().focus, FocusSnapshot::default());
+}
+
+#[test]
+fn persistence_failure_restores_focus_when_completion_would_clear_it() {
+    let (_test_directory, mut state) = loaded_state();
+    let task_id = add_active_task(&mut state);
+    let before = state.snapshot();
+    state.fail_next_persistence_write();
+
+    let error = state
+        .update_task(update_input(task_id, "Active task", None, 25, true))
+        .expect_err("the simulated write should fail");
+
+    assert_eq!(error.code, AppErrorCode::Persistence);
+    assert_eq!(state.snapshot(), before);
+}
+
+#[test]
+fn duplicate_and_out_of_bucket_reorders_are_rejected_without_mutation() {
+    let mut state = AppState::default();
+    let first_id = add_task(
+        &mut state,
+        "17171717-1717-4171-8171-171717171717",
+        "First",
+        Some("2026-08-31"),
+        31,
+        9,
+    );
+    let second_id = add_task(
+        &mut state,
+        "18181818-1818-4181-8181-181818181818",
+        "Second",
+        None,
+        31,
+        10,
+    );
+    let before = state.snapshot();
+
+    let duplicate_error = state
+        .move_tasks(MoveTasksInput {
+            task_ids: vec![first_id.to_string(), first_id.to_string()],
+            source: TaskBucket::for_date("2026-08-31"),
+            destination: TaskBucket::for_date("2026-08-31"),
+        })
+        .expect_err("duplicate ids should fail");
+    assert_eq!(duplicate_error.code, AppErrorCode::Validation);
+
+    let outside_error = state
+        .move_tasks(MoveTasksInput {
+            task_ids: vec![second_id.to_string()],
+            source: TaskBucket::for_date("2026-08-31"),
+            destination: TaskBucket::for_date("2026-08-31"),
+        })
+        .expect_err("an id outside the source bucket should fail");
+    assert_eq!(outside_error.code, AppErrorCode::Conflict);
+    assert_eq!(state.snapshot(), before);
 }
