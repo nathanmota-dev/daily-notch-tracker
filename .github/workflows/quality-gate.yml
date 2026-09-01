@@ -38,7 +38,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: rust-workflows
+          shared-key: rust-quality-gate
           cache-workspace-crates: true
 
       - name: Prepare report directory

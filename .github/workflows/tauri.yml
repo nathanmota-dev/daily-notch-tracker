@@ -57,7 +57,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          shared-key: rust-workflows
+          shared-key: rust-tauri-${{ matrix.task }}
           cache-workspace-crates: true
 
       - name: Check formatting
