@@ -79,7 +79,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          key: microbenchmarks
+          shared-key: rust-performance
+          cache-workspace-crates: true
 
       - name: Prepare report directories
         run: mkdir -p reports/benchmarks

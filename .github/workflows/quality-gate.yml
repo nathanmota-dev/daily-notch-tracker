@@ -38,7 +38,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          key: quality-gate
+          shared-key: rust-quality-gate
+          cache-workspace-crates: true
 
       - name: Prepare report directory
         run: mkdir -p reports
