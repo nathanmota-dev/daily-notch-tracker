@@ -20,7 +20,13 @@ pub use storage::{PersistedPayload, RecoveryDiagnostic, Repository, RepositoryEr
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(Mutex::new(AppState::default()))
+        .setup(|app| {
+            let app_data_dir = app.path().app_data_dir()?;
+            let state =
+                AppState::load(Repository::new(app_data_dir)).map_err(std::io::Error::other)?;
+            app.manage(Mutex::new(state));
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::get_snapshot,
             commands::add_task,

@@ -13,9 +13,10 @@ use crate::domain::{
     AppError, AppSnapshot, CreateTaskInput, DomainResult, FocusSession, FocusSettings,
     FocusSettingsPatch, FocusSnapshot, MoveTasksInput, ShortcutStatus, Task, UpdateTaskInput,
 };
+use crate::storage::{PersistedPayload, RecoveryDiagnostic, Repository};
 
-/// In-memory application state. Persistence is intentionally outside this issue.
-#[derive(Debug, Default)]
+/// Application state and its last successfully persisted payload.
+#[derive(Debug)]
 pub struct AppState {
     revision: u64,
     tasks: Vec<Task>,
@@ -23,15 +24,44 @@ pub struct AppState {
     settings: FocusSettings,
     focus: FocusSnapshot,
     shortcut_status: ShortcutStatus,
+    repository: Option<Repository>,
+    confirmed_payload: PersistedPayload,
+    recovery_diagnostic: Option<RecoveryDiagnostic>,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self::from_persisted_payload(PersistedPayload::empty())
+    }
 }
 
 impl AppState {
+    pub fn from_persisted_payload(payload: PersistedPayload) -> Self {
+        Self::with_payload(payload, None, None)
+    }
+
+    pub fn load(mut repository: Repository) -> DomainResult<Self> {
+        let loaded = repository.load().map_err(|error| {
+            AppError::persistence(format!("Unable to load local data: {error}"))
+        })?;
+
+        Ok(Self::with_payload(
+            loaded.payload,
+            Some(repository),
+            loaded.recovery_diagnostic,
+        ))
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
 
     pub fn revision(&self) -> u64 {
         self.revision
+    }
+
+    pub fn recovery_diagnostic(&self) -> Option<&RecoveryDiagnostic> {
+        self.recovery_diagnostic.as_ref()
     }
 
     pub fn snapshot(&self) -> AppSnapshot {
@@ -211,6 +241,26 @@ impl AppState {
         total_focused_seconds(&self.sessions, task_id)
     }
 
+    fn with_payload(
+        payload: PersistedPayload,
+        repository: Option<Repository>,
+        recovery_diagnostic: Option<RecoveryDiagnostic>,
+    ) -> Self {
+        let confirmed_payload = payload.clone();
+
+        Self {
+            revision: 0,
+            tasks: payload.tasks,
+            sessions: payload.sessions,
+            settings: payload.settings,
+            focus: FocusSnapshot::default(),
+            shortcut_status: ShortcutStatus::default(),
+            repository,
+            confirmed_payload,
+            recovery_diagnostic,
+        }
+    }
+
     fn reorder_same_bucket(
         &mut self,
         task_ids: &[Uuid],
@@ -325,8 +375,50 @@ impl AppState {
     }
 
     fn commit(&mut self) -> DomainResult<AppSnapshot> {
+        let payload = self.current_payload();
+        let persistence_error = match self.repository.as_mut() {
+            Some(repository) => repository.save(&payload).err(),
+            None => None,
+        };
+
+        if let Some(error) = persistence_error {
+            self.restore_confirmed_payload();
+            return Err(AppError::persistence(format!(
+                "Unable to persist local data: {error}"
+            )));
+        }
+
+        self.confirmed_payload = payload;
         self.revision += 1;
         Ok(self.snapshot())
+    }
+
+    fn current_payload(&self) -> PersistedPayload {
+        PersistedPayload::from_parts(
+            self.tasks.clone(),
+            self.sessions.clone(),
+            self.settings.clone(),
+        )
+    }
+
+    fn restore_confirmed_payload(&mut self) {
+        self.tasks = self.confirmed_payload.tasks.clone();
+        self.sessions = self.confirmed_payload.sessions.clone();
+        self.settings = self.confirmed_payload.settings.clone();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_persistence_write(&mut self) {
+        if let Some(repository) = self.repository.as_mut() {
+            repository.fail_next_write();
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn fail_next_persistence_rename(&mut self) {
+        if let Some(repository) = self.repository.as_mut() {
+            repository.fail_next_rename();
+        }
     }
 }
 
@@ -354,11 +446,37 @@ fn parse_move_task_ids(values: &[String]) -> DomainResult<Vec<Uuid>> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs;
+    use std::path::{Path, PathBuf};
+
     use chrono::{DateTime, Duration, NaiveDate, Utc};
 
     use super::*;
     use crate::domain::session::FocusSession;
     use crate::domain::{AppErrorCode, FocusSettingsPatch, MoveTasksInput, TaskBucket};
+    use crate::storage::Repository;
+
+    struct TestDirectory {
+        path: PathBuf,
+    }
+
+    impl TestDirectory {
+        fn new() -> Self {
+            let path = std::env::temp_dir().join(format!("dailynotch-state-{}", Uuid::new_v4()));
+            fs::create_dir_all(&path).expect("test directory should be created");
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
 
     fn date(year: i32, month: u32, day: u32) -> NaiveDate {
         NaiveDate::from_ymd_opt(year, month, day).expect("test date should be valid")
@@ -772,5 +890,116 @@ mod tests {
         assert_eq!(json["code"], "validation");
         assert_eq!(json["message"], "The title is required.");
         assert_eq!(json["field"], "title");
+    }
+
+    #[test]
+    fn persisted_state_recovers_tasks_sessions_and_settings_after_reloading() {
+        let test_directory = TestDirectory::new();
+        let mut state = AppState::load(Repository::new(test_directory.path()))
+            .expect("empty repository should load");
+        let task_id = add_task(
+            &mut state,
+            "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
+            "Persisted task",
+            Some("2026-08-31"),
+            31,
+            22,
+        );
+        state
+            .update_settings(FocusSettingsPatch {
+                focus_minutes: Some(50),
+                minimal_mode: Some(true),
+                ..FocusSettingsPatch::default()
+            })
+            .expect("settings should persist");
+        let started_at = timestamp(31, 23);
+        state
+            .record_session(FocusSession {
+                id: Uuid::parse_str("ffffffff-ffff-4fff-8fff-ffffffffffff")
+                    .expect("test UUID should be valid"),
+                task_id: Some(task_id),
+                started_at,
+                ended_at: started_at + Duration::minutes(25),
+                focused_seconds: 1_500,
+                completed: true,
+            })
+            .expect("session should persist");
+
+        let reloaded = AppState::load(Repository::new(test_directory.path()))
+            .expect("persisted repository should reload");
+        let snapshot = reloaded.snapshot();
+
+        assert_eq!(snapshot.revision, 0);
+        assert_eq!(snapshot.tasks.len(), 1);
+        assert_eq!(snapshot.tasks[0].id, task_id);
+        assert_eq!(snapshot.tasks[0].focused_seconds, 1_500);
+        assert_eq!(snapshot.sessions.len(), 1);
+        assert_eq!(snapshot.sessions[0].focused_seconds, 1_500);
+        assert_eq!(snapshot.settings.focus_minutes, 50);
+        assert!(snapshot.settings.minimal_mode);
+        assert_eq!(snapshot.focus, FocusSnapshot::default());
+    }
+
+    #[test]
+    fn persistence_write_failure_restores_state_without_revision_increment() {
+        let test_directory = TestDirectory::new();
+        let mut state = AppState::load(Repository::new(test_directory.path()))
+            .expect("empty repository should load");
+        add_task(
+            &mut state,
+            "12121212-1212-4121-8121-121212121212",
+            "Confirmed task",
+            None,
+            31,
+            8,
+        );
+        let before = state.snapshot();
+        let original_bytes = fs::read(test_directory.path().join("dailynotch.json"))
+            .expect("confirmed JSON should be readable");
+        state.fail_next_persistence_write();
+
+        let error = state
+            .update_settings(FocusSettingsPatch {
+                focus_minutes: Some(50),
+                ..FocusSettingsPatch::default()
+            })
+            .expect_err("simulated persistence failure should be returned");
+
+        assert_eq!(error.code, AppErrorCode::Persistence);
+        assert_eq!(state.snapshot(), before);
+        assert_eq!(state.revision(), before.revision);
+        assert_eq!(
+            fs::read(test_directory.path().join("dailynotch.json"))
+                .expect("confirmed JSON should remain readable"),
+            original_bytes
+        );
+    }
+
+    #[test]
+    fn persistence_rename_failure_restores_state_without_revision_increment() {
+        let test_directory = TestDirectory::new();
+        let mut state = AppState::load(Repository::new(test_directory.path()))
+            .expect("empty repository should load");
+        add_task(
+            &mut state,
+            "13131313-1313-4131-8131-131313131313",
+            "Confirmed task",
+            None,
+            31,
+            8,
+        );
+        let before = state.snapshot();
+        state.fail_next_persistence_rename();
+
+        let error = state
+            .update_settings(FocusSettingsPatch {
+                minimal_mode: Some(true),
+                ..FocusSettingsPatch::default()
+            })
+            .expect_err("simulated rename failure should be returned");
+
+        assert_eq!(error.code, AppErrorCode::Persistence);
+        assert_eq!(state.snapshot(), before);
+        assert_eq!(state.revision(), before.revision);
     }
 }
