@@ -9,7 +9,14 @@ use crate::state::AppState;
 
 #[tauri::command]
 pub fn greet(name: &str) -> String {
-    format!("Hello, {name}! DailyNotch Linux is running with Rust.")
+    const PREFIX: &str = "Hello, ";
+    const SUFFIX: &str = "! DailyNotch Linux is running with Rust.";
+
+    let mut greeting = String::with_capacity(PREFIX.len() + name.len() + SUFFIX.len());
+    greeting.push_str(PREFIX);
+    greeting.push_str(name);
+    greeting.push_str(SUFFIX);
+    greeting
 }
 
 #[tauri::command]
