@@ -7,63 +7,158 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
-    DEFAULT_POLICY,
+    COVERAGE_METRICS,
+    DEFAULT_FRONTEND_POLICY,
+    DEFAULT_POLICIES,
+    DEFAULT_TAURI_POLICY,
     QualityGateInputError,
     buildBaseline,
     collectFileSizes,
+    collectFunctionSizes,
     compareMetrics,
     countPhysicalLines,
     markdownEscape,
-    parseArguments,
+    parseClippyReport,
     parseCoverageFilePaths,
     parseCoverageSummary,
     parseEslintReport,
     parseJscpdReport,
+    parseRustCoverageReport,
     renderMarkdown,
     validateBaseline,
     validateCoverageScope,
 } = require("./quality-gate.js");
 
-const metricNames = ["lines", "statements", "functions", "branches"];
-
 function coverage(covered = 8, total = 10) {
-    return Object.fromEntries(metricNames.map((metric) => [metric, { covered, total }]));
+    return Object.fromEntries(COVERAGE_METRICS.map((metric) => [metric, { covered, total }]));
 }
 
-function metrics() {
-    return {
+function projectMetrics(projectName, overrides = {}) {
+    const policy = projectName === "frontend" ? DEFAULT_FRONTEND_POLICY : DEFAULT_TAURI_POLICY;
+    const sourceFile = projectName === "frontend" ? "src/main.ts" : "src-tauri/src/main.rs";
+    const functionName = projectName === "frontend" ? "main" : "main";
+    const defaults = {
+        policy,
         coverage: coverage(),
-        coverageFileCount: 2,
+        coverageFileCount: 1,
         duplication: { duplicatedLines: 10, totalLines: 100, fragments: 2 },
-        violations: { eslint: 0, oversizedFiles: 1 },
-        fileLines: { "src/legacy.ts": 301, "src/small.ts": 200 },
+        violations: projectName === "frontend"
+            ? { eslint: 0, largeFunctions: 0, oversizedFiles: 0 }
+            : { clippy: 0, largeFunctions: 0, oversizedFiles: 0 },
+        fileLines: { [sourceFile]: 20 },
+        functionLines: { [`${sourceFile}::${functionName}`]: 20 },
+    };
+
+    return {
+        ...defaults,
+        ...overrides,
+        policy: { ...policy, ...(overrides.policy || {}) },
+        coverage: { ...defaults.coverage, ...(overrides.coverage || {}) },
+        duplication: { ...defaults.duplication, ...(overrides.duplication || {}) },
+        violations: { ...defaults.violations, ...(overrides.violations || {}) },
+        fileLines: { ...defaults.fileLines, ...(overrides.fileLines || {}) },
+        functionLines: { ...defaults.functionLines, ...(overrides.functionLines || {}) },
     };
 }
 
-function baseline() {
-    return buildBaseline(metrics(), DEFAULT_POLICY, "abc123");
+function metrics(overrides = {}) {
+    return {
+        schemaVersion: 2,
+        projects: {
+            frontend: projectMetrics("frontend", overrides.frontend),
+            tauri: projectMetrics("tauri", overrides.tauri),
+        },
+    };
 }
 
-test("parseCoverageSummary validates and extracts all required totals", () => {
-    const summary = { total: coverage(7, 9) };
-    assert.deepEqual(parseCoverageSummary(summary, "fixture"), coverage(7, 9));
+function baseline(overrides = {}) {
+    return buildBaseline(metrics(overrides), DEFAULT_POLICIES, "abc123");
+}
+
+function makeTempDirectory(context, prefix) {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+    context.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+    return directory;
+}
+
+test("parseCoverageSummary validates every required frontend total", () => {
+    assert.deepEqual(parseCoverageSummary({ total: coverage(7, 9) }, "fixture"), coverage(7, 9));
     assert.throws(
-        () => parseCoverageSummary({ total: { ...coverage(), lines: { covered: 11, total: 10 } } }),
+        () => parseCoverageSummary({ total: { ...coverage(), branches: undefined } }),
         QualityGateInputError,
     );
     assert.throws(() => parseCoverageSummary({}), /coverage summary.total must be an object/);
 });
 
-test("coverage scope includes every production file", (context) => {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "quality-coverage-"));
-    context.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+test("schema v2 validates independent frontend and Tauri projects", () => {
+    const trusted = baseline();
+    const validated = validateBaseline(trusted);
+
+    assert.equal(validated.schemaVersion, 2);
+    assert.deepEqual(Object.keys(validated.projects), ["frontend", "tauri"]);
+    assert.equal(validated.projects.frontend.policy.maxFileLines, 350);
+    assert.equal(validated.projects.tauri.policy.maxFunctionLines, 100);
+    assert.throws(
+        () => validateBaseline({ ...trusted, projects: { frontend: trusted.projects.frontend } }),
+        /tauri is required/,
+    );
+    assert.throws(
+        () => validateBaseline({ ...trusted, projects: undefined }),
+        /baseline.projects must be an object/,
+    );
+});
+
+test("schema v1 remains readable only through the migration normalizer", () => {
+    const legacy = {
+        schemaVersion: 1,
+        generatedFromCommit: "legacy",
+        policy: {
+            maxFileLines: 300,
+            sourceRoot: "src",
+            sourceExtensions: [".ts"],
+            excludeTestsFromFileSize: true,
+            duplication: {
+                minLines: 5,
+                minTokens: 50,
+                maxLines: 10_000,
+                mode: "strict",
+                crossFormats: "js-ts",
+                ignore: [],
+            },
+        },
+        coverage: coverage(),
+        duplication: { duplicatedLines: 0, totalLines: 100, fragments: 0 },
+        violations: { eslint: 0, oversizedFiles: 0 },
+        fileLines: { "src/main.ts": 20 },
+    };
+
+    const migrated = validateBaseline(legacy);
+    assert.equal(migrated.migratedFromSchemaVersion, 1);
+    assert.equal(migrated.projects.tauri, null);
+    assert.equal(migrated.projects.frontend.policy.maxFileLines, 300);
+
+    const revalidated = validateBaseline(migrated);
+    assert.equal(revalidated.projects.tauri, null);
+    assert.equal(
+        compareMetrics(
+            revalidated,
+            metrics({ frontend: { duplication: { duplicatedLines: 0, totalLines: 100, fragments: 0 } } }),
+        ).passed,
+        true,
+    );
+    assert.equal(buildBaseline(metrics()).schemaVersion, 2);
+});
+
+test("coverage scope includes every production file and excludes test files", (context) => {
+    const directory = makeTempDirectory(context, "quality-coverage-");
     const main = path.join(directory, "src", "main.ts");
     const summary = {
         total: coverage(),
         [main]: coverage(),
         "src/unimported.ts": coverage(0, 5),
+        "src/main.test.ts": coverage(),
     };
-    const files = parseCoverageFilePaths(summary, DEFAULT_POLICY, directory);
+    const files = parseCoverageFilePaths(summary, DEFAULT_FRONTEND_POLICY, directory);
     const fileLines = {
         "src/main.ts": 10,
         "src/unimported.ts": 4,
@@ -80,25 +175,190 @@ test("coverage scope includes every production file", (context) => {
     );
 });
 
+test("Tauri coverage can omit Rust modules without executable functions", () => {
+    const sourceFiles = {
+        "src-tauri/src/main.rs": 20,
+        "src-tauri/src/module.rs": 8,
+    };
+    const coveredFiles = ["src-tauri/src/main.rs"];
+
+    assert.equal(
+        validateCoverageScope(
+            coveredFiles,
+            sourceFiles,
+            DEFAULT_TAURI_POLICY,
+            {},
+        ),
+        1,
+    );
+    assert.throws(
+        () => validateCoverageScope(
+            coveredFiles,
+            sourceFiles,
+            DEFAULT_TAURI_POLICY,
+            { "src-tauri/src/module.rs::run": 2 },
+        ),
+        /missing src-tauri\/src\/module.rs/,
+    );
+});
+
+test("parseRustCoverageReport maps LLVM regions to statements and requires branches", (context) => {
+    const directory = makeTempDirectory(context, "quality-rust-coverage-");
+    const filename = path.join(directory, "src-tauri", "src", "main.rs");
+    const report = {
+        data: [{
+            files: [{ filename }],
+            totals: {
+                lines: { count: 100, covered: 90 },
+                regions: { count: 120, covered: 100 },
+                functions: { count: 20, covered: 18 },
+                branches: { count: 30, covered: 24 },
+            },
+        }],
+    };
+    const parsed = parseRustCoverageReport(report, "fixture", directory, DEFAULT_TAURI_POLICY);
+
+    assert.deepEqual(parsed.coverage.statements, { covered: 100, total: 120 });
+    assert.deepEqual(parsed.coverage.branches, { covered: 24, total: 30 });
+    assert.deepEqual(parsed.filePaths, ["src-tauri/src/main.rs"]);
+    assert.equal(parsed.regionMetric, "regions");
+    assert.throws(
+        () => parseRustCoverageReport({ data: [{ totals: { ...report.data[0].totals, branches: undefined } }] }, "fixture", directory),
+        /missing branch coverage/,
+    );
+});
+
+test("parseClippyReport counts JSON diagnostics without counting compiler artifacts", () => {
+    const report = [
+        { reason: "compiler-artifact", package_id: "dailynotch" },
+        {
+            reason: "compiler-message",
+            message: { level: "warning", code: { code: "clippy::needless_borrow" } },
+        },
+        {
+            reason: "compiler-message",
+            message: { level: "error", code: { code: "clippy::too_many_lines" } },
+        },
+    ];
+
+    assert.equal(parseClippyReport(report), 2);
+    assert.equal(parseClippyReport(`${JSON.stringify(report[1])}\n${JSON.stringify(report[2])}\n`), 2);
+    assert.equal(parseClippyReport({ violations: 3 }), 3);
+});
+
 test("parseEslintReport counts errors and warnings", () => {
     assert.equal(parseEslintReport([
-        { errorCount: 2, warningCount: 1, suppressedMessages: [{}] },
-        { errorCount: 0, warningCount: 3 },
+        { errorCount: 2, warningCount: 1, messages: [] },
+        { errorCount: 0, warningCount: 3, messages: [] },
     ]), 6);
     assert.throws(() => parseEslintReport([{ errorCount: -1, warningCount: 0 }]), /non-negative integer/);
 });
 
-test("parseJscpdReport accepts supported totals and rejects inconsistency", () => {
+test("parseJscpdReport captures Rust duplication metrics", () => {
     assert.deepEqual(parseJscpdReport({
-        statistics: { total: { lines: 100, duplicatedLines: 10, clones: 4, percentage: 10 } },
-    }), { totalLines: 100, duplicatedLines: 10, fragments: 4 });
-    assert.deepEqual(parseJscpdReport({
-        statistic: { total: { lines: 50, duplicatedLines: 5, percentage: 10 } },
-        duplicates: [{}, {}],
-    }), { totalLines: 50, duplicatedLines: 5, fragments: 2 });
+        statistics: { total: { lines: 2_830, duplicatedLines: 71, clones: 9, percentage: 2.50883392 } },
+    }), { totalLines: 2_830, duplicatedLines: 71, fragments: 9 });
     assert.throws(() => parseJscpdReport({
         statistics: { total: { lines: 100, duplicatedLines: 10, clones: 1, percentage: 50 } },
     }), /inconsistent/);
+});
+
+test("collectFileSizes and collectFunctionSizes exclude only test files", (context) => {
+    const directory = makeTempDirectory(context, "quality-files-");
+    fs.mkdirSync(path.join(directory, "src", "nested"), { recursive: true });
+    fs.writeFileSync(path.join(directory, "src", "main.ts"), "one\ntwo\n", "utf8");
+    fs.writeFileSync(path.join(directory, "src", "main.test.ts"), "ignored\n", "utf8");
+    fs.writeFileSync(path.join(directory, "src", "nested", "view.tsx"), "one\r\ntwo", "utf8");
+    fs.symlinkSync(path.join(directory, "src", "nested"), path.join(directory, "src", "linked"));
+
+    assert.deepEqual(collectFileSizes(DEFAULT_FRONTEND_POLICY, directory), {
+        "src/main.ts": 2,
+        "src/nested/view.tsx": 2,
+    });
+    assert.deepEqual(Object.keys(collectFunctionSizes(DEFAULT_FRONTEND_POLICY, directory)), []);
+});
+
+test("function size collection detects a 101-line production function", (context) => {
+    const directory = makeTempDirectory(context, "quality-function-");
+    fs.mkdirSync(path.join(directory, "src"), { recursive: true });
+    const contents = [
+        "export function longFunction() {",
+        ...Array.from({ length: 99 }, () => "  return 1;"),
+        "}",
+    ].join("\n");
+    fs.writeFileSync(path.join(directory, "src", "long.ts"), contents, "utf8");
+
+    const functions = collectFunctionSizes(DEFAULT_FRONTEND_POLICY, directory);
+    assert.equal(functions["src/long.ts::longFunction"], 101);
+});
+
+test("absolute file limits reject a collected 351-line production file", (context) => {
+    const directory = makeTempDirectory(context, "quality-file-limit-");
+    fs.mkdirSync(path.join(directory, "src"), { recursive: true });
+    fs.writeFileSync(
+        path.join(directory, "src", "long.ts"),
+        Array.from({ length: 351 }, (_, index) => `const line${index} = ${index};`).join("\n"),
+        "utf8",
+    );
+
+    const fileLines = collectFileSizes(DEFAULT_FRONTEND_POLICY, directory);
+    assert.equal(fileLines["src/long.ts"], 351);
+    assert.equal(
+        compareMetrics(
+            baseline(),
+            metrics({
+                frontend: {
+                    fileLines: { "src/long.ts": 351 },
+                    violations: { oversizedFiles: 1 },
+                },
+            }),
+        ).passed,
+        false,
+    );
+});
+
+test("frontend coverage floor fails below 80 and passes at or above 80", () => {
+    const trusted = baseline();
+    const below = metrics({ frontend: { coverage: coverage(7, 10) } });
+    const exact = metrics({ frontend: { coverage: coverage(8, 10) } });
+    const above = metrics({ frontend: { coverage: coverage(9, 10) } });
+
+    assert.equal(compareMetrics(trusted, below).passed, false);
+    assert.ok(compareMetrics(trusted, below).failures.some((failure) => /below the required 80/.test(failure)));
+    assert.equal(compareMetrics(trusted, exact).passed, true);
+    assert.equal(compareMetrics(trusted, above).passed, true);
+});
+
+test("file and function limits are absolute and do not grandfather baseline violations", () => {
+    const trusted = baseline();
+    const oversized = metrics({
+        frontend: {
+            fileLines: { "src/main.ts": 351 },
+            violations: { oversizedFiles: 1 },
+        },
+    });
+    const largeFunction = metrics({
+        frontend: {
+            functionLines: { "src/main.ts::main": 101 },
+            violations: { largeFunctions: 1 },
+        },
+    });
+
+    assert.equal(compareMetrics(trusted, oversized).passed, false);
+    assert.ok(compareMetrics(trusted, oversized).failures.some((failure) => /351 lines/.test(failure)));
+    assert.equal(compareMetrics(trusted, largeFunction).passed, false);
+    assert.ok(compareMetrics(trusted, largeFunction).failures.some((failure) => /101 lines/.test(failure)));
+});
+
+test("frontend and Tauri comparisons remain independent", () => {
+    const trusted = baseline();
+    const current = metrics({ frontend: { duplication: { duplicatedLines: 30 } } });
+    const comparison = compareMetrics(trusted, current);
+
+    assert.equal(comparison.passed, false);
+    assert.equal(comparison.projects.frontend.passed, false);
+    assert.equal(comparison.projects.tauri.passed, true);
+    assert.ok(comparison.failures.every((failure) => !failure.startsWith("Tauri")));
 });
 
 test("countPhysicalLines handles line endings and final newlines", () => {
@@ -108,71 +368,7 @@ test("countPhysicalLines handles line endings and final newlines", () => {
     assert.equal(countPhysicalLines("one\r\ntwo\r\n"), 2);
 });
 
-test("collectFileSizes scans source files without tests or symlinks", (context) => {
-    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "quality-files-"));
-    context.after(() => fs.rmSync(directory, { recursive: true, force: true }));
-    fs.mkdirSync(path.join(directory, "src", "nested"), { recursive: true });
-    fs.writeFileSync(path.join(directory, "src", "main.ts"), "one\ntwo\n", "utf8");
-    fs.writeFileSync(path.join(directory, "src", "main.test.ts"), "ignored\n", "utf8");
-    fs.writeFileSync(path.join(directory, "src", "nested", "view.tsx"), "one\r\ntwo", "utf8");
-    fs.symlinkSync(path.join(directory, "src", "nested"), path.join(directory, "src", "linked"));
-
-    assert.deepEqual(collectFileSizes(DEFAULT_POLICY, directory), {
-        "src/main.ts": 2,
-        "src/nested/view.tsx": 2,
-    });
-});
-
-test("validateBaseline rejects unsupported schemas and inconsistent file counts", () => {
-    assert.doesNotThrow(() => validateBaseline(baseline()));
-    assert.throws(() => validateBaseline({ ...baseline(), schemaVersion: 2 }), /Unsupported baseline/);
-    const inconsistent = baseline();
-    inconsistent.violations.oversizedFiles = 0;
-    assert.throws(() => validateBaseline(inconsistent), /does not match/);
-});
-
-test("compareMetrics passes equal metrics and improvements", () => {
-    assert.equal(compareMetrics(baseline(), metrics()).passed, true);
-    const improved = metrics();
-    improved.coverage.lines = { covered: 9, total: 10 };
-    improved.duplication = { duplicatedLines: 5, totalLines: 100, fragments: 1 };
-    improved.fileLines["src/legacy.ts"] = 300;
-    improved.violations.oversizedFiles = 0;
-    assert.equal(compareMetrics(baseline(), improved).passed, true);
-});
-
-test("compareMetrics blocks coverage, duplication, lint and file-size regressions", () => {
-    const current = metrics();
-    current.coverage.lines = { covered: 7, total: 10 };
-    current.duplication = { duplicatedLines: 11, totalLines: 100, fragments: 3 };
-    current.violations.eslint = 1;
-    current.fileLines = {
-        "src/legacy.ts": 302,
-        "src/small.ts": 301,
-        "src/new.ts": 450,
-    };
-    current.violations.oversizedFiles = 3;
-    const comparison = compareMetrics(baseline(), current);
-
-    assert.equal(comparison.passed, false);
-    assert.ok(comparison.failures.some((failure) => failure.startsWith("lines coverage decreased")));
-    assert.ok(comparison.failures.some((failure) => failure.startsWith("Duplication increased")));
-    assert.ok(comparison.failures.some((failure) => failure.startsWith("ESLint violations increased")));
-    assert.equal(comparison.regressions.length, 3);
-});
-
-test("buildBaseline is deterministic and keeps exact coverage counts", () => {
-    const current = metrics();
-    current.fileLines = { "src/z.ts": 2, "src/a.ts": 1 };
-    current.violations.oversizedFiles = 0;
-    const built = buildBaseline(current, DEFAULT_POLICY, "deadbeef");
-
-    assert.equal(built.generatedFromCommit, "deadbeef");
-    assert.deepEqual(Object.keys(built.fileLines), ["src/a.ts", "src/z.ts"]);
-    assert.deepEqual(built.coverage.lines, { covered: 8, total: 10 });
-});
-
-test("renderMarkdown includes metrics and escapes the baseline label", () => {
+test("renderMarkdown exposes the four project quality sections", () => {
     const trusted = baseline();
     const current = metrics();
     const markdown = renderMarkdown({
@@ -183,35 +379,29 @@ test("renderMarkdown includes metrics and escapes the baseline label", () => {
     });
 
     assert.match(markdown, /^# Quality Gate/m);
-    assert.match(markdown, /## Frontend coverage/);
-    assert.match(markdown, /## Maintainability/);
+    for (const heading of [
+        "## Frontend coverage",
+        "## Tauri coverage",
+        "## Frontend maintainability",
+        "## Tauri maintainability",
+    ]) {
+        assert.match(markdown, new RegExp(heading));
+    }
     assert.match(markdown, /main\\\|trusted\\`baseline/);
+    assert.match(markdown, /LLVM regions/);
 });
 
-test("renderMarkdown describes bootstrap without claiming a comparison", () => {
-    const trusted = baseline();
-    const comparison = compareMetrics(trusted, metrics());
-    comparison.bootstrap = true;
-    const markdown = renderMarkdown({
-        baseline: trusted,
-        metrics: metrics(),
-        comparison,
-        baselineLabel: "bootstrap",
-    });
-
-    assert.match(markdown, /Baseline captured for this quality suite/);
-    assert.doesNotMatch(markdown, /No quality regression detected/);
-});
-
-test("markdownEscape and parseArguments reject injection and invalid options", () => {
-    assert.equal(parseArguments(["--bootstrap"]).bootstrap, true);
+test("markdownEscape and baseline validation reject malformed input", () => {
     assert.equal(
         markdownEscape("one|two\n`three` <tag> @team"),
-        "one\\|two \\`three\\` &lt;tag&gt; &#64;team",
+        "one\\|two `three` &lt;tag&gt; &#64;team".replace("`three`", "\\`three\\`"),
     );
-    const parsed = parseArguments(["--no-collect", "--baseline", "fixtures/baseline.json"]);
-    assert.equal(parsed.collectToolReports, false);
-    assert.match(parsed.baselinePath, /fixtures\/baseline\.json$/);
-    assert.throws(() => parseArguments(["--baseline"]), /requires a path/);
-    assert.throws(() => parseArguments(["--unknown"]), /Unknown argument/);
+    const trusted = baseline();
+    const inconsistent = structuredClone(trusted);
+    inconsistent.projects.frontend.violations.oversizedFiles = 1;
+    assert.throws(() => validateBaseline(inconsistent), /oversized-file count/);
+    assert.throws(
+        () => parseRustCoverageReport({ data: [{ totals: { lines: {}, regions: {}, functions: {} } }] }),
+        QualityGateInputError,
+    );
 });

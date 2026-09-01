@@ -131,13 +131,45 @@ jobs:
         id: rust_clippy
         if: always() && steps.install_tauri_dependencies.outcome == 'success'
         continue-on-error: true
-        run: cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --all-features -- -D warnings
+        run: |
+          mkdir -p reports/tauri
+          set +e
+          cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --all-features --message-format=json -- \
+            -D warnings -D clippy::too_many_lines \
+            > reports/tauri/clippy.ndjson \
+            2> reports/tauri/clippy.stderr
+          status=$?
+          set -e
+          exit "$status"
 
       - name: Rust tests
         id: rust_tests
         if: always() && steps.install_tauri_dependencies.outcome == 'success'
         continue-on-error: true
         run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Setup Rust nightly for Tauri coverage
+        id: rust_coverage_toolchain
+        if: always() && steps.install_tauri_dependencies.outcome == 'success'
+        continue-on-error: true
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        id: install_cargo_llvm_cov
+        if: always() && steps.rust_coverage_toolchain.outcome == 'success'
+        continue-on-error: true
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Tauri tests with coverage
+        id: tauri_coverage
+        if: always() && steps.rust_coverage_toolchain.outcome == 'success' && steps.install_cargo_llvm_cov.outcome == 'success'
+        continue-on-error: true
+        run: |
+          mkdir -p coverage/tauri
+          cargo llvm-cov --manifest-path src-tauri/Cargo.toml --locked --all-features \
+            --branch --json --output-path coverage/tauri/coverage.json
 
       - name: Test quality gate
         id: quality_gate_tests
@@ -151,6 +183,7 @@ jobs:
           always()
           && steps.install_node.outcome == 'success'
           && steps.frontend_coverage.outcome == 'success'
+          && steps.tauri_coverage.outcome == 'success'
         continue-on-error: true
         run: |
           args=()
@@ -173,6 +206,7 @@ jobs:
           RUST_FORMAT: ${{ steps.rust_format.outcome }}
           RUST_CLIPPY: ${{ steps.rust_clippy.outcome }}
           RUST_TESTS: ${{ steps.rust_tests.outcome }}
+          TAURI_COVERAGE: ${{ steps.tauri_coverage.outcome }}
           QUALITY_GATE_TESTS: ${{ steps.quality_gate_tests.outcome }}
           QUALITY_GATE: ${{ steps.quality_gate.outcome }}
         run: |
@@ -187,6 +221,7 @@ jobs:
           [[ "$RUST_FORMAT" == "success" ]] || failures+=("Rust formatting")
           [[ "$RUST_CLIPPY" == "success" ]] || failures+=("Rust Clippy")
           [[ "$RUST_TESTS" == "success" ]] || failures+=("Rust tests")
+          [[ "$TAURI_COVERAGE" == "success" ]] || failures+=("Tauri coverage")
           [[ "$QUALITY_GATE_TESTS" == "success" ]] || failures+=("quality-gate tests")
           [[ "$QUALITY_GATE" == "success" ]] || failures+=("quality metric comparison")
 
@@ -216,6 +251,7 @@ jobs:
             echo "| Rust formatting | \`$RUST_FORMAT\` | Yes |"
             echo "| Rust Clippy | \`$RUST_CLIPPY\` | Yes |"
             echo "| Rust tests | \`$RUST_TESTS\` | Yes |"
+            echo "| Tauri coverage | \`$TAURI_COVERAGE\` | Yes |"
             echo "| Quality-gate tests | \`$QUALITY_GATE_TESTS\` | Yes |"
             echo "| Quality metric comparison/bootstrap | \`$QUALITY_GATE\` | Yes |"
             echo
@@ -243,6 +279,7 @@ jobs:
             ["Rust formatting", process.env.RUST_FORMAT, true, "always"],
             ["Rust Clippy", process.env.RUST_CLIPPY, true, "always"],
             ["Rust tests", process.env.RUST_TESTS, true, "always"],
+            ["Tauri coverage", process.env.TAURI_COVERAGE, true, "always"],
             ["Quality-gate tests", process.env.QUALITY_GATE_TESTS, true, "always"],
             ["Quality metric comparison/bootstrap", process.env.QUALITY_GATE, true, "always"],
           ].map(([name, outcome, blocking, blockingRule]) => ({
@@ -296,6 +333,7 @@ jobs:
           RUST_FORMAT: ${{ steps.rust_format.outcome }}
           RUST_CLIPPY: ${{ steps.rust_clippy.outcome }}
           RUST_TESTS: ${{ steps.rust_tests.outcome }}
+          TAURI_COVERAGE: ${{ steps.tauri_coverage.outcome }}
           QUALITY_GATE_TESTS: ${{ steps.quality_gate_tests.outcome }}
           QUALITY_GATE: ${{ steps.quality_gate.outcome }}
         run: |
@@ -310,6 +348,7 @@ jobs:
           [[ "$RUST_FORMAT" == "success" ]] || failures+=("Rust formatting")
           [[ "$RUST_CLIPPY" == "success" ]] || failures+=("Rust Clippy")
           [[ "$RUST_TESTS" == "success" ]] || failures+=("Rust tests")
+          [[ "$TAURI_COVERAGE" == "success" ]] || failures+=("Tauri coverage")
           [[ "$QUALITY_GATE_TESTS" == "success" ]] || failures+=("quality-gate tests")
           [[ "$QUALITY_GATE" == "success" ]] || failures+=("quality metric comparison")
           if (( ${#failures[@]} > 0 )); then

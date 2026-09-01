@@ -48,208 +48,269 @@ export type MockDesktopApiController = {
 type AnyEventPayload = DesktopEventMap[DesktopEventName]
 type AnyEventListener = (payload: AnyEventPayload) => void
 
-export function createMockDesktopApi(
-  options: MockDesktopApiOptions = {},
-): MockDesktopApiController {
-  let currentSnapshot = cloneDesktopValue(
-    options.snapshot ?? createEmptyAppSnapshot(),
+type MockDesktopApiContext = {
+  options: MockDesktopApiOptions
+  currentSnapshot: AppSnapshot
+  diagnostics: AppDiagnostics
+  listeners: Map<DesktopEventName, Set<AnyEventListener>>
+}
+
+function configuredFailure(
+  context: MockDesktopApiContext,
+  operation: MockDesktopOperation | "subscribe",
+) {
+  const failure = context.options.failures?.[operation]
+
+  if (!failure) {
+    return null
+  }
+
+  if (failure instanceof DesktopApiError) {
+    return failure
+  }
+
+  return new DesktopApiError({
+    operation,
+    code: failure,
+    message: `The mock ${operation} operation failed.`,
+  })
+}
+
+async function runMockOperation<Result>(
+  context: MockDesktopApiContext,
+  operation: MockDesktopOperation,
+  callback: () => Promise<Result>,
+): Promise<Result> {
+  const failure = configuredFailure(context, operation)
+
+  if (failure) {
+    throw failure
+  }
+
+  try {
+    return await callback()
+  } catch (error) {
+    throw normalizeDesktopApiError(error, operation)
+  }
+}
+
+function snapshotResult(
+  context: MockDesktopApiContext,
+  operation: MockDesktopOperation,
+  handler?: () => Promise<AppSnapshot>,
+) {
+  return runMockOperation(context, operation, async () =>
+    cloneDesktopValue(handler ? await handler() : context.currentSnapshot),
   )
-  const diagnostics = cloneDesktopValue(
-    options.diagnostics ?? createBrowserDiagnostics(),
-  )
-  const listeners = new Map<DesktopEventName, Set<AnyEventListener>>()
+}
 
-  function configuredFailure(operation: MockDesktopOperation | "subscribe") {
-    const failure = options.failures?.[operation]
+function voidResult(
+  context: MockDesktopApiContext,
+  operation: MockDesktopOperation,
+  handler?: () => Promise<void>,
+) {
+  return runMockOperation(context, operation, async () => {
+    await handler?.()
+  })
+}
 
-    if (!failure) {
-      return null
-    }
+function createMockSnapshotOperations(
+  context: MockDesktopApiContext,
+): Pick<
+  DesktopApi,
+  | "getSnapshot"
+  | "addTask"
+  | "updateTask"
+  | "deleteTask"
+  | "toggleTask"
+  | "moveTasks"
+  | "startFocus"
+  | "pauseFocus"
+  | "resumeFocus"
+  | "stopFocus"
+  | "toggleFocus"
+  | "updateSettings"
+  | "setAutostart"
+> {
+  const handlers = context.options.handlers
 
-    if (failure instanceof DesktopApiError) {
-      return failure
-    }
-
-    return new DesktopApiError({
-      operation,
-      code: failure,
-      message: `The mock ${operation} operation failed.`,
-    })
-  }
-
-  async function run<Result>(
-    operation: MockDesktopOperation,
-    callback: () => Promise<Result>,
-  ): Promise<Result> {
-    const failure = configuredFailure(operation)
-
-    if (failure) {
-      throw failure
-    }
-
-    try {
-      return await callback()
-    } catch (error) {
-      throw normalizeDesktopApiError(error, operation)
-    }
-  }
-
-  function snapshotResult(
-    operation: MockDesktopOperation,
-    handler?: () => Promise<AppSnapshot>,
-  ) {
-    return run(operation, async () =>
-      cloneDesktopValue(handler ? await handler() : currentSnapshot),
-    )
-  }
-
-  function voidResult(
-    operation: MockDesktopOperation,
-    handler?: () => Promise<void>,
-  ) {
-    return run(operation, async () => {
-      await handler?.()
-    })
-  }
-
-  async function subscribe<EventName extends DesktopEventName>(
-    eventName: EventName,
-    listener: DesktopEventListener<EventName>,
-  ): Promise<DesktopUnlisten> {
-    const failure = configuredFailure("subscribe")
-
-    if (failure) {
-      throw failure
-    }
-
-    const eventListeners =
-      listeners.get(eventName) ?? new Set<AnyEventListener>()
-    const storedListener = listener as AnyEventListener
-    eventListeners.add(storedListener)
-    listeners.set(eventName, eventListeners)
-
-    let listening = true
-
-    return () => {
-      if (!listening) {
-        return
-      }
-
-      eventListeners.delete(storedListener)
-      listening = false
-    }
-  }
-
-  const api: DesktopApi = {
-    getSnapshot: () =>
-      snapshotResult("getSnapshot", options.handlers?.getSnapshot),
+  return {
+    getSnapshot: () => snapshotResult(context, "getSnapshot", handlers?.getSnapshot),
     addTask: (input) =>
       snapshotResult(
+        context,
         "addTask",
-        options.handlers?.addTask
-          ? () => options.handlers!.addTask!(input)
-          : undefined,
+        handlers?.addTask ? () => handlers.addTask!(input) : undefined,
       ),
     updateTask: (input) =>
       snapshotResult(
+        context,
         "updateTask",
-        options.handlers?.updateTask
-          ? () => options.handlers!.updateTask!(input)
-          : undefined,
+        handlers?.updateTask ? () => handlers.updateTask!(input) : undefined,
       ),
     deleteTask: (taskId) =>
       snapshotResult(
+        context,
         "deleteTask",
-        options.handlers?.deleteTask
-          ? () => options.handlers!.deleteTask!(taskId)
-          : undefined,
+        handlers?.deleteTask ? () => handlers.deleteTask!(taskId) : undefined,
       ),
     toggleTask: (taskId) =>
       snapshotResult(
+        context,
         "toggleTask",
-        options.handlers?.toggleTask
-          ? () => options.handlers!.toggleTask!(taskId)
-          : undefined,
+        handlers?.toggleTask ? () => handlers.toggleTask!(taskId) : undefined,
       ),
     moveTasks: (input) =>
       snapshotResult(
+        context,
         "moveTasks",
-        options.handlers?.moveTasks
-          ? () => options.handlers!.moveTasks!(input)
-          : undefined,
+        handlers?.moveTasks ? () => handlers.moveTasks!(input) : undefined,
       ),
     startFocus: (taskId) =>
       snapshotResult(
+        context,
         "startFocus",
-        options.handlers?.startFocus
-          ? () => options.handlers!.startFocus!(taskId)
-          : undefined,
+        handlers?.startFocus ? () => handlers.startFocus!(taskId) : undefined,
       ),
-    pauseFocus: () =>
-      snapshotResult("pauseFocus", options.handlers?.pauseFocus),
+    pauseFocus: () => snapshotResult(context, "pauseFocus", handlers?.pauseFocus),
     resumeFocus: () =>
-      snapshotResult("resumeFocus", options.handlers?.resumeFocus),
-    stopFocus: () => snapshotResult("stopFocus", options.handlers?.stopFocus),
+      snapshotResult(context, "resumeFocus", handlers?.resumeFocus),
+    stopFocus: () => snapshotResult(context, "stopFocus", handlers?.stopFocus),
     toggleFocus: () =>
-      snapshotResult("toggleFocus", options.handlers?.toggleFocus),
+      snapshotResult(context, "toggleFocus", handlers?.toggleFocus),
     updateSettings: (patch) =>
       snapshotResult(
+        context,
         "updateSettings",
-        options.handlers?.updateSettings
-          ? () => options.handlers!.updateSettings!(patch)
+        handlers?.updateSettings
+          ? () => handlers.updateSettings!(patch)
           : undefined,
-      ),
-    getAppDiagnostics: () =>
-      run("getAppDiagnostics", async () =>
-        cloneDesktopValue(
-          options.handlers?.getAppDiagnostics
-            ? await options.handlers.getAppDiagnostics()
-            : diagnostics,
-        ),
       ),
     setAutostart: (enabled) =>
       snapshotResult(
+        context,
         "setAutostart",
-        options.handlers?.setAutostart
-          ? () => options.handlers!.setAutostart!(enabled)
+        handlers?.setAutostart
+          ? () => handlers.setAutostart!(enabled)
           : undefined,
+      ),
+  }
+}
+
+function createMockSystemOperations(
+  context: MockDesktopApiContext,
+): Pick<
+  DesktopApi,
+  | "getAppDiagnostics"
+  | "openTasksWindow"
+  | "openSettingsWindow"
+  | "openExternalRelease"
+> {
+  const handlers = context.options.handlers
+
+  return {
+    getAppDiagnostics: () =>
+      runMockOperation(context, "getAppDiagnostics", async () =>
+        cloneDesktopValue(
+          handlers?.getAppDiagnostics
+            ? await handlers.getAppDiagnostics()
+            : context.diagnostics,
+        ),
       ),
     openTasksWindow: (intent) =>
       voidResult(
+        context,
         "openTasksWindow",
-        options.handlers?.openTasksWindow
-          ? () => options.handlers!.openTasksWindow!(intent)
+        handlers?.openTasksWindow
+          ? () => handlers.openTasksWindow!(intent)
           : undefined,
       ),
     openSettingsWindow: () =>
-      voidResult("openSettingsWindow", options.handlers?.openSettingsWindow),
+      voidResult(context, "openSettingsWindow", handlers?.openSettingsWindow),
     openExternalRelease: (url) =>
       voidResult(
+        context,
         "openExternalRelease",
-        options.handlers?.openExternalRelease
-          ? () => options.handlers!.openExternalRelease!(url)
+        handlers?.openExternalRelease
+          ? () => handlers.openExternalRelease!(url)
           : undefined,
       ),
-    subscribe,
+  }
+}
+
+async function subscribeToMockEvent<EventName extends DesktopEventName>(
+  context: MockDesktopApiContext,
+  eventName: EventName,
+  listener: DesktopEventListener<EventName>,
+): Promise<DesktopUnlisten> {
+  const failure = configuredFailure(context, "subscribe")
+
+  if (failure) {
+    throw failure
+  }
+
+  const eventListeners =
+    context.listeners.get(eventName) ?? new Set<AnyEventListener>()
+  const storedListener = listener as AnyEventListener
+  eventListeners.add(storedListener)
+  context.listeners.set(eventName, eventListeners)
+
+  let listening = true
+
+  return () => {
+    if (!listening) {
+      return
+    }
+
+    eventListeners.delete(storedListener)
+    listening = false
+  }
+}
+
+function createMockApi(context: MockDesktopApiContext): DesktopApi {
+  return {
+    ...createMockSnapshotOperations(context),
+    ...createMockSystemOperations(context),
+    subscribe: (eventName, listener) =>
+      subscribeToMockEvent(context, eventName, listener),
+  }
+}
+
+function emitMockEvent<EventName extends DesktopEventName>(
+  context: MockDesktopApiContext,
+  eventName: EventName,
+  payload: DesktopEventMap[EventName],
+) {
+  const eventListeners = context.listeners.get(eventName)
+
+  if (!eventListeners) {
+    return
+  }
+
+  const eventPayload = cloneDesktopValue(payload) as AnyEventPayload
+  eventListeners.forEach((listener) => listener(eventPayload))
+}
+
+export function createMockDesktopApi(
+  options: MockDesktopApiOptions = {},
+): MockDesktopApiController {
+  const context: MockDesktopApiContext = {
+    options,
+    currentSnapshot: cloneDesktopValue(
+      options.snapshot ?? createEmptyAppSnapshot(),
+    ),
+    diagnostics: cloneDesktopValue(
+      options.diagnostics ?? createBrowserDiagnostics(),
+    ),
+    listeners: new Map<DesktopEventName, Set<AnyEventListener>>(),
   }
 
   return {
-    api,
-    emit(eventName, payload) {
-      const eventListeners = listeners.get(eventName)
-
-      if (!eventListeners) {
-        return
-      }
-
-      const eventPayload = cloneDesktopValue(payload) as AnyEventPayload
-      eventListeners.forEach((listener) => listener(eventPayload))
-    },
-    getSnapshot() {
-      return cloneDesktopValue(currentSnapshot)
-    },
-    setSnapshot(snapshot) {
-      currentSnapshot = cloneDesktopValue(snapshot)
+    api: createMockApi(context),
+    emit: (eventName, payload) => emitMockEvent(context, eventName, payload),
+    getSnapshot: () => cloneDesktopValue(context.currentSnapshot),
+    setSnapshot: (snapshot) => {
+      context.currentSnapshot = cloneDesktopValue(snapshot)
     },
   }
 }
