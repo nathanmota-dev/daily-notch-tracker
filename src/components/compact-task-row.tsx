@@ -1,4 +1,5 @@
 import { PauseIcon, PlayIcon } from "../icons"
+import type { DragEvent, KeyboardEvent } from "react"
 import type { FocusSnapshot, Task } from "../lib/desktopApi"
 import { Checkbox } from "./ui/checkbox"
 import { DragHandle } from "./drag-handle"
@@ -11,10 +12,18 @@ export type CompactTaskRowProps = {
   onToggleTask: (taskId: string, isDone: boolean) => void
   onToggleFocus: (taskId: string) => void
   onReorderStart: (taskId: string) => void
+  onDragEnd: () => void
+  onDragOver: (event: DragEvent<HTMLElement>) => void
+  onDrop: (event: DragEvent<HTMLElement>) => void
+  onOpenTask: (taskId: string) => void
 }
 
 export function CompactTaskRow({
   focus,
+  onDragEnd,
+  onDragOver,
+  onDrop,
+  onOpenTask,
   onReorderStart,
   onToggleFocus,
   onToggleTask,
@@ -36,8 +45,11 @@ export function CompactTaskRow({
       data-completed={task.isDone ? "true" : "false"}
       data-slot="compact-task-row"
       data-task-id={task.id}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
     >
       <DragHandle
+        onReorderEnd={onDragEnd}
         onReorderStart={onReorderStart}
         taskId={task.id}
         taskTitle={task.title}
@@ -53,7 +65,20 @@ export function CompactTaskRow({
         }}
       />
 
-      <div className="expanded-task-row__body">
+      <div
+        aria-label={"Open details for " + task.title}
+        className="expanded-task-row__body"
+        data-slot="task-body"
+        onClick={() => onOpenTask(task.id)}
+        onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault()
+            onOpenTask(task.id)
+          }
+        }}
+        role="button"
+        tabIndex={0}
+      >
         <span
           className="expanded-task-row__title"
           data-slot="task-title"

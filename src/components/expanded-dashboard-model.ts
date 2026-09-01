@@ -1,4 +1,5 @@
 import type { FocusSnapshot, Task } from "../lib/desktopApi"
+import { getLocalDateString } from "../lib/local-date"
 
 import {
   getFocusProgress,
@@ -6,6 +7,8 @@ import {
 } from "./collapsed-focus"
 
 export const EXPANDED_DASHBOARD_MAX_VISIBLE_ROWS = 2
+
+export { getLocalDateString }
 
 export function sortTasksForDashboard(tasks: readonly Task[]) {
   return [...tasks].sort((left, right) => {
@@ -17,8 +20,46 @@ export function sortTasksForDashboard(tasks: readonly Task[]) {
       return left.sortOrder - right.sortOrder
     }
 
-    return Date.parse(left.createdAt) - Date.parse(right.createdAt)
+    const createdAtComparison =
+      Date.parse(left.createdAt) - Date.parse(right.createdAt)
+
+    return createdAtComparison || left.id.localeCompare(right.id)
   })
+}
+
+export function selectTasksForDashboard(
+  tasks: readonly Task[],
+  now: Date | number = Date.now(),
+) {
+  const today = getLocalDateString(now)
+
+  return sortTasksForDashboard(
+    tasks.filter((task) => task.scheduledDate === today),
+  )
+}
+
+export function reorderTaskIds(
+  taskIds: readonly string[],
+  draggedTaskId: string,
+  targetTaskId: string,
+) {
+  const sourceIndex = taskIds.indexOf(draggedTaskId)
+  const targetIndex = taskIds.indexOf(targetTaskId)
+
+  if (
+    sourceIndex === -1 ||
+    targetIndex === -1 ||
+    draggedTaskId === targetTaskId
+  ) {
+    return [...taskIds]
+  }
+
+  const reorderedTaskIds = taskIds.filter((taskId) => taskId !== draggedTaskId)
+  const insertionIndex = Math.min(targetIndex, reorderedTaskIds.length)
+
+  reorderedTaskIds.splice(insertionIndex, 0, draggedTaskId)
+
+  return reorderedTaskIds
 }
 
 export function getExpandedDashboardProgress(

@@ -11,6 +11,7 @@ import {
   EXPANDED_DASHBOARD_FIXTURE_NAMES,
   isExpandedDashboardFixture,
 } from "./expanded-fixtures"
+import { getLocalDateString } from "../local-date"
 
 export {
   createExpandedDashboardFixtureSnapshot,
@@ -99,7 +100,7 @@ function createFixtureTask(
     id: FIXTURE_TASK_ID,
     title,
     notes: "",
-    scheduledDate: null,
+    scheduledDate: getLocalDateString(now),
     estimateMinutes: 25,
     isDone: false,
     createdAt: fixtureTimestamp(

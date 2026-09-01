@@ -1,4 +1,4 @@
-import type { AppSnapshot } from "../lib/desktopApi"
+import type { AppSnapshot, DesktopApiError } from "../lib/desktopApi"
 import { cn } from "../lib/utils"
 import { ProgressTray } from "./progress-tray"
 import { Panel } from "./panel"
@@ -6,7 +6,7 @@ import { ActivityPanel } from "./activity-panel"
 import { TodoPanel } from "./todo-panel"
 import {
   getExpandedDashboardProgress,
-  sortTasksForDashboard,
+  selectTasksForDashboard,
 } from "./expanded-dashboard-model"
 
 export type ExpandedDashboardCallbacks = {
@@ -14,26 +14,34 @@ export type ExpandedDashboardCallbacks = {
   onToggleFocus: (taskId: string) => void
   onAddTask: () => void
   onOpenTasks: () => void
-  onReorderStart: (taskId: string) => void
+  onOpenTask: (taskId: string) => void
+  onReorder: (taskIds: string[]) => void
 }
 
 export type ExpandedDashboardProps = {
   snapshot: AppSnapshot
   className?: string
+  dashboardError?: DesktopApiError | null
+  now?: Date | number
 } & Partial<ExpandedDashboardCallbacks>
 
 const noop = () => undefined
+const noopTask = (taskId: string) => void taskId
+const noopReorder = (taskIds: string[]) => void taskIds
 
 export function ExpandedDashboard({
   className,
   onAddTask = noop,
   onOpenTasks = noop,
-  onReorderStart = noop,
+  onOpenTask = noopTask,
+  onReorder = noopReorder,
   onToggleFocus = noop,
   onToggleTask = noop,
+  dashboardError = null,
+  now,
   snapshot,
 }: ExpandedDashboardProps) {
-  const orderedTasks = sortTasksForDashboard(snapshot.tasks)
+  const orderedTasks = selectTasksForDashboard(snapshot.tasks, now)
 
   return (
     <ProgressTray
@@ -54,10 +62,12 @@ export function ExpandedDashboard({
       >
         <div className="expanded-dashboard__grid">
           <TodoPanel
+            dashboardError={dashboardError}
             focus={snapshot.focus}
             onAddTask={onAddTask}
+            onOpenTask={onOpenTask}
             onOpenTasks={onOpenTasks}
-            onReorderStart={onReorderStart}
+            onReorder={onReorder}
             onToggleFocus={onToggleFocus}
             onToggleTask={onToggleTask}
             tasks={orderedTasks}

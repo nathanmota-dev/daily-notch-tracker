@@ -13,6 +13,7 @@ import {
   desktopApi,
   type AppSnapshot,
   type DesktopApi,
+  type DesktopApiError,
   type SurfaceLabel,
 } from "../lib/desktopApi"
 import {
@@ -27,6 +28,7 @@ import {
   useOverlayWindowAdapter,
 } from "./use-overlay-resize"
 import { useAppSnapshot } from "./use-app-snapshot"
+import { useDashboardActions } from "./use-dashboard-actions"
 
 export type PresentationMode = "collapsed" | "expanded"
 
@@ -43,12 +45,14 @@ type AppShellProps = {
   snapshot: AppSnapshot
   presentationMode?: PresentationMode
   overlayWindowAdapter?: OverlayWindowAdapter | null
+  dashboardError?: DesktopApiError | null
 } & PresentationCallbacks
 
 export function AppShell({
   presentationMode = "collapsed",
   snapshot,
   overlayWindowAdapter,
+  dashboardError,
   ...callbacks
 }: AppShellProps) {
   const overlayWindow = useOverlayWindowAdapter(overlayWindowAdapter)
@@ -82,7 +86,11 @@ export function AppShell({
         onPointerLeave={interaction.onPointerLeave}
       >
         {isExpanded ? (
-          <ExpandedDashboard snapshot={snapshot} {...callbacks} />
+          <ExpandedDashboard
+            dashboardError={dashboardError}
+            snapshot={snapshot}
+            {...callbacks}
+          />
         ) : (
           <CollapsedFocusWidget
             focus={snapshot.focus}
@@ -99,6 +107,7 @@ function renderSurface(
   snapshot: AppSnapshot,
   presentationMode: PresentationMode,
   callbacks: PresentationCallbacks,
+  dashboardError: DesktopApiError | null,
   overlayWindowAdapter?: OverlayWindowAdapter | null,
 ) {
   if (surface === "overlay") {
@@ -106,6 +115,7 @@ function renderSurface(
       <AppShell
         overlayWindowAdapter={overlayWindowAdapter}
         presentationMode={presentationMode}
+        dashboardError={dashboardError}
         snapshot={snapshot}
         {...callbacks}
       />
@@ -122,7 +132,18 @@ export function App({
   surface = "overlay",
   ...callbacks
 }: AppProps) {
-  const { state, retry } = useAppSnapshot(api)
+  const {
+    applySnapshot,
+    refreshSnapshot,
+    retry,
+    state,
+  } = useAppSnapshot(api)
+  const dashboardActions = useDashboardActions({
+    api,
+    applySnapshot,
+    refreshSnapshot,
+    snapshot: state.status === "ready" ? state.snapshot : null,
+  })
 
   if (state.status === "loading") {
     return <LoadingShell surface={surface} />
@@ -142,7 +163,8 @@ export function App({
     surface,
     state.snapshot,
     presentationMode,
-    callbacks,
+    { ...dashboardActions.callbacks, ...callbacks },
+    dashboardActions.error,
     overlayWindowAdapter,
   )
 }
