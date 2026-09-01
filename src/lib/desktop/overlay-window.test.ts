@@ -130,6 +130,8 @@ describe("Tauri overlay window adapter", () => {
       scaleFactor: vi.fn(async () => 1.5),
       setSize: vi.fn(async () => undefined),
       setPosition: vi.fn(async () => undefined),
+      show: vi.fn(async () => undefined),
+      hide: vi.fn(async () => undefined),
     }
     const adapter = createTauriOverlayWindowAdapter(appWindow)
 
@@ -139,6 +141,8 @@ describe("Tauri overlay window adapter", () => {
 
     await adapter.setSize({ width: 620, height: 206 })
     await adapter.setPosition({ x: -140, y: 24 })
+    await adapter.show()
+    await adapter.hide()
 
     expect(appWindow.setSize).toHaveBeenCalledWith(
       expect.objectContaining({ type: "Physical", width: 620, height: 206 }),
@@ -146,6 +150,8 @@ describe("Tauri overlay window adapter", () => {
     expect(appWindow.setPosition).toHaveBeenCalledWith(
       expect.objectContaining({ type: "Physical", x: -140, y: 24 }),
     )
+    expect(appWindow.show).toHaveBeenCalledOnce()
+    expect(appWindow.hide).toHaveBeenCalledOnce()
   })
 
   it("reads and normalizes the primary monitor", async () => {
@@ -155,6 +161,8 @@ describe("Tauri overlay window adapter", () => {
       scaleFactor: vi.fn(async () => 1),
       setSize: vi.fn(async () => undefined),
       setPosition: vi.fn(async () => undefined),
+      show: vi.fn(async () => undefined),
+      hide: vi.fn(async () => undefined),
     }
     const adapter = createTauriOverlayWindowAdapter(appWindow, {
       monitorReader: async () => ({
@@ -187,6 +195,8 @@ describe("Tauri overlay window adapter", () => {
       scaleFactor: vi.fn(async () => 1),
       setSize: vi.fn(async () => undefined),
       setPosition: vi.fn(async () => undefined),
+      show: vi.fn(async () => undefined),
+      hide: vi.fn(async () => undefined),
       onScaleChanged: vi.fn(async (handler: () => void) => {
         emitScaleChange = handler
         return unlisten
@@ -242,6 +252,8 @@ describe("overlay window operation queue", () => {
         .mockImplementationOnce(() => firstSize)
         .mockResolvedValue(undefined),
       setPosition: vi.fn().mockResolvedValue(undefined),
+      show: vi.fn().mockResolvedValue(undefined),
+      hide: vi.fn().mockResolvedValue(undefined),
       subscribeToDisplayChanges: vi.fn(async () => vi.fn()),
     }
     const queue = createOverlayWindowOperationQueue(adapter)

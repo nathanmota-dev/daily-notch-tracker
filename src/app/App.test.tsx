@@ -9,7 +9,25 @@ import {
   DesktopApiError,
   type AppSnapshot,
 } from "../lib/desktopApi"
+import {
+  type OverlayWindowAdapter,
+} from "../lib/desktop/overlay-window"
+import { OVERLAY_COLLAPSE_DELAY_MS } from "./use-overlay-interaction"
 import { App, AppShell } from "./App"
+
+function createOverlayAdapter() {
+  return {
+    innerSize: vi.fn(async () => ({ width: 360, height: 72 })),
+    innerPosition: vi.fn(async () => ({ x: 0, y: 0 })),
+    scaleFactor: vi.fn(async () => 1),
+    primaryMonitor: vi.fn(async () => null),
+    setSize: vi.fn(async () => undefined),
+    setPosition: vi.fn(async () => undefined),
+    show: vi.fn(async () => undefined),
+    hide: vi.fn(async () => undefined),
+    subscribeToDisplayChanges: vi.fn(async () => vi.fn()),
+  } satisfies OverlayWindowAdapter
+}
 
 describe("App", () => {
   it("renders loading before the desktop snapshot resolves", async () => {
@@ -101,6 +119,50 @@ describe("App", () => {
     expect(screen.getByRole("progressbar")).toBeInTheDocument()
   })
 
+  it("expands on pointer enter and collapses after the hover delay", () => {
+    vi.useFakeTimers()
+
+    try {
+      render(
+        <AppShell
+          snapshot={createCollapsedWidgetFixtureSnapshot("running", Date.now())}
+        />,
+      )
+      const surface = screen.getByRole("main")
+
+      fireEvent.pointerEnter(surface)
+      expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+
+      fireEvent.pointerLeave(surface)
+      act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS - 1))
+      expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+
+      act(() => vi.advanceTimersByTime(1))
+      expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("hides an idle overlay even when its initial presentation is expanded", () => {
+    const adapter = createOverlayAdapter()
+
+    render(
+      <AppShell
+        overlayWindowAdapter={adapter}
+        presentationMode="expanded"
+        snapshot={createEmptyAppSnapshot()}
+      />,
+    )
+
+    expect(screen.getByRole("main")).toHaveAttribute(
+      "data-presentation-mode",
+      "expanded",
+    )
+    expect(adapter.hide).toHaveBeenCalledOnce()
+    expect(adapter.show).not.toHaveBeenCalled()
+  })
+
   it("shows a safe error and retries the snapshot request", async () => {
     const getSnapshot = vi
       .fn<() => Promise<AppSnapshot>>()
@@ -130,7 +192,7 @@ describe("App", () => {
     )
   })
 
-  it("returns to idle when Rust emits an idle snapshot under the pointer", async () => {
+  it("keeps the hover presentation while Rust updates the snapshot", async () => {
     const runningSnapshot = createCollapsedWidgetFixtureSnapshot(
       "running",
       Date.now(),
@@ -146,6 +208,11 @@ describe("App", () => {
     })
     fireEvent.pointerEnter(widget)
 
+    expect(screen.getByRole("main")).toHaveAttribute(
+      "data-presentation-mode",
+      "expanded",
+    )
+
     act(() => {
       controller.emit("focus-changed", {
         ...createEmptyAppSnapshot(),
@@ -153,11 +220,9 @@ describe("App", () => {
       })
     })
 
-    await waitFor(() =>
-      expect(
-        document.querySelector('[data-slot="collapsed-focus-widget"]'),
-      ).toHaveAttribute("hidden"),
-    )
+    expect(
+      await screen.findByRole("region", { name: "Expanded dashboard" }),
+    ).toBeInTheDocument()
   })
 
   it("accepts store changes emitted by Rust", async () => {

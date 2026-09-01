@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test"
+import { expect, test, type Page } from "@playwright/test"
 
 const normalSurfaces = [
   { label: "tasks", heading: "Tasks" },
@@ -24,9 +24,32 @@ const expandedFixtures = [
   { name: "expanded-long-title", taskCount: 2 },
 ] as const
 
+const OVERLAY_COLLAPSE_DELAY_MS = 400
+
+async function leaveOverlay(page: Page) {
+  await page.locator('[data-surface="overlay"]').evaluate((overlay) => {
+    overlay.dispatchEvent(
+      new PointerEvent("pointerout", {
+        bubbles: true,
+        relatedTarget: document.body,
+      }),
+    )
+  })
+  await page.waitForTimeout(OVERLAY_COLLAPSE_DELAY_MS + 50)
+}
+
+async function loadCollapsedFixture(
+  page: Page,
+  name: string,
+) {
+  await page.goto(`/?surface=overlay&fixture=${name}`)
+  await leaveOverlay(page)
+}
+
 test.describe("DailyNotch surface router", () => {
   test("loads the deterministic browser snapshot as idle", async ({ page }) => {
     await page.goto("/")
+    await leaveOverlay(page)
 
     await expect(page).toHaveTitle("DailyNotch Linux")
     await expect(page.locator('[data-surface="overlay"]')).toBeAttached()
@@ -37,7 +60,7 @@ test.describe("DailyNotch surface router", () => {
 
   for (const { name, state, mode } of widgetFixtures) {
     test(`renders the ${name} collapsed widget fixture`, async ({ page }) => {
-      await page.goto(`/?surface=overlay&fixture=${name}`)
+      await loadCollapsedFixture(page, name)
 
       const widget = page.locator('[data-slot="collapsed-focus-widget"]')
       await expect(widget).toBeVisible()

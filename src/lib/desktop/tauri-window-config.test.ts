@@ -35,6 +35,8 @@ describe("Tauri overlay window configuration", () => {
       "core:default",
       "core:window:allow-set-size",
       "core:window:allow-set-position",
+      "core:window:allow-show",
+      "core:window:allow-hide",
     ])
   })
 })

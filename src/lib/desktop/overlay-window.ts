@@ -51,6 +51,8 @@ export interface OverlayWindowAdapter {
   primaryMonitor(): Promise<OverlayDisplayMetrics | null>
   setSize(size: OverlayPhysicalSize): Promise<void>
   setPosition(position: OverlayPhysicalPosition): Promise<void>
+  show(): Promise<void>
+  hide(): Promise<void>
   subscribeToDisplayChanges(
     listener: () => void,
   ): Promise<OverlayWindowUnlisten>

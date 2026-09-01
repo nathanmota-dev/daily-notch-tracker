@@ -60,6 +60,18 @@ function getDefaultAdapter() {
   }
 }
 
+export function resolveOverlayWindowAdapter(
+  adapter?: OverlayWindowAdapter | null,
+) {
+  return adapter === undefined ? getDefaultAdapter() : adapter
+}
+
+export function useOverlayWindowAdapter(
+  adapter?: OverlayWindowAdapter | null,
+) {
+  return useMemo(() => resolveOverlayWindowAdapter(adapter), [adapter])
+}
+
 export function useOverlayResize({
   adapter,
   minimalMode = false,
@@ -69,10 +81,7 @@ export function useOverlayResize({
   const surfaceRef = useRef<HTMLElement | null>(null)
   const initializedAdapterRef = useRef<OverlayWindowAdapter | null>(null)
   const [isResizing, setIsResizing] = useState(false)
-  const resolvedAdapter = useMemo(
-    () => (adapter === undefined ? getDefaultAdapter() : adapter),
-    [adapter],
-  )
+  const resolvedAdapter = useOverlayWindowAdapter(adapter)
 
   useEffect(() => {
     const surface = surfaceRef.current

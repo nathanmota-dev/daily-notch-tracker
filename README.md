@@ -110,8 +110,24 @@ detectadas pelo evento de escala e por uma consulta periódica.
 Wayland e alguns compositores podem atrasar ou rejeitar a alteração de posição
 de uma janela sempre no topo, ou não expor métricas completas durante uma
 reconfiguração. Nesses casos, o app mantém a posição atual e continua
-funcionando; use a tray do overlay ou a superfície `Tasks` como fallback para
-acessar as tarefas.
+funcionando. A visibilidade nativa também depende do compositor: snapshots
+`idle` ocultam a janela e estados `running`/`paused` a mostram novamente; use a
+tray do overlay ou a superfície `Tasks` como fallback se o compositor não
+respeitar uma dessas operações.
+
+### Interação do overlay
+
+O overlay expande imediatamente quando o ponteiro entra na superfície e começa
+a recolher 400 ms depois que o ponteiro sai. Uma nova entrada cancela o
+recolhimento pendente, e apenas um timer pode ficar ativo por vez. Menus e
+popovers futuros podem manter o overlay expandido com o contrato reutilizável
+`useOverlayHold(isHeld)`; esta etapa fornece a infraestrutura, mas não cria um
+popover visual.
+
+No navegador, a janela nativa não existe: o widget recolhido em estado `idle`
+continua usando `hidden` como fallback visual e de acessibilidade. Em Tauri, a
+janela permanece `visible` na configuração inicial para permitir o primeiro
+snapshot e passa a ser ocultada ou mostrada pelo estado de foco.
 
 Durante o desenvolvimento, o widget pode ser renderizado com uma fixture pelo
 parâmetro `?fixture=`. As opções recolhidas são `running`, `paused`, `no-task`,
@@ -129,10 +145,11 @@ Para visualizar a mesma fixture no webview Tauri enquanto a UI final ainda está
 em construção, use `VITE_WIDGET_FIXTURE=running npm run tauri:dev`. Esse
 override é habilitado apenas no modo de desenvolvimento.
 
-Os MVPs-006 e 007 reproduzem a apresentação estática do dashboard com
-snapshots e atividade mockados. O dashboard exibe um heatmap mensal
-Monday-first, limitado ao dia atual e sem dados de sessões reais. Hover real,
-resize da janela Tauri e drag-and-drop funcional ficam para etapas posteriores.
+Os MVPs-006 e 007 reproduzem a apresentação do dashboard com snapshots e
+atividade mockados. O dashboard exibe um heatmap mensal Monday-first, limitado
+ao dia atual e sem dados de sessões reais. O resize ancorado da janela Tauri já
+acompanha as mudanças de apresentação; drag-and-drop funcional e a janela
+completa `Tasks` ficam para etapas posteriores.
 A janela completa `Tasks` também permanece como placeholder até uma issue
 futura; o botão `Open Tasks` desta fixture apenas expõe o callback de
 apresentação.
