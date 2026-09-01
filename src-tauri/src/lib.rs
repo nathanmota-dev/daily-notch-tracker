@@ -10,9 +10,10 @@ pub mod storage;
 
 pub use commands::greet;
 pub use domain::{
-    AppError, AppErrorCode, AppSnapshot, CreateTaskInput, DomainResult, FocusSession,
-    FocusSettings, FocusSettingsPatch, FocusSnapshot, FocusState, MoveTasksInput, ShortcutStatus,
-    Task, TaskBucket, UpdateTaskInput,
+    AppDiagnostics, AppError, AppErrorCode, AppSnapshot, AutostartDiagnostic, CreateTaskInput,
+    DomainResult, FocusSession, FocusSettings, FocusSettingsPatch, FocusSnapshot, FocusState,
+    IntegrationStatus, MoveTasksInput, ShortcutDiagnostic, ShortcutStatus, Task, TaskBucket,
+    TasksWindowIntent, UpdateTaskInput, WindowPlacementSnapshot,
 };
 pub use state::AppState;
 pub use storage::{PersistedPayload, RecoveryDiagnostic, Repository, RepositoryError};
@@ -34,7 +35,17 @@ pub fn run() {
             commands::delete_task,
             commands::toggle_task,
             commands::move_tasks,
+            commands::start_focus,
+            commands::pause_focus,
+            commands::resume_focus,
+            commands::stop_focus,
+            commands::toggle_focus,
             commands::update_settings,
+            commands::get_app_diagnostics,
+            commands::set_autostart,
+            commands::open_tasks_window,
+            commands::open_settings_window,
+            commands::open_external_release,
         ])
         .run(tauri::generate_context!())
         .expect("error while running DailyNotch Linux");

@@ -1,5 +1,3 @@
-import { useEffect, useRef, useState } from "react"
-
 import { CollapsedFocusWidget } from "../components/collapsed-focus-widget"
 import {
   ExpandedDashboard,
@@ -13,10 +11,8 @@ import {
 
 import {
   desktopApi,
-  normalizeDesktopApiError,
   type AppSnapshot,
   type DesktopApi,
-  type DesktopApiError,
   type SurfaceLabel,
 } from "../lib/desktopApi"
 import {
@@ -30,6 +26,7 @@ import {
   useOverlayResize,
   useOverlayWindowAdapter,
 } from "./use-overlay-resize"
+import { useAppSnapshot } from "./use-app-snapshot"
 
 export type PresentationMode = "collapsed" | "expanded"
 
@@ -41,11 +38,6 @@ type AppProps = {
   surface?: SurfaceLabel
   presentationMode?: PresentationMode
 } & PresentationCallbacks
-
-type ShellState =
-  | { status: "loading" }
-  | { status: "ready"; snapshot: AppSnapshot }
-  | { status: "error"; error: DesktopApiError }
 
 type AppShellProps = {
   snapshot: AppSnapshot
@@ -123,18 +115,6 @@ function renderSurface(
   return <SurfacePlaceholder snapshot={snapshot} surface={surface} />
 }
 
-function acceptSnapshot(
-  snapshot: AppSnapshot,
-  latestRevision: { current: number },
-) {
-  if (snapshot.revision < latestRevision.current) {
-    return false
-  }
-
-  latestRevision.current = snapshot.revision
-  return true
-}
-
 export function App({
   api = desktopApi,
   overlayWindowAdapter,
@@ -142,76 +122,17 @@ export function App({
   surface = "overlay",
   ...callbacks
 }: AppProps) {
-  const [reloadKey, setReloadKey] = useState(0)
-  const latestRevision = useRef(-1)
-  const [shellState, setShellState] = useState<ShellState>({
-    status: "loading",
-  })
+  const { state, retry } = useAppSnapshot(api)
 
-  useEffect(() => {
-    let active = true
-    latestRevision.current = -1
-    setShellState({ status: "loading" })
-
-    api.getSnapshot().then(
-      (snapshot) => {
-        if (active && acceptSnapshot(snapshot, latestRevision)) {
-          setShellState({ status: "ready", snapshot })
-        }
-      },
-      (error: unknown) => {
-        if (active) {
-          setShellState({
-            status: "error",
-            error: normalizeDesktopApiError(error, "getSnapshot"),
-          })
-        }
-      },
-    )
-
-    return () => {
-      active = false
-    }
-  }, [api, reloadKey])
-
-  useEffect(() => {
-    if (surface !== "overlay") {
-      return
-    }
-
-    let active = true
-    const eventNames = [
-      "focus-changed",
-      "store-changed",
-      "settings-changed",
-    ] as const
-    const unlistenPromises = eventNames.map((eventName) =>
-      api
-        .subscribe(eventName, (snapshot) => {
-          if (active && acceptSnapshot(snapshot, latestRevision)) {
-            setShellState({ status: "ready", snapshot })
-          }
-        })
-        .catch(() => undefined),
-    )
-
-    return () => {
-      active = false
-      void Promise.all(unlistenPromises).then((unlisteners) => {
-        unlisteners.forEach((unlisten) => unlisten?.())
-      })
-    }
-  }, [api, surface])
-
-  if (shellState.status === "loading") {
+  if (state.status === "loading") {
     return <LoadingShell surface={surface} />
   }
 
-  if (shellState.status === "error") {
+  if (state.status === "error") {
     return (
       <ErrorShell
-        error={shellState.error}
-        onRetry={() => setReloadKey((currentKey) => currentKey + 1)}
+        error={state.error}
+        onRetry={retry}
         surface={surface}
       />
     )
@@ -219,7 +140,7 @@ export function App({
 
   return renderSurface(
     surface,
-    shellState.snapshot,
+    state.snapshot,
     presentationMode,
     callbacks,
     overlayWindowAdapter,

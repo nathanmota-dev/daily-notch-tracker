@@ -46,6 +46,8 @@ describe("App", () => {
       "Carregando o DailyNotch",
     )
 
+    await waitFor(() => expect(getSnapshot).toHaveBeenCalledOnce())
+
     await act(async () => {
       resolveSnapshot?.(createEmptyAppSnapshot())
     })
@@ -192,6 +194,20 @@ describe("App", () => {
     )
   })
 
+  it("still loads the snapshot when an event subscription is unavailable", async () => {
+    const { api } = createMockDesktopApi({
+      failures: { subscribe: "integration-unavailable" },
+    })
+
+    render(<App api={api} />)
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot="collapsed-focus-widget"]'),
+      ).toHaveAttribute("data-state", "idle"),
+    )
+  })
+
   it("keeps the hover presentation while Rust updates the snapshot", async () => {
     const runningSnapshot = createCollapsedWidgetFixtureSnapshot(
       "running",
@@ -251,4 +267,67 @@ describe("App", () => {
       await screen.findByText("Plan the next focused block"),
     ).toBeInTheDocument()
   })
+
+  it("keeps a newer event when the initial snapshot resolves late", async () => {
+    let resolveSnapshot: ((snapshot: AppSnapshot) => void) | undefined
+    const getSnapshot = vi.fn(
+      () =>
+        new Promise<AppSnapshot>((resolve) => {
+          resolveSnapshot = resolve
+        }),
+    )
+    const controller = createMockDesktopApi({ handlers: { getSnapshot } })
+
+    render(<App api={controller.api} presentationMode="expanded" />)
+    await waitFor(() => expect(getSnapshot).toHaveBeenCalledOnce())
+
+    const newerSnapshot = createExpandedDashboardFixtureSnapshot(
+      "expanded-one",
+      Date.parse("2026-08-31T12:00:00.000Z"),
+    )
+    newerSnapshot.revision = 5
+    act(() => controller.emit("store-changed", newerSnapshot))
+
+    expect(
+      await screen.findByText("Plan the next focused block"),
+    ).toBeInTheDocument()
+
+    await act(async () => {
+      resolveSnapshot?.({ ...createEmptyAppSnapshot(), revision: 1 })
+    })
+
+    expect(screen.getByText("Plan the next focused block")).toBeInTheDocument()
+  })
+
+  it.each(["tasks", "settings"] as const)(
+    "connects the %s surface to snapshot events",
+    async (surface) => {
+      const controller = createMockDesktopApi()
+      render(<App api={controller.api} surface={surface} />)
+
+      await screen.findByRole("heading", {
+        name: surface === "tasks" ? "Tasks" : "Settings",
+      })
+
+      const updatedSnapshot = createEmptyAppSnapshot()
+      updatedSnapshot.revision = 1
+      updatedSnapshot.tasks = [
+        {
+          id: "task-1",
+          title: "Shared task",
+          notes: "",
+          scheduledDate: null,
+          estimateMinutes: 25,
+          isDone: false,
+          createdAt: "2026-08-31T12:00:00Z",
+          focusedSeconds: 0,
+          sortOrder: 0,
+        },
+      ]
+
+      act(() => controller.emit("shortcut-changed", updatedSnapshot))
+
+      expect(await screen.findByText("1 tarefa")).toBeInTheDocument()
+    },
+  )
 })

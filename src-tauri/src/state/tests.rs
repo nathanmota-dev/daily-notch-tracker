@@ -107,6 +107,24 @@ fn empty_state_matches_the_typescript_snapshot_contract() {
 }
 
 #[test]
+fn diagnostics_expose_the_data_path_without_persistence_details() {
+    let test_directory = TestDirectory::new();
+    let state = AppState::load(Repository::new(test_directory.path()))
+        .expect("empty repository should load");
+
+    let diagnostics = state.diagnostics("0.1.0".to_owned());
+
+    assert_eq!(diagnostics.app_version, "0.1.0");
+    assert!(diagnostics.data_file_path.ends_with("dailynotch.json"));
+    assert_eq!(diagnostics.shortcut.status, ShortcutStatus::Unavailable);
+    assert_eq!(
+        diagnostics.autostart.status,
+        crate::domain::IntegrationStatus::Unavailable
+    );
+    assert!(!diagnostics.autostart.enabled);
+}
+
+#[test]
 fn task_crud_increments_revision_only_after_success() {
     let mut state = AppState::default();
     let task_id = add_task(
@@ -521,6 +539,7 @@ fn persistence_write_failure_restores_state_without_revision_increment() {
         .expect_err("simulated persistence failure should be returned");
 
     assert_eq!(error.code, AppErrorCode::Persistence);
+    assert_eq!(error.message, "Unable to persist local data.");
     assert_eq!(state.snapshot(), before);
     assert_eq!(state.revision(), before.revision);
     assert_eq!(

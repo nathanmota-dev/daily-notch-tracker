@@ -59,10 +59,12 @@ Se o arquivo ainda não existir, o diretório é criado e o app começa com um
 payload vazio. JSON inválido ou um `schema_version` desconhecido inicia um
 estado vazio recuperável, preserva o arquivo original e registra um diagnóstico
 interno. Antes da primeira gravação desse estado recuperado, o backend cria
-`dailynotch.json.recovery-<uuid>.bak` no mesmo diretório. Ainda não há tela ou
-comando de diagnostics; a exposição desse diagnóstico fica para uma issue
-futura. O comando temporário `greet` continua coberto pelo teste Rust do
-scaffold, mas não é registrado na aplicação.
+`dailynotch.json.recovery-<uuid>.bak` no mesmo diretório. O comando
+`get_app_diagnostics` expõe somente a versão, o caminho real do arquivo e o
+estado resumido das integrações; títulos, notas e erros brutos de persistência
+não atravessam o IPC. Atalhos globais e autostart permanecem `unavailable` até
+que os plugins correspondentes sejam adicionados. O comando temporário `greet`
+continua coberto pelo teste Rust do scaffold, mas não é registrado na aplicação.
 
 Ao executar somente a UI no navegador, o shell usa um snapshot mockado,
 determinístico e sem persistência; esse mock não lê nem escreve o arquivo do
@@ -86,6 +88,13 @@ O entrypoint `src/lib/desktopApi.ts` expõe os tipos compartilhados, os comandos
 camelCase e as assinaturas tipadas dos eventos do MVP. O transport Tauri traduz
 essa API para os nomes snake_case dos comandos Rust; o transport mock permite
 injetar snapshots, respostas, falhas e eventos sem depender do webview.
+
+Cada mutação bem-sucedida retorna e emite um `AppSnapshot` completo com uma
+`revision` monotônica. Tarefas emitem `store-changed`, settings emitem
+`store-changed` e `settings-changed`, e as transições mínimas de foco emitem
+`focus-changed`. Todas as superfícies assinam esses eventos e
+`shortcut-changed`; revisões duplicadas ou atrasadas são ignoradas. O evento
+`window-placement-changed` já faz parte do contrato para a integração futura.
 
 Componentes React não devem importar `invoke` ou `listen` diretamente. O ESLint
 protege essa fronteira para que payloads e erros sejam normalizados em um único
@@ -149,10 +158,17 @@ Os MVPs-006 e 007 reproduzem a apresentação do dashboard com snapshots e
 atividade mockados. O dashboard exibe um heatmap mensal Monday-first, limitado
 ao dia atual e sem dados de sessões reais. O resize ancorado da janela Tauri já
 acompanha as mudanças de apresentação; drag-and-drop funcional e a janela
-completa `Tasks` ficam para etapas posteriores.
-A janela completa `Tasks` também permanece como placeholder até uma issue
-futura; o botão `Open Tasks` desta fixture apenas expõe o callback de
-apresentação.
+completa `Tasks` fica para etapas posteriores.
+A janela completa `Tasks` e a janela `Settings` são abertas sob demanda por
+comandos Rust, reutilizando a janela existente pelo label e trazendo-a para
+frente sem criar duplicatas. As superfícies ainda são placeholders até as
+issues de CRUD e formulário; o argumento de intenção de `Tasks` já é validado,
+mas seu consumo visual fica para essas etapas.
+
+O focus engine desta etapa é deliberadamente mínimo: iniciar, pausar, retomar,
+parar e alternar um bloco atualiza apenas o estado de runtime e a `revision`.
+Scheduler, conclusão automática, sessões e acumulação de `focusedSeconds`
+entram no MVP-017.
 
 ## Verificações
 

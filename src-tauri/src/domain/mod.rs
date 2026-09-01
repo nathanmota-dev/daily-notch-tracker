@@ -80,11 +80,35 @@ impl AppError {
         }
     }
 
+    pub fn conflict_without_field(message: impl Into<String>) -> Self {
+        Self {
+            code: AppErrorCode::Conflict,
+            message: message.into(),
+            field: None,
+        }
+    }
+
     pub fn persistence(message: impl Into<String>) -> Self {
         Self {
             code: AppErrorCode::Persistence,
             message: message.into(),
             field: None,
+        }
+    }
+
+    pub fn integration_unavailable(message: impl Into<String>) -> Self {
+        Self {
+            code: AppErrorCode::IntegrationUnavailable,
+            message: message.into(),
+            field: None,
+        }
+    }
+
+    pub fn invalid_url(message: impl Into<String>, field: impl Into<String>) -> Self {
+        Self {
+            code: AppErrorCode::InvalidUrl,
+            message: message.into(),
+            field: Some(field.into()),
         }
     }
 
@@ -127,6 +151,62 @@ pub enum ShortcutStatus {
     Error,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum IntegrationStatus {
+    Available,
+    #[default]
+    Unavailable,
+    Error,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShortcutDiagnostic {
+    pub status: ShortcutStatus,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AutostartDiagnostic {
+    pub enabled: bool,
+    pub message: Option<String>,
+    pub status: IntegrationStatus,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppDiagnostics {
+    pub app_version: String,
+    pub data_file_path: String,
+    pub shortcut: ShortcutDiagnostic,
+    pub autostart: AutostartDiagnostic,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum TasksWindowIntent {
+    List,
+    Add,
+    Task {
+        #[serde(rename = "taskId")]
+        task_id: String,
+    },
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowPlacementSnapshot {
+    pub revision: u64,
+    pub window_label: String,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub scale_factor: f64,
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSnapshot {
@@ -137,4 +217,55 @@ pub struct AppSnapshot {
     pub settings: FocusSettings,
     pub focus: FocusSnapshot,
     pub shortcut_status: ShortcutStatus,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ipc_boundary_types_serialize_with_camel_case_fields() {
+        let diagnostics = AppDiagnostics {
+            app_version: "0.1.0".to_owned(),
+            data_file_path: "/tmp/dailynotch.json".to_owned(),
+            shortcut: ShortcutDiagnostic {
+                status: ShortcutStatus::Unavailable,
+                message: None,
+            },
+            autostart: AutostartDiagnostic {
+                enabled: false,
+                status: IntegrationStatus::Unavailable,
+                message: Some("not available".to_owned()),
+            },
+        };
+        let intent = TasksWindowIntent::Task {
+            task_id: "11111111-1111-4111-8111-111111111111".to_owned(),
+        };
+        let placement = WindowPlacementSnapshot {
+            revision: 4,
+            window_label: "overlay".to_owned(),
+            x: 10,
+            y: 20,
+            width: 360,
+            height: 72,
+            scale_factor: 1.25,
+        };
+
+        let diagnostics_json =
+            serde_json::to_value(diagnostics).expect("diagnostics should serialize");
+        let intent_json = serde_json::to_value(intent).expect("intent should serialize");
+        let placement_json =
+            serde_json::to_value(placement).expect("window placement should serialize");
+
+        assert_eq!(diagnostics_json["appVersion"], "0.1.0");
+        assert_eq!(diagnostics_json["dataFilePath"], "/tmp/dailynotch.json");
+        assert_eq!(diagnostics_json["autostart"]["status"], "unavailable");
+        assert_eq!(intent_json["kind"], "task");
+        assert_eq!(
+            intent_json["taskId"],
+            "11111111-1111-4111-8111-111111111111"
+        );
+        assert_eq!(placement_json["windowLabel"], "overlay");
+        assert_eq!(placement_json["scaleFactor"], 1.25);
+    }
 }

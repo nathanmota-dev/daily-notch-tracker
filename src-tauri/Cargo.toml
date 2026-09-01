@@ -23,6 +23,7 @@ uuid = { version = "1", features = ["serde", "v4"] }
 
 [dev-dependencies]
 criterion = "0.5.1"
+tauri = { version = "2", features = ["test"] }
 
 [[bench]]
 name = "commands"

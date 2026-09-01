@@ -1,0 +1,189 @@
+use std::sync::Mutex;
+
+use super::*;
+use crate::domain::{
+    CreateTaskInput, FocusSettingsPatch, MoveTasksInput, TaskBucket, TasksWindowIntent,
+    UpdateTaskInput,
+};
+use crate::state::AppState;
+
+fn test_app() -> tauri::App<tauri::test::MockRuntime> {
+    tauri::test::mock_builder()
+        .manage(Mutex::new(AppState::default()))
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .expect("mock app should build")
+}
+
+#[test]
+fn greet_returns_a_rust_message() {
+    assert_eq!(
+        greet("DailyNotch"),
+        "Hello, DailyNotch! DailyNotch Linux is running with Rust."
+    );
+}
+
+#[test]
+fn task_window_intent_accepts_list_and_add_modes() {
+    assert!(validate_tasks_window_intent(Some(&TasksWindowIntent::List)).is_ok());
+    assert!(validate_tasks_window_intent(Some(&TasksWindowIntent::Add)).is_ok());
+}
+
+#[test]
+fn task_window_intent_rejects_an_invalid_task_id() {
+    let error = validate_tasks_window_intent(Some(&TasksWindowIntent::Task {
+        task_id: "not-a-uuid".to_owned(),
+    }))
+    .expect_err("invalid task intent should fail");
+
+    assert_eq!(error.code, crate::domain::AppErrorCode::Validation);
+}
+
+#[test]
+fn release_url_validation_requires_an_https_host() {
+    assert!(is_allowed_release_url("https://github.com/example/release"));
+    assert!(!is_allowed_release_url("http://github.com/example/release"));
+    assert!(!is_allowed_release_url("https://release"));
+}
+
+#[test]
+fn state_commands_share_the_managed_state_and_emit_snapshots() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let snapshot =
+        tauri::async_runtime::block_on(get_snapshot(handle.clone())).expect("snapshot should load");
+    assert_eq!(snapshot.revision, 0);
+
+    let added = tauri::async_runtime::block_on(add_task(
+        handle.clone(),
+        CreateTaskInput {
+            title: "Command task".to_owned(),
+            notes: String::new(),
+            scheduled_date: None,
+            estimate_minutes: 30,
+        },
+    ))
+    .expect("task should be added");
+    let task_id = added.tasks[0].id;
+
+    tauri::async_runtime::block_on(update_task(
+        handle.clone(),
+        UpdateTaskInput {
+            id: task_id.to_string(),
+            title: "Updated command task".to_owned(),
+            notes: "Notes".to_owned(),
+            scheduled_date: None,
+            estimate_minutes: 35,
+            is_done: false,
+        },
+    ))
+    .expect("task should be updated");
+    tauri::async_runtime::block_on(toggle_task(handle.clone(), task_id.to_string()))
+        .expect("task should toggle");
+    tauri::async_runtime::block_on(update_task(
+        handle.clone(),
+        UpdateTaskInput {
+            id: task_id.to_string(),
+            title: "Updated command task".to_owned(),
+            notes: "Notes".to_owned(),
+            scheduled_date: None,
+            estimate_minutes: 35,
+            is_done: false,
+        },
+    ))
+    .expect("task should be reopened");
+    tauri::async_runtime::block_on(move_tasks(
+        handle.clone(),
+        MoveTasksInput {
+            task_ids: vec![task_id.to_string()],
+            source: TaskBucket::unscheduled(),
+            destination: TaskBucket::for_date("2026-08-31"),
+        },
+    ))
+    .expect("task should move");
+
+    tauri::async_runtime::block_on(start_focus(handle.clone(), Some(task_id.to_string())))
+        .expect("task focus should start");
+    tauri::async_runtime::block_on(pause_focus(handle.clone())).expect("focus should pause");
+    tauri::async_runtime::block_on(resume_focus(handle.clone())).expect("focus should resume");
+    tauri::async_runtime::block_on(stop_focus(handle.clone())).expect("focus should stop");
+    tauri::async_runtime::block_on(toggle_focus(handle.clone()))
+        .expect("standalone focus should start");
+    tauri::async_runtime::block_on(toggle_focus(handle.clone()))
+        .expect("standalone focus should stop");
+    tauri::async_runtime::block_on(update_settings(
+        handle.clone(),
+        FocusSettingsPatch {
+            focus_minutes: Some(45),
+            ..FocusSettingsPatch::default()
+        },
+    ))
+    .expect("settings should update");
+
+    let diagnostics = tauri::async_runtime::block_on(get_app_diagnostics(handle.clone()))
+        .expect("diagnostics should load");
+    assert_eq!(
+        diagnostics.autostart.status,
+        crate::domain::IntegrationStatus::Unavailable
+    );
+    assert_eq!(
+        tauri::async_runtime::block_on(set_autostart(handle.clone(), true))
+            .expect_err("autostart is not available")
+            .code,
+        crate::domain::AppErrorCode::IntegrationUnavailable
+    );
+    assert_eq!(
+        tauri::async_runtime::block_on(open_external_release(
+            "https://github.com/example/release".to_owned(),
+        ))
+        .expect_err("release integration is not available")
+        .code,
+        crate::domain::AppErrorCode::IntegrationUnavailable
+    );
+    tauri::async_runtime::block_on(delete_task(handle, task_id.to_string()))
+        .expect("task should be deleted");
+}
+
+#[test]
+fn window_commands_reuse_labels_and_validate_external_inputs() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let task_id = "11111111-1111-4111-8111-111111111111".to_owned();
+
+    tauri::async_runtime::block_on(open_tasks_window(
+        handle.clone(),
+        Some(TasksWindowIntent::Task {
+            task_id: task_id.clone(),
+        }),
+    ))
+    .expect("tasks window should open");
+    tauri::async_runtime::block_on(open_tasks_window(
+        handle.clone(),
+        Some(TasksWindowIntent::List),
+    ))
+    .expect("existing tasks window should be reused");
+    tauri::async_runtime::block_on(open_settings_window(handle.clone()))
+        .expect("settings window should open");
+    tauri::async_runtime::block_on(open_settings_window(handle.clone()))
+        .expect("existing settings window should be reused");
+
+    assert_eq!(handle.webview_windows().len(), 2);
+    assert_eq!(
+        tauri::async_runtime::block_on(open_tasks_window(
+            handle,
+            Some(TasksWindowIntent::Task {
+                task_id: "invalid".to_owned(),
+            }),
+        ))
+        .expect_err("invalid task intent should fail")
+        .code,
+        crate::domain::AppErrorCode::Validation
+    );
+    assert_eq!(
+        tauri::async_runtime::block_on(open_external_release(
+            "http://github.com/release".to_owned(),
+        ))
+        .expect_err("non-HTTPS release should fail")
+        .code,
+        crate::domain::AppErrorCode::InvalidUrl
+    );
+}

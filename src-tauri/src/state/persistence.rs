@@ -1,5 +1,10 @@
+use std::path::PathBuf;
+
 use super::AppState;
-use crate::domain::{AppError, AppSnapshot, DomainResult, FocusSnapshot, ShortcutStatus};
+use crate::domain::{
+    AppDiagnostics, AppError, AppSnapshot, AutostartDiagnostic, DomainResult, FocusSnapshot,
+    IntegrationStatus, ShortcutDiagnostic, ShortcutStatus,
+};
 use crate::storage::{PersistedPayload, RecoveryDiagnostic, Repository};
 
 impl AppState {
@@ -33,16 +38,14 @@ impl AppState {
 
     pub(super) fn commit(&mut self) -> DomainResult<AppSnapshot> {
         let payload = self.current_payload();
-        let persistence_error = match self.repository.as_mut() {
-            Some(repository) => repository.save(&payload).err(),
-            None => None,
+        let persistence_failed = match self.repository.as_mut() {
+            Some(repository) => repository.save(&payload).is_err(),
+            None => false,
         };
 
-        if let Some(error) = persistence_error {
+        if persistence_failed {
             self.restore_confirmed_payload();
-            return Err(AppError::persistence(format!(
-                "Unable to persist local data: {error}"
-            )));
+            return Err(AppError::persistence("Unable to persist local data."));
         }
 
         self.confirmed_payload = payload;
@@ -64,6 +67,31 @@ impl AppState {
         self.settings = self.confirmed_payload.settings.clone();
     }
 
+    pub fn data_file_path(&self) -> Option<PathBuf> {
+        self.repository
+            .as_ref()
+            .map(|repository| repository.path().to_path_buf())
+    }
+
+    pub fn diagnostics(&self, app_version: String) -> AppDiagnostics {
+        AppDiagnostics {
+            app_version,
+            data_file_path: self.data_file_path().map_or_else(
+                || "unavailable".to_owned(),
+                |path| path.display().to_string(),
+            ),
+            shortcut: ShortcutDiagnostic {
+                status: self.shortcut_status,
+                message: shortcut_message(self.shortcut_status),
+            },
+            autostart: AutostartDiagnostic {
+                enabled: false,
+                status: IntegrationStatus::Unavailable,
+                message: Some("Autostart integration is not available yet.".to_owned()),
+            },
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn fail_next_persistence_write(&mut self) {
         if let Some(repository) = self.repository.as_mut() {
@@ -76,5 +104,15 @@ impl AppState {
         if let Some(repository) = self.repository.as_mut() {
             repository.fail_next_rename();
         }
+    }
+}
+
+fn shortcut_message(status: ShortcutStatus) -> Option<String> {
+    match status {
+        ShortcutStatus::Registered => None,
+        ShortcutStatus::Unavailable => {
+            Some("Global shortcut integration is not available yet.".to_owned())
+        }
+        ShortcutStatus::Error => Some("Global shortcut integration reported an error.".to_owned()),
     }
 }
