@@ -142,7 +142,7 @@ jobs:
         id: quality_gate_tests
         if: always()
         continue-on-error: true
-        run: node --test scripts/quality-gate.test.js
+        run: node --test scripts/quality-gate.test.js scripts/pr-report.test.js
 
       - name: Collect and compare quality metrics
         id: quality_gate
@@ -226,11 +226,50 @@ jobs:
               echo "The metric report was not generated. Inspect the failed steps above."
             fi
           } > "$composed"
-          mv "$composed" "$report"
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const checks = [
+            ["npm ci", process.env.INSTALL_NODE, true, "always"],
+            ["Tauri system dependencies", process.env.INSTALL_TAURI_DEPENDENCIES, true, "always"],
+            ["Critical npm audit", process.env.AUDIT_CRITICAL, true, "always"],
+            ["High npm audit", process.env.AUDIT_HIGH, false, "warning-only"],
+            ["Frontend build", process.env.FRONTEND_BUILD, true, "always"],
+            ["Frontend lint", process.env.FRONTEND_LINT, true, "always"],
+            ["Frontend typecheck", process.env.FRONTEND_TYPECHECK, true, "always"],
+            ["Frontend coverage", process.env.FRONTEND_COVERAGE, true, "always"],
+            ["Rust formatting", process.env.RUST_FORMAT, true, "always"],
+            ["Rust Clippy", process.env.RUST_CLIPPY, true, "always"],
+            ["Rust tests", process.env.RUST_TESTS, true, "always"],
+            ["Quality-gate tests", process.env.QUALITY_GATE_TESTS, true, "always"],
+            ["Quality metric comparison/bootstrap", process.env.QUALITY_GATE, true, "always"],
+          ].map(([name, outcome, blocking, blockingRule]) => ({
+            name,
+            outcome: outcome || "unknown",
+            selected: true,
+            blocking,
+            blockingRule,
+            result: outcome === "success"
+              ? "PASS"
+              : outcome === "skipped"
+                ? "SKIPPED"
+                : blocking
+                  ? "FAIL"
+                  : "WARNING",
+          }));
+
+          const overall = checks.some((check) => check.blocking && check.result === "FAIL") ? "FAIL" : "PASS";
+          fs.writeFileSync(
+            "reports/quality-workflow.json",
+            `${JSON.stringify({ schemaVersion: 1, workflow: "Quality Gate", overall, checks }, null, 2)}\n`,
+            "utf8",
+          );
+          NODE
 
       - name: Publish job summary
         if: always()
-        run: cat reports/quality-gate.md >> "$GITHUB_STEP_SUMMARY"
+        run: cat reports/pr-quality-gate.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload quality artifacts
         if: always()
@@ -276,3 +315,199 @@ jobs:
             printf 'Blocking quality checks failed: %s\n' "${failures[*]}"
             exit 1
           fi
+
+  report:
+    name: Publish consolidated PR report
+    if: >-
+      always()
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.pull_request.user.login != 'dependabot[bot]'
+      && github.actor != 'dependabot[bot]'
+    needs: evaluate
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - name: Download quality report artifact
+        if: always()
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: quality-gate-pr-${{ github.event.pull_request.number }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: quality-artifact
+
+      - name: Wait for matching performance workflow
+        id: performance_run
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPOSITORY: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        shell: bash
+        run: |
+          set +e
+          run_id=""
+          run_attempt=""
+          run_status="timeout"
+          run_conclusion=""
+          completed=false
+          deadline=$((SECONDS + 600))
+
+          while (( SECONDS < deadline )); do
+            runs=$(gh api --method GET \
+              "repos/${REPOSITORY}/actions/workflows/performance.yml/runs" \
+              -f event=pull_request \
+              -f head_sha="$HEAD_SHA" \
+              -f per_page=100 2>/dev/null)
+            if [[ $? -ne 0 ]]; then
+              runs='{"workflow_runs":[]}'
+            fi
+
+            candidate=$(jq -c --arg sha "$HEAD_SHA" '
+              [.workflow_runs[] | select(.head_sha == $sha)]
+              | sort_by([.created_at, .id])
+              | last // empty
+            ' <<< "$runs" 2>/dev/null)
+
+            if [[ -n "$candidate" ]]; then
+              run_id=$(jq -r '.id' <<< "$candidate")
+              run_attempt=$(jq -r '.run_attempt // empty' <<< "$candidate")
+              run_status=$(jq -r '.status' <<< "$candidate")
+              run_conclusion=$(jq -r '.conclusion // empty' <<< "$candidate")
+              if [[ "$run_status" == "completed" ]]; then
+                completed=true
+                break
+              fi
+            fi
+
+            sleep 15
+          done
+
+          if [[ "$completed" != "true" ]]; then
+            run_status="timeout"
+          fi
+
+          if [[ -n "$run_id" ]]; then
+            workflow_url="${SERVER_URL}/${REPOSITORY}/actions/runs/${run_id}"
+          else
+            workflow_url="${SERVER_URL}/${REPOSITORY}/actions/workflows/performance.yml"
+          fi
+
+          {
+            echo "run_id=$run_id"
+            echo "run_attempt=$run_attempt"
+            echo "status=$run_status"
+            echo "conclusion=$run_conclusion"
+            echo "workflow_url=$workflow_url"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download matching performance report artifact
+        if: steps.performance_run.outputs.run_id != '' && steps.performance_run.outputs.run_attempt != ''
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-pr-${{ github.event.pull_request.number }}-${{ steps.performance_run.outputs.run_id }}-${{ steps.performance_run.outputs.run_attempt }}
+          path: performance-artifact
+          github-token: ${{ github.token }}
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.performance_run.outputs.run_id }}
+
+      - name: Render consolidated PR report
+        if: always()
+        env:
+          QUALITY_WORKFLOW_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          QUALITY_WORKFLOW_CONCLUSION: ${{ needs.evaluate.result }}
+          PERFORMANCE_WORKFLOW_URL: ${{ steps.performance_run.outputs.workflow_url }}
+          PERFORMANCE_WORKFLOW_STATUS: ${{ steps.performance_run.outputs.status }}
+          PERFORMANCE_WORKFLOW_CONCLUSION: ${{ steps.performance_run.outputs.conclusion }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          quality_report=$(find quality-artifact -type f -name quality-gate.md -print -quit 2>/dev/null || true)
+          quality_manifest=$(find quality-artifact -type f -name quality-workflow.json -print -quit 2>/dev/null || true)
+          performance_report=$(find performance-artifact -type f -name performance.md -print -quit 2>/dev/null || true)
+          performance_manifest=$(find performance-artifact -type f -name performance-workflow.json -print -quit 2>/dev/null || true)
+
+          mkdir -p reports
+          node scripts/pr-report.js \
+            --quality-report "$quality_report" \
+            --performance-report "$performance_report" \
+            --quality-manifest "$quality_manifest" \
+            --performance-manifest "$performance_manifest" \
+            --quality-workflow-url "$QUALITY_WORKFLOW_URL" \
+            --performance-workflow-url "$PERFORMANCE_WORKFLOW_URL" \
+            --quality-conclusion "$QUALITY_WORKFLOW_CONCLUSION" \
+            --performance-status "$PERFORMANCE_WORKFLOW_STATUS" \
+            --performance-conclusion "$PERFORMANCE_WORKFLOW_CONCLUSION" \
+            --output reports/pr-report.md
+
+      - name: Create or update sticky PR report comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPOSITORY: ${{ github.repository }}
+          COMMENT_MARKER: "<!-- daily-notch-tracker-pr-report -->"
+          RUNNER_TEMP: ${{ runner.temp }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          comment_body=$(<reports/pr-report.md)
+          comments_file="$RUNNER_TEMP/pr-comments.ndjson"
+
+          gh api --paginate \
+            "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            --jq '.[]' > "$comments_file"
+
+          mapfile -t sticky_comments < <(
+            jq -r --arg marker "$COMMENT_MARKER" \
+              'select(.user.type == "Bot" and (.body | contains($marker))) | .id' \
+              "$comments_file"
+          )
+
+          comment_id=""
+          if (( ${#sticky_comments[@]} > 0 )); then
+            comment_id="${sticky_comments[0]}"
+            gh api --method PATCH \
+              "repos/${REPOSITORY}/issues/comments/${comment_id}" \
+              -f body="$comment_body" >/dev/null
+
+            for duplicate_id in "${sticky_comments[@]:1}"; do
+              gh api --method DELETE \
+                "repos/${REPOSITORY}/issues/comments/${duplicate_id}" >/dev/null
+            done
+          else
+            response=$(gh api --method POST \
+              "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+              -f body="$comment_body")
+            comment_id=$(jq -r '.id' <<< "$response")
+          fi
+
+          legacy_markers=(
+            "<!-- daily-notch-tracker-quality-gate -->"
+            "<!-- daily-notch-tracker-performance -->"
+            "<!-- daily-notch-tracker-quality-report -->"
+            "<!-- daily-notch-tracker-performance-report -->"
+          )
+          for legacy_marker in "${legacy_markers[@]}"; do
+            mapfile -t legacy_comments < <(
+              jq -r --arg marker "$legacy_marker" --arg stable "$COMMENT_MARKER" \
+                'select(.user.type == "Bot" and (.body | contains($marker)) and ((.body | contains($stable)) | not)) | .id' \
+                "$comments_file"
+            )
+            for legacy_id in "${legacy_comments[@]}"; do
+              gh api --method DELETE \
+                "repos/${REPOSITORY}/issues/comments/${legacy_id}" >/dev/null
+            done
+          done
+
+          echo "Sticky PR report comment: ${comment_id}"

@@ -41,9 +41,16 @@ jobs:
               src/*|benchmarks/*|package.json|package-lock.json|tsconfig*.json|vite.config.ts|vitest*.ts)
                 frontend_changed=true
                 ;;
-              scripts/benchmark-*|scripts/run-rust-benchmark*|.github/workflows/performance.yml)
+              scripts/benchmark-*|scripts/run-rust-benchmark*)
                 tauri_changed=true
                 frontend_changed=true
+                ;;
+              .github/workflows/performance.yml)
+                workflow_diff=$(git diff --unified=0 "$BASE_SHA" "$HEAD_SHA" -- "$file")
+                if rg -q '^[+-][^+-].*(npm run benchmark:|node --test scripts/(benchmark-gate|run-rust-benchmark)|node scripts/benchmark-gate|cargo bench|--projects|--bootstrap|id: benchmark_|continue-on-error:|runs-on:|tauri_changed|frontend_changed|projects_csv|Select trusted benchmark baseline|if:)' <<< "$workflow_diff"; then
+                  tauri_changed=true
+                  frontend_changed=true
+                fi
                 ;;
             esac
           done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
@@ -212,11 +219,43 @@ jobs:
               echo "The performance report was not generated. Inspect the failed steps above."
             fi
           } > "$composed"
-          mv "$composed" "$report"
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const checks = [
+            ["Tauri system dependencies", process.env.INSTALL_TAURI_DEPENDENCIES, process.env.TAURI_CHANGED === "true", true, "when-selected"],
+            ["Tauri microbenchmarks", process.env.BENCHMARK_TAURI, process.env.TAURI_CHANGED === "true", true, "when-selected"],
+            ["npm ci", process.env.INSTALL_FRONTEND, process.env.FRONTEND_CHANGED === "true", true, "when-selected"],
+            ["Frontend microbenchmarks", process.env.BENCHMARK_FRONTEND, process.env.FRONTEND_CHANGED === "true", true, "when-selected"],
+            ["Benchmark-gate tests", process.env.BENCHMARK_GATE_TESTS, true, true, "always"],
+            ["Baseline comparison/bootstrap", process.env.BENCHMARK_GATE, true, true, "always"],
+          ].map(([name, outcome, selected, blocking, blockingRule]) => ({
+            name,
+            outcome: outcome || "unknown",
+            selected,
+            blocking,
+            blockingRule,
+            result: !selected
+              ? "SKIPPED"
+              : outcome === "success"
+                ? "PASS"
+                : "FAIL",
+          }));
+
+          const overall = checks.some((check) => check.selected && check.blocking && check.result === "FAIL")
+            ? "FAIL"
+            : "PASS";
+          fs.writeFileSync(
+            "reports/performance-workflow.json",
+            `${JSON.stringify({ schemaVersion: 1, workflow: "Performance", overall, checks }, null, 2)}\n`,
+            "utf8",
+          );
+          NODE
 
       - name: Publish job summary
         if: always()
-        run: cat reports/performance.md >> "$GITHUB_STEP_SUMMARY"
+        run: cat reports/pr-performance.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload performance artifacts
         if: always()
@@ -228,7 +267,9 @@ jobs:
           path: |
             reports/benchmarks/
             reports/performance.md
+            reports/pr-performance.md
             reports/performance.json
+            reports/performance-workflow.json
             reports/benchmark-candidate-baseline.json
             scripts/benchmark-current.json
 
