@@ -50,9 +50,9 @@ npm run tauri:dev
 
 O comando `tauri:dev` inicia o Vite automaticamente e abre a janela desktop.
 O shell seleciona automaticamente o `desktopApi` real no webview Tauri. Até os
-comandos de domínio serem implementados no Rust, a ausência de `get_snapshot`
-é apresentada como um erro recuperável. O comando temporário `greet` continua
-coberto pelo teste Rust da ponte.
+comandos de foco e a persistência serem implementados, os comandos de tarefas e
+settings usam um estado Rust em memória. O comando temporário `greet` continua
+coberto pelo teste Rust do scaffold, mas não é registrado na aplicação.
 
 Ao executar somente a UI no navegador, o shell usa um snapshot mockado,
 determinístico e sem persistência. Testes e futuras superfícies podem criar
@@ -114,8 +114,8 @@ http://localhost:5173/?surface=overlay&fixture=expanded
 http://localhost:5173/?surface=overlay&fixture=expanded-overflow
 ```
 
-Para visualizar a mesma fixture no webview Tauri antes da implementação do
-domínio Rust, use `VITE_WIDGET_FIXTURE=running npm run tauri:dev`. Esse
+Para visualizar a mesma fixture no webview Tauri enquanto a UI final ainda está
+em construção, use `VITE_WIDGET_FIXTURE=running npm run tauri:dev`. Esse
 override é habilitado apenas no modo de desenvolvimento.
 
 Os MVPs-006 e 007 reproduzem a apresentação estática do dashboard com

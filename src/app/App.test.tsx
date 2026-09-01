@@ -3,6 +3,7 @@ import { vi } from "vitest"
 
 import {
   createCollapsedWidgetFixtureSnapshot,
+  createExpandedDashboardFixtureSnapshot,
   createEmptyAppSnapshot,
   createMockDesktopApi,
   DesktopApiError,
@@ -157,5 +158,32 @@ describe("App", () => {
         document.querySelector('[data-slot="collapsed-focus-widget"]'),
       ).toHaveAttribute("hidden"),
     )
+  })
+
+  it("accepts store changes emitted by Rust", async () => {
+    const controller = createMockDesktopApi()
+
+    render(
+      <App
+        api={controller.api}
+        presentationMode="expanded"
+      />,
+    )
+
+    await screen.findByRole("region", { name: "Expanded dashboard" })
+
+    act(() => {
+      controller.emit(
+        "store-changed",
+        createExpandedDashboardFixtureSnapshot(
+          "expanded-one",
+          Date.parse("2026-08-31T12:00:00.000Z"),
+        ),
+      )
+    })
+
+    expect(
+      await screen.findByText("Plan the next focused block"),
+    ).toBeInTheDocument()
   })
 })

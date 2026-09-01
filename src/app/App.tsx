@@ -158,7 +158,11 @@ export function App({
     }
 
     let active = true
-    const eventNames = ["focus-changed", "settings-changed"] as const
+    const eventNames = [
+      "focus-changed",
+      "store-changed",
+      "settings-changed",
+    ] as const
     const unlistenPromises = eventNames.map((eventName) =>
       api
         .subscribe(eventName, (snapshot) => {
