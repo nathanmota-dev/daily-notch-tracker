@@ -1209,6 +1209,27 @@ function validateLegacyBaseline(baseline) {
     };
 }
 
+function validateMigratedLegacyBaseline(baseline) {
+    const projects = baseline.projects;
+    assertObject(projects, "baseline.projects");
+
+    if (!projects.frontend) {
+        throw new QualityGateInputError("baseline.projects.frontend is required.");
+    }
+
+    if (projects.tauri !== null) {
+        throw new QualityGateInputError("baseline.projects.tauri must be null for a migrated schema v1 baseline.");
+    }
+
+    return {
+        ...baseline,
+        projects: {
+            frontend: validateProjectMetrics(projects.frontend, "frontend", "baseline.projects.frontend"),
+            tauri: null,
+        },
+    };
+}
+
 function validateBaseline(baseline) {
     assertObject(baseline, "baseline");
 
@@ -1218,6 +1239,10 @@ function validateBaseline(baseline) {
 
     if (baseline.schemaVersion !== 2) {
         throw new QualityGateInputError(`Unsupported baseline schemaVersion: ${baseline.schemaVersion}`);
+    }
+
+    if (baseline.migratedFromSchemaVersion === 1) {
+        return validateMigratedLegacyBaseline(baseline);
     }
 
     const projects = baseline.projects;

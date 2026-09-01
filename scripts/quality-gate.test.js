@@ -136,6 +136,16 @@ test("schema v1 remains readable only through the migration normalizer", () => {
     assert.equal(migrated.migratedFromSchemaVersion, 1);
     assert.equal(migrated.projects.tauri, null);
     assert.equal(migrated.projects.frontend.policy.maxFileLines, 300);
+
+    const revalidated = validateBaseline(migrated);
+    assert.equal(revalidated.projects.tauri, null);
+    assert.equal(
+        compareMetrics(
+            revalidated,
+            metrics({ frontend: { duplication: { duplicatedLines: 0, totalLines: 100, fragments: 0 } } }),
+        ).passed,
+        true,
+    );
     assert.equal(buildBaseline(metrics()).schemaVersion, 2);
 });
 
