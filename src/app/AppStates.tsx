@@ -2,10 +2,9 @@ import type { AppSnapshot, DesktopApiError, SurfaceLabel } from "../lib/desktopA
 import { Panel } from "../components/panel"
 import { Button } from "../components/ui/button"
 
-type PlaceholderSurface = Exclude<SurfaceLabel, "overlay">
+type PlaceholderSurface = "settings"
 
 const surfaceTitles: Record<PlaceholderSurface, string> = {
-  tasks: "Tasks",
   settings: "Settings",
 }
 

@@ -5,6 +5,7 @@ import { IconButton } from "./icon-button"
 export type DragHandleProps = {
   taskId: string
   taskTitle: string
+  disabled?: boolean
   onReorderStart: (taskId: string) => void
   onReorderEnd: () => void
 }
@@ -14,8 +15,14 @@ export function DragHandle({
   onReorderEnd,
   taskId,
   taskTitle,
+  disabled = false,
 }: DragHandleProps) {
   function handleDragStart(event: DragEvent<HTMLButtonElement>) {
+    if (disabled) {
+      event.preventDefault()
+      return
+    }
+
     event.dataTransfer?.setData("text/plain", taskId)
 
     if (event.dataTransfer) {
@@ -30,7 +37,8 @@ export function DragHandle({
       aria-label={"Reorder " + taskTitle}
       className="expanded-task-row__drag-handle"
       data-slot="drag-handle"
-      draggable
+      disabled={disabled}
+      draggable={!disabled}
       onDragEnd={onReorderEnd}
       onDragStart={handleDragStart}
       size="sm"

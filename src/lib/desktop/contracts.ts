@@ -199,5 +199,6 @@ export type DesktopEventMap = {
   "focus-changed": AppSnapshot
   "settings-changed": AppSnapshot
   "shortcut-changed": AppSnapshot
+  "tasks-window-intent": TasksWindowIntent
   "window-placement-changed": WindowPlacementSnapshot
 }
