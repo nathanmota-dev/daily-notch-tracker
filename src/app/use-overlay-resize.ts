@@ -17,6 +17,11 @@ import {
   scheduleOverlayResizeFrame,
   type ScheduledOverlayFrame,
 } from "./overlay-resize-helpers"
+import {
+  requestOverlayDisplayPlacement,
+  startInitialOverlayPlacement,
+  type OverlayPlacementRuntime,
+} from "./overlay-placement"
 import { isTauriRuntime } from "../lib/desktop/tauri"
 import {
   calculateAnchoredGeometry,
@@ -28,6 +33,7 @@ import {
   type OverlayPresentationMode,
   type OverlayWindowAdapter,
   type OverlayWindowGeometry,
+  type OverlayWindowUnlisten,
 } from "../lib/desktop/overlay-window"
 
 type UseOverlayResizeOptions = {
@@ -61,6 +67,7 @@ export function useOverlayResize({
   showTimeline = true,
 }: UseOverlayResizeOptions): UseOverlayResizeResult {
   const surfaceRef = useRef<HTMLElement | null>(null)
+  const initializedAdapterRef = useRef<OverlayWindowAdapter | null>(null)
   const [isResizing, setIsResizing] = useState(false)
   const resolvedAdapter = useMemo(
     () => (adapter === undefined ? getDefaultAdapter() : adapter),
@@ -91,7 +98,9 @@ export function useOverlayResize({
     let active = true
     let animationFrame: ScheduledOverlayFrame | null = null
     let transitionId = 0
+    let displayRequestId = 0
     let lastTargetKey: string | null = null
+    let displayUnlisten: OverlayWindowUnlisten | undefined
 
     function cancelAnimation() {
       animationFrame?.cancel()
@@ -104,9 +113,48 @@ export function useOverlayResize({
       }
     }
 
+    function targetSize(entry?: ResizeObserverEntry) {
+      const measuredVisualHeight =
+        presentationMode === "expanded"
+          ? measureOverlayVisualHeight(visual, entry)
+          : undefined
+
+      return getOverlayTargetLogicalSize(presentationMode, {
+        minimalMode,
+        showTimeline,
+        measuredVisualHeight,
+        verticalGutter: readOverlayVerticalGutter(container),
+      })
+    }
+
+    const placementRuntime: OverlayPlacementRuntime = {
+      windowAdapter,
+      operationQueue,
+      isActive: () => active,
+      getTransitionId: () => transitionId,
+      getDisplayRequestId: () => displayRequestId,
+      beginTransition: () => {
+        transitionId += 1
+        return transitionId
+      },
+      beginDisplayRequest: () => {
+        displayRequestId += 1
+        return displayRequestId
+      },
+      cancelAnimation,
+      finishTransition,
+      setIsResizing,
+      onInitialPlacementFailure: () => {
+        if (initializedAdapterRef.current === windowAdapter) {
+          initializedAdapterRef.current = null
+        }
+        lastTargetKey = null
+      },
+    }
+
     function startTransition(targetSize: OverlayLogicalSize) {
-      transitionId += 1
-      const id = transitionId
+      const id = placementRuntime.beginTransition()
+      placementRuntime.beginDisplayRequest()
       cancelAnimation()
       operationQueue.cancelPending()
       setIsResizing(true)
@@ -163,25 +211,29 @@ export function useOverlayResize({
       )
     }
 
+    function requestDisplayPlacement() {
+      const nextTargetSize = targetSize()
+      lastTargetKey = getOverlayTargetKey(nextTargetSize)
+      requestOverlayDisplayPlacement(nextTargetSize, placementRuntime)
+    }
+
     function requestTarget(entry?: ResizeObserverEntry) {
-      const measuredVisualHeight =
-        presentationMode === "expanded"
-          ? measureOverlayVisualHeight(visual, entry)
-          : undefined
-      const targetSize = getOverlayTargetLogicalSize(presentationMode, {
-        minimalMode,
-        showTimeline,
-        measuredVisualHeight,
-        verticalGutter: readOverlayVerticalGutter(container),
-      })
-      const nextTargetKey = getOverlayTargetKey(targetSize)
+      const nextTargetSize = targetSize(entry)
+      const nextTargetKey = getOverlayTargetKey(nextTargetSize)
 
       if (nextTargetKey === lastTargetKey) {
         return
       }
 
       lastTargetKey = nextTargetKey
-      startTransition(targetSize)
+
+      if (initializedAdapterRef.current !== windowAdapter) {
+        initializedAdapterRef.current = windowAdapter
+        startInitialOverlayPlacement(nextTargetSize, placementRuntime)
+        return
+      }
+
+      startTransition(nextTargetSize)
     }
 
     const observer =
@@ -192,11 +244,25 @@ export function useOverlayResize({
     observer?.observe(visual)
     requestTarget()
 
+    void windowAdapter.subscribeToDisplayChanges(requestDisplayPlacement).then(
+      (unlisten) => {
+        if (!active) {
+          unlisten()
+          return
+        }
+
+        displayUnlisten = unlisten
+      },
+      () => undefined,
+    )
+
     return () => {
       active = false
       transitionId += 1
+      displayRequestId += 1
       cancelAnimation()
       operationQueue.cancelPending()
+      displayUnlisten?.()
       setIsResizing(false)
       observer?.disconnect()
     }
