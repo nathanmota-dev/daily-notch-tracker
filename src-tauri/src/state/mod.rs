@@ -12,6 +12,8 @@ use crate::domain::{
 };
 use crate::storage::{PersistedPayload, RecoveryDiagnostic, Repository};
 
+#[path = "focus-operations.rs"]
+mod focus_operations;
 mod persistence;
 #[path = "task-operations.rs"]
 mod task_operations;
