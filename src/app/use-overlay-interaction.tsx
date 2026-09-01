@@ -41,6 +41,84 @@ const OverlayInteractionContext = createContext<OverlayInteraction | null>(
   null,
 )
 
+type InteractionRef<T> = { current: T }
+
+type CollapseState = {
+  activeRef: InteractionRef<boolean>
+  pointerInsideRef: InteractionRef<boolean>
+  holdsRef: InteractionRef<number>
+  collapseTimerRef: InteractionRef<ReturnType<typeof setTimeout> | null>
+  clearTimer: () => void
+  setPresentationMode: (mode: OverlayPresentationMode) => void
+}
+
+function scheduleOverlayCollapse({
+  activeRef,
+  pointerInsideRef,
+  holdsRef,
+  collapseTimerRef,
+  clearTimer,
+  setPresentationMode,
+}: CollapseState) {
+  if (
+    !activeRef.current ||
+    pointerInsideRef.current ||
+    holdsRef.current > 0
+  ) {
+    return
+  }
+
+  clearTimer()
+  collapseTimerRef.current = setTimeout(() => {
+    collapseTimerRef.current = null
+
+    if (
+      !activeRef.current ||
+      pointerInsideRef.current ||
+      holdsRef.current > 0
+    ) {
+      return
+    }
+
+    setPresentationMode("collapsed")
+  }, OVERLAY_COLLAPSE_DELAY_MS)
+}
+
+function releaseOverlayHold(
+  state: CollapseState,
+  scheduleCollapse: () => void,
+) {
+  state.holdsRef.current = Math.max(0, state.holdsRef.current - 1)
+
+  if (
+    state.activeRef.current &&
+    state.holdsRef.current === 0 &&
+    !state.pointerInsideRef.current
+  ) {
+    scheduleCollapse()
+  }
+}
+
+function useOverlayVisibilityEffect(
+  adapter: OverlayWindowAdapter | null | undefined,
+  focusState: FocusState,
+) {
+  useEffect(() => {
+    if (!adapter) {
+      return
+    }
+
+    try {
+      const visibilityOperation =
+        focusState === "idle" ? adapter.hide() : adapter.show()
+
+      void visibilityOperation.catch(() => undefined)
+    } catch {
+      // Native visibility failures should not interrupt the React surface.
+    }
+  }, [adapter, focusState])
+}
+
 export function useOverlayInteraction({
   adapter,
   focusState = "idle",
@@ -67,30 +145,21 @@ export function useOverlayInteraction({
     collapseTimerRef.current = null
   }, [])
 
+  const collapseState = useMemo<CollapseState>(
+    () => ({
+      activeRef,
+      pointerInsideRef,
+      holdsRef,
+      collapseTimerRef,
+      clearTimer: clearCollapseTimer,
+      setPresentationMode,
+    }),
+    [clearCollapseTimer],
+  )
+
   const scheduleCollapse = useCallback(() => {
-    if (
-      !activeRef.current ||
-      pointerInsideRef.current ||
-      holdsRef.current > 0
-    ) {
-      return
-    }
-
-    clearCollapseTimer()
-    collapseTimerRef.current = setTimeout(() => {
-      collapseTimerRef.current = null
-
-      if (
-        !activeRef.current ||
-        pointerInsideRef.current ||
-        holdsRef.current > 0
-      ) {
-        return
-      }
-
-      setPresentationMode("collapsed")
-    }, OVERLAY_COLLAPSE_DELAY_MS)
-  }, [clearCollapseTimer])
+    scheduleOverlayCollapse(collapseState)
+  }, [collapseState])
 
   const onPointerEnter = useCallback(() => {
     pointerInsideRef.current = true
@@ -119,17 +188,9 @@ export function useOverlayInteraction({
       }
 
       released = true
-      holdsRef.current = Math.max(0, holdsRef.current - 1)
-
-      if (
-        activeRef.current &&
-        holdsRef.current === 0 &&
-        !pointerInsideRef.current
-      ) {
-        scheduleCollapse()
-      }
+      releaseOverlayHold(collapseState, scheduleCollapse)
     }
-  }, [clearCollapseTimer, scheduleCollapse])
+  }, [collapseState, clearCollapseTimer, scheduleCollapse])
 
   useEffect(() => {
     activeRef.current = true
@@ -142,22 +203,7 @@ export function useOverlayInteraction({
     }
   }, [clearCollapseTimer])
 
-  useEffect(() => {
-    if (!resolvedAdapter) {
-      return
-    }
-
-    try {
-      const visibilityOperation =
-        focusState === "idle"
-          ? resolvedAdapter.hide()
-          : resolvedAdapter.show()
-
-      void visibilityOperation.catch(() => undefined)
-    } catch {
-      // Native visibility failures should not interrupt the React surface.
-    }
-  }, [focusState, resolvedAdapter])
+  useOverlayVisibilityEffect(resolvedAdapter, focusState)
 
   return useMemo(
     () => ({
