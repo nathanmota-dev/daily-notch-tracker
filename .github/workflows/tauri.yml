@@ -57,7 +57,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri -> target
-          key: ${{ matrix.task }}
+          shared-key: rust-workflows
+          cache-workspace-crates: true
 
       - name: Check formatting
         if: matrix.task == 'lint'
