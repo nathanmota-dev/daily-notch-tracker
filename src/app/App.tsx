@@ -22,7 +22,14 @@ import {
 import {
   type OverlayWindowAdapter,
 } from "../lib/desktop/overlay-window"
-import { useOverlayResize } from "./use-overlay-resize"
+import {
+  OverlayInteractionProvider,
+  useOverlayInteraction,
+} from "./use-overlay-interaction"
+import {
+  useOverlayResize,
+  useOverlayWindowAdapter,
+} from "./use-overlay-resize"
 
 export type PresentationMode = "collapsed" | "expanded"
 
@@ -30,6 +37,7 @@ type PresentationCallbacks = Partial<ExpandedDashboardCallbacks>
 
 type AppProps = {
   api?: DesktopApi
+  overlayWindowAdapter?: OverlayWindowAdapter | null
   surface?: SurfaceLabel
   presentationMode?: PresentationMode
 } & PresentationCallbacks
@@ -51,35 +59,46 @@ export function AppShell({
   overlayWindowAdapter,
   ...callbacks
 }: AppShellProps) {
-  const isExpanded = presentationMode === "expanded"
+  const overlayWindow = useOverlayWindowAdapter(overlayWindowAdapter)
+  const interaction = useOverlayInteraction({
+    adapter: overlayWindow,
+    focusState: snapshot.focus.state,
+    initialPresentationMode: presentationMode,
+  })
+  const { presentationMode: effectivePresentationMode } = interaction
+  const isExpanded = effectivePresentationMode === "expanded"
   const { isResizing, surfaceRef } = useOverlayResize({
-    adapter: overlayWindowAdapter,
+    adapter: overlayWindow,
     minimalMode: snapshot.settings.minimalMode,
-    presentationMode,
+    presentationMode: effectivePresentationMode,
     showTimeline: snapshot.settings.showTimeline,
   })
 
   return (
-    <main
-      ref={surfaceRef}
-      className={
-        isExpanded
-          ? "expanded-dashboard-surface"
-          : "collapsed-focus-surface"
-      }
-      data-presentation-mode={presentationMode}
-      data-resizing={isResizing ? "true" : "false"}
-      data-surface="overlay"
-    >
-      {isExpanded ? (
-        <ExpandedDashboard snapshot={snapshot} {...callbacks} />
-      ) : (
-        <CollapsedFocusWidget
-          focus={snapshot.focus}
-          settings={snapshot.settings}
-        />
-      )}
-    </main>
+    <OverlayInteractionProvider value={interaction}>
+      <main
+        ref={surfaceRef}
+        className={
+          isExpanded
+            ? "expanded-dashboard-surface"
+            : "collapsed-focus-surface"
+        }
+        data-presentation-mode={effectivePresentationMode}
+        data-resizing={isResizing ? "true" : "false"}
+        data-surface="overlay"
+        onPointerEnter={interaction.onPointerEnter}
+        onPointerLeave={interaction.onPointerLeave}
+      >
+        {isExpanded ? (
+          <ExpandedDashboard snapshot={snapshot} {...callbacks} />
+        ) : (
+          <CollapsedFocusWidget
+            focus={snapshot.focus}
+            settings={snapshot.settings}
+          />
+        )}
+      </main>
+    </OverlayInteractionProvider>
   )
 }
 
@@ -88,10 +107,12 @@ function renderSurface(
   snapshot: AppSnapshot,
   presentationMode: PresentationMode,
   callbacks: PresentationCallbacks,
+  overlayWindowAdapter?: OverlayWindowAdapter | null,
 ) {
   if (surface === "overlay") {
     return (
       <AppShell
+        overlayWindowAdapter={overlayWindowAdapter}
         presentationMode={presentationMode}
         snapshot={snapshot}
         {...callbacks}
@@ -116,6 +137,7 @@ function acceptSnapshot(
 
 export function App({
   api = desktopApi,
+  overlayWindowAdapter,
   presentationMode = "collapsed",
   surface = "overlay",
   ...callbacks
@@ -200,5 +222,6 @@ export function App({
     shellState.snapshot,
     presentationMode,
     callbacks,
+    overlayWindowAdapter,
   )
 }

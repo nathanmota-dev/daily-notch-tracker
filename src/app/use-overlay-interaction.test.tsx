@@ -1,0 +1,265 @@
+import { act, fireEvent, render, screen } from "@testing-library/react"
+import { useEffect } from "react"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+
+import {
+  type OverlayWindowAdapter,
+} from "../lib/desktop/overlay-window"
+import {
+  OVERLAY_COLLAPSE_DELAY_MS,
+  OverlayInteractionProvider,
+  useOverlayHold,
+  useOverlayInteraction,
+  useOverlayInteractionContext,
+} from "./use-overlay-interaction"
+
+function createAdapter() {
+  return {
+    innerSize: vi.fn(async () => ({ width: 360, height: 72 })),
+    innerPosition: vi.fn(async () => ({ x: 0, y: 0 })),
+    scaleFactor: vi.fn(async () => 1),
+    primaryMonitor: vi.fn(async () => null),
+    setSize: vi.fn(async () => undefined),
+    setPosition: vi.fn(async () => undefined),
+    show: vi.fn(async () => undefined),
+    hide: vi.fn(async () => undefined),
+    subscribeToDisplayChanges: vi.fn(async () => vi.fn()),
+  } satisfies OverlayWindowAdapter
+}
+
+function Hold({ isHeld }: { isHeld: boolean }) {
+  useOverlayHold(isHeld)
+  return null
+}
+
+function ManualHold({
+  releaseRef,
+}: {
+  releaseRef: { current: (() => void) | null }
+}) {
+  const acquireHold = useOverlayInteractionContext()?.acquireHold
+
+  useEffect(() => {
+    if (!acquireHold) {
+      return
+    }
+
+    const release = acquireHold()
+    releaseRef.current = release
+
+    return () => {
+      release()
+      releaseRef.current = null
+    }
+  }, [acquireHold, releaseRef])
+
+  return null
+}
+
+function InteractionHarness({
+  adapter,
+  firstHold = false,
+  focusState = "running",
+  initialPresentationMode = "collapsed",
+  secondHold = false,
+}: {
+  adapter?: OverlayWindowAdapter | null
+  firstHold?: boolean
+  focusState?: "idle" | "running" | "paused"
+  initialPresentationMode?: "collapsed" | "expanded"
+  secondHold?: boolean
+}) {
+  const interaction = useOverlayInteraction({
+    adapter,
+    focusState,
+    initialPresentationMode,
+  })
+
+  return (
+    <OverlayInteractionProvider value={interaction}>
+      <main
+        data-presentation-mode={interaction.presentationMode}
+        onPointerEnter={interaction.onPointerEnter}
+        onPointerLeave={interaction.onPointerLeave}
+      >
+        <Hold isHeld={firstHold} />
+        <Hold isHeld={secondHold} />
+      </main>
+    </OverlayInteractionProvider>
+  )
+}
+
+function ManualInteractionHarness({
+  releaseRef,
+}: {
+  releaseRef: { current: (() => void) | null }
+}) {
+  const interaction = useOverlayInteraction({ focusState: "running" })
+
+  return (
+    <OverlayInteractionProvider value={interaction}>
+      <main
+        data-presentation-mode={interaction.presentationMode}
+        onPointerEnter={interaction.onPointerEnter}
+        onPointerLeave={interaction.onPointerLeave}
+      >
+        <ManualHold releaseRef={releaseRef} />
+      </main>
+    </OverlayInteractionProvider>
+  )
+}
+
+describe("useOverlayInteraction", () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it("expands immediately when the pointer enters", () => {
+    render(<InteractionHarness />)
+    const surface = screen.getByRole("main")
+
+    expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
+
+    fireEvent.pointerEnter(surface)
+
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("waits 400 ms before collapsing after the pointer leaves", () => {
+    render(<InteractionHarness />)
+    const surface = screen.getByRole("main")
+    fireEvent.pointerEnter(surface)
+    fireEvent.pointerLeave(surface)
+
+    act(() => vi.advanceTimersByTime(399))
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
+  })
+
+  it("cancels a pending collapse when the pointer returns", () => {
+    render(<InteractionHarness />)
+    const surface = screen.getByRole("main")
+    fireEvent.pointerEnter(surface)
+    fireEvent.pointerLeave(surface)
+
+    act(() => vi.advanceTimersByTime(250))
+    fireEvent.pointerEnter(surface)
+    act(() => vi.advanceTimersByTime(400))
+
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("keeps only one collapse timer during rapid pointer changes", () => {
+    render(<InteractionHarness />)
+    const surface = screen.getByRole("main")
+
+    fireEvent.pointerEnter(surface)
+    fireEvent.pointerLeave(surface)
+    fireEvent.pointerLeave(surface)
+    expect(vi.getTimerCount()).toBe(1)
+
+    fireEvent.pointerEnter(surface)
+    fireEvent.pointerLeave(surface)
+    expect(vi.getTimerCount()).toBe(1)
+  })
+
+  it("keeps the overlay expanded while a hold is active", () => {
+    const { rerender } = render(<InteractionHarness />)
+    const surface = screen.getByRole("main")
+    fireEvent.pointerEnter(surface)
+    fireEvent.pointerLeave(surface)
+    expect(vi.getTimerCount()).toBe(1)
+
+    rerender(<InteractionHarness firstHold />)
+    act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS))
+
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+    expect(vi.getTimerCount()).toBe(0)
+
+    rerender(<InteractionHarness />)
+    expect(vi.getTimerCount()).toBe(1)
+    act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS))
+    expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
+  })
+
+  it("waits for every hold to release before collapsing", () => {
+    const { rerender } = render(
+      <InteractionHarness firstHold secondHold />,
+    )
+    const surface = screen.getByRole("main")
+
+    fireEvent.pointerLeave(surface)
+    expect(vi.getTimerCount()).toBe(0)
+
+    rerender(<InteractionHarness secondHold />)
+    act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS))
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+    expect(vi.getTimerCount()).toBe(0)
+
+    rerender(<InteractionHarness />)
+    expect(vi.getTimerCount()).toBe(1)
+    act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS))
+    expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
+  })
+
+  it("makes a hold release idempotent", () => {
+    const releaseRef: { current: (() => void) | null } = { current: null }
+    render(<ManualInteractionHarness releaseRef={releaseRef} />)
+    const surface = screen.getByRole("main")
+
+    fireEvent.pointerLeave(surface)
+    expect(vi.getTimerCount()).toBe(0)
+
+    releaseRef.current?.()
+    releaseRef.current?.()
+    expect(vi.getTimerCount()).toBe(1)
+
+    act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS))
+    expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
+  })
+
+  it("cleans up the timer when the interaction unmounts", () => {
+    const { unmount } = render(<InteractionHarness />)
+    const surface = screen.getByRole("main")
+    fireEvent.pointerEnter(surface)
+    fireEvent.pointerLeave(surface)
+    expect(vi.getTimerCount()).toBe(1)
+
+    unmount()
+
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("shows active sessions and hides idle overlays through the adapter", () => {
+    const adapter = createAdapter()
+    const { rerender } = render(
+      <InteractionHarness adapter={adapter} focusState="idle" />,
+    )
+
+    expect(adapter.hide).toHaveBeenCalledOnce()
+    expect(adapter.show).not.toHaveBeenCalled()
+
+    rerender(<InteractionHarness adapter={adapter} focusState="running" />)
+    expect(adapter.show).toHaveBeenCalledOnce()
+
+    rerender(<InteractionHarness adapter={adapter} focusState="paused" />)
+    expect(adapter.show).toHaveBeenCalledTimes(2)
+  })
+
+  it("absorbs native visibility failures", () => {
+    const adapter = createAdapter()
+    adapter.hide.mockRejectedValueOnce(new Error("window unavailable"))
+
+    expect(() =>
+      render(<InteractionHarness adapter={adapter} focusState="idle" />),
+    ).not.toThrow()
+  })
+})

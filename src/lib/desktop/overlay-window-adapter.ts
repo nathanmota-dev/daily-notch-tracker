@@ -20,7 +20,13 @@ import type {
 
 type TauriWindowAdapter = Pick<
   TauriWindow,
-  "innerSize" | "innerPosition" | "scaleFactor" | "setSize" | "setPosition"
+  | "innerSize"
+  | "innerPosition"
+  | "scaleFactor"
+  | "setSize"
+  | "setPosition"
+  | "show"
+  | "hide"
 > &
   Partial<Pick<TauriWindow, "onScaleChanged">>
 
@@ -68,6 +74,8 @@ export function createTauriOverlayWindowAdapter(
       appWindow.setPosition(
         new TauriPhysicalPosition(position.x, position.y),
       ),
+    show: () => appWindow.show(),
+    hide: () => appWindow.hide(),
     subscribeToDisplayChanges: async (listener) => {
       let active = true
       let checking = false

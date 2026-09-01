@@ -97,6 +97,8 @@ function createAdapter() {
         void position
       },
     ),
+    show: vi.fn(async () => undefined),
+    hide: vi.fn(async () => undefined),
     subscribeToDisplayChanges: vi.fn(async (listener: () => void) => {
       displayListeners.add(listener)
       return () => displayListeners.delete(listener)
