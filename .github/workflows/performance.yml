@@ -41,9 +41,16 @@ jobs:
               src/*|benchmarks/*|package.json|package-lock.json|tsconfig*.json|vite.config.ts|vitest*.ts)
                 frontend_changed=true
                 ;;
-              scripts/benchmark-*|scripts/run-rust-benchmark*|.github/workflows/performance.yml)
+              scripts/benchmark-*|scripts/run-rust-benchmark*)
                 tauri_changed=true
                 frontend_changed=true
+                ;;
+              .github/workflows/performance.yml)
+                workflow_diff=$(git diff --unified=0 "$BASE_SHA" "$HEAD_SHA" -- "$file")
+                if rg -q '^[+-][^+-].*(npm run benchmark:|node --test scripts/(benchmark-gate|run-rust-benchmark)|node scripts/benchmark-gate|cargo bench|--projects|--bootstrap|id: benchmark_|continue-on-error:|runs-on:|tauri_changed|frontend_changed|projects_csv|Select trusted benchmark baseline|if:)' <<< "$workflow_diff"; then
+                  tauri_changed=true
+                  frontend_changed=true
+                fi
                 ;;
             esac
           done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
