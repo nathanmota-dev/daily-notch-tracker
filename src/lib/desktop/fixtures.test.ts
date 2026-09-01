@@ -8,6 +8,7 @@ import {
   resolveCollapsedWidgetFixture,
   resolveWidgetFixture,
 } from "./fixtures"
+import { getLocalDateString } from "../local-date"
 
 describe("collapsed widget fixtures", () => {
   it("resolves a fixture from the browser query or development environment", () => {
@@ -22,9 +23,10 @@ describe("collapsed widget fixtures", () => {
   it.each(COLLAPSED_WIDGET_FIXTURE_NAMES)(
     "creates a valid %s snapshot",
     (fixture) => {
+      const now = Date.parse("2026-08-31T12:00:00.000Z")
       const snapshot = createCollapsedWidgetFixtureSnapshot(
         fixture,
-        Date.parse("2026-08-31T12:00:00.000Z"),
+        now,
       )
 
       expect(snapshot.revision).toBe(1)
@@ -35,6 +37,9 @@ describe("collapsed widget fixtures", () => {
       expect(snapshot.focus.activeTaskId).toBe(
         fixture === "no-task" ? null : "fixture-task",
       )
+      expect(snapshot.tasks.every((task) =>
+        task.scheduledDate === getLocalDateString(now),
+      )).toBe(true)
     },
   )
 })
@@ -77,6 +82,9 @@ describe("expanded dashboard fixtures", () => {
       expect(firstSnapshot).toEqual(secondSnapshot)
       expect(firstSnapshot.revision).toBe(1)
       expect(firstSnapshot.focus.state).toBe("idle")
+      expect(firstSnapshot.tasks.every((task) =>
+        task.scheduledDate === getLocalDateString(now),
+      )).toBe(true)
     },
   )
 

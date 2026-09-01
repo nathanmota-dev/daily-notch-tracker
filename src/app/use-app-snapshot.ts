@@ -1,8 +1,9 @@
-import { useEffect, useReducer, useState } from "react"
+import { useCallback, useEffect, useReducer, useState } from "react"
 
 import {
   normalizeDesktopApiError,
   type DesktopApi,
+  type AppSnapshot,
   type DesktopEventName,
   type DesktopUnlisten,
 } from "../lib/desktopApi"
@@ -30,6 +31,8 @@ function safelyUnlisten(unlisten: DesktopUnlisten) {
 export function useAppSnapshot(api: DesktopApi): {
   state: SnapshotStoreState
   retry: () => void
+  applySnapshot: (snapshot: AppSnapshot) => void
+  refreshSnapshot: () => Promise<AppSnapshot>
 } {
   const [reloadKey, setReloadKey] = useState(0)
   const [state, dispatch] = useReducer(
@@ -37,6 +40,18 @@ export function useAppSnapshot(api: DesktopApi): {
     undefined,
     createInitialSnapshotStoreState,
   )
+  const applySnapshot = useCallback((snapshot: AppSnapshot) => {
+    dispatch({ type: "received", snapshot })
+  }, [])
+  const refreshSnapshot = useCallback(async () => {
+    try {
+      const snapshot = await api.getSnapshot()
+      applySnapshot(snapshot)
+      return snapshot
+    } catch (error) {
+      throw normalizeDesktopApiError(error, "getSnapshot")
+    }
+  }, [api, applySnapshot])
 
   useEffect(() => {
     let active = true
@@ -51,7 +66,7 @@ export function useAppSnapshot(api: DesktopApi): {
           Promise.resolve().then(() =>
             api.subscribe(eventName, (snapshot) => {
               if (active) {
-                dispatch({ type: "received", snapshot })
+                applySnapshot(snapshot)
               }
             }),
           ),
@@ -77,7 +92,7 @@ export function useAppSnapshot(api: DesktopApi): {
       try {
         const snapshot = await api.getSnapshot()
         if (active) {
-          dispatch({ type: "received", snapshot })
+          applySnapshot(snapshot)
         }
       } catch (error) {
         if (active) {
@@ -102,10 +117,12 @@ export function useAppSnapshot(api: DesktopApi): {
       unlisteners.clear()
       currentUnlisteners.forEach(safelyUnlisten)
     }
-  }, [api, reloadKey])
+  }, [api, applySnapshot, refreshSnapshot, reloadKey])
 
   return {
     state,
     retry: () => setReloadKey((currentKey) => currentKey + 1),
+    applySnapshot,
+    refreshSnapshot,
   }
 }

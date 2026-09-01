@@ -1,5 +1,6 @@
 import type { AppSnapshot, Task } from "./contracts"
 import { createEmptyAppSnapshot } from "./base-snapshot"
+import { getLocalDateString } from "../local-date"
 
 export const EXPANDED_DASHBOARD_FIXTURE_NAMES = [
   "expanded",
@@ -146,7 +147,7 @@ function createExpandedTask(spec: ExpandedTaskSpec, now: number): Task {
     id: spec.id,
     title: spec.title,
     notes: spec.notes ?? "",
-    scheduledDate: null,
+    scheduledDate: getLocalDateString(now),
     estimateMinutes: spec.estimateMinutes ?? 25,
     isDone: spec.isDone ?? false,
     createdAt: fixtureTimestamp(now - spec.createdMinutesAgo * 60 * 1000),

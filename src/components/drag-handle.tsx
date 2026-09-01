@@ -6,10 +6,12 @@ export type DragHandleProps = {
   taskId: string
   taskTitle: string
   onReorderStart: (taskId: string) => void
+  onReorderEnd: () => void
 }
 
 export function DragHandle({
   onReorderStart,
+  onReorderEnd,
   taskId,
   taskTitle,
 }: DragHandleProps) {
@@ -29,6 +31,7 @@ export function DragHandle({
       className="expanded-task-row__drag-handle"
       data-slot="drag-handle"
       draggable
+      onDragEnd={onReorderEnd}
       onDragStart={handleDragStart}
       size="sm"
       type="button"

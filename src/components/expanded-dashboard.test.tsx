@@ -9,6 +9,9 @@ import {
 import { ExpandedDashboard } from "./expanded-dashboard"
 import {
   formatTaskDuration,
+  getLocalDateString,
+  reorderTaskIds,
+  selectTasksForDashboard,
   sortTasksForDashboard,
 } from "./expanded-dashboard-model"
 
@@ -25,6 +28,7 @@ function renderFixture(
 ) {
   return render(
     <ExpandedDashboard
+      now={FIXTURE_NOW}
       snapshot={createExpandedDashboardFixtureSnapshot(fixture, FIXTURE_NOW)}
     />,
   )
@@ -166,22 +170,97 @@ describe("sortTasksForDashboard", () => {
   })
 })
 
+describe("selectTasksForDashboard", () => {
+  function createTask(
+    id: string,
+    scheduledDate: string | null,
+    options: Pick<Task, "isDone" | "sortOrder">,
+  ): Task {
+    return {
+      id,
+      title: id,
+      notes: "",
+      scheduledDate,
+      estimateMinutes: 25,
+      createdAt: "2026-08-31T08:00:00.000Z",
+      focusedSeconds: 0,
+      ...options,
+    }
+  }
+
+  it("selects only today's local bucket and keeps completed tasks last", () => {
+    const now = Date.parse("2026-08-31T12:00:00.000Z")
+    const today = getLocalDateString(now)
+    const yesterday = getLocalDateString(now - 24 * 60 * 60 * 1000)
+    const tomorrow = getLocalDateString(now + 24 * 60 * 60 * 1000)
+
+    const tasks = [
+      createTask("tomorrow", tomorrow, { isDone: false, sortOrder: 0 }),
+      createTask("done-today", today, { isDone: true, sortOrder: 0 }),
+      createTask("unscheduled", null, { isDone: false, sortOrder: 0 }),
+      createTask("yesterday", yesterday, { isDone: false, sortOrder: 0 }),
+      createTask("pending-today", today, { isDone: false, sortOrder: 1 }),
+    ]
+
+    expect(selectTasksForDashboard(tasks, now).map((task) => task.id)).toEqual([
+      "pending-today",
+      "done-today",
+    ])
+  })
+
+  it("returns an empty list when no task is scheduled for today", () => {
+    const now = Date.parse("2026-08-31T12:00:00.000Z")
+    const tasks = [
+      createTask("unscheduled", null, { isDone: false, sortOrder: 0 }),
+      createTask("tomorrow", getLocalDateString(now + 86_400_000), {
+        isDone: false,
+        sortOrder: 1,
+      }),
+    ]
+
+    expect(selectTasksForDashboard(tasks, now)).toEqual([])
+    expect(selectTasksForDashboard([], now)).toEqual([])
+  })
+})
+
+describe("reorderTaskIds", () => {
+  it("moves a dragged task to the drop target position without mutating the input", () => {
+    const taskIds = ["first", "second", "third"]
+
+    expect(reorderTaskIds(taskIds, "first", "third")).toEqual([
+      "second",
+      "third",
+      "first",
+    ])
+    expect(taskIds).toEqual(["first", "second", "third"])
+  })
+})
+
 describe("ExpandedDashboard callbacks", () => {
-  it("notifies task, focus, add, open, and reorder actions", async () => {
+  it("notifies task, focus, add, open, detail, and reorder actions", async () => {
     const user = userEvent.setup()
     const onToggleTask = vi.fn()
     const onToggleFocus = vi.fn()
     const onAddTask = vi.fn()
     const onOpenTasks = vi.fn()
-    const onReorderStart = vi.fn()
+    const onOpenTask = vi.fn()
+    const onReorder = vi.fn()
+    const dataTransfer = {
+      effectAllowed: "none",
+      dropEffect: "none",
+      getData: vi.fn(() => "expanded-task-1"),
+      setData: vi.fn(),
+    }
 
     render(
       <ExpandedDashboard
         onAddTask={onAddTask}
+        onOpenTask={onOpenTask}
         onOpenTasks={onOpenTasks}
-        onReorderStart={onReorderStart}
+        onReorder={onReorder}
         onToggleFocus={onToggleFocus}
         onToggleTask={onToggleTask}
+        now={FIXTURE_NOW}
         snapshot={createExpandedDashboardFixtureSnapshot(
           "expanded",
           FIXTURE_NOW,
@@ -201,17 +280,38 @@ describe("ExpandedDashboard callbacks", () => {
     )
     await user.click(screen.getByRole("button", { name: "Add a task" }))
     await user.click(screen.getByRole("button", { name: "Open Tasks" }))
+    await user.click(
+      screen.getByRole("button", {
+        name: "Open details for Plan the next focused block",
+      }),
+    )
     fireEvent.dragStart(
       screen.getByRole("button", {
         name: "Reorder Plan the next focused block",
       }),
+      { dataTransfer },
     )
+    expect(dataTransfer.setData).toHaveBeenCalledWith(
+      "text/plain",
+      "expanded-task-1",
+    )
+    const targetRow = document.querySelectorAll(
+      '[data-slot="compact-task-row"]',
+    )[1]
+    expect(targetRow).toHaveAttribute("data-task-id", "expanded-task-2")
+    fireEvent.dragOver(targetRow, { dataTransfer })
+    fireEvent.drop(targetRow, { dataTransfer })
+    expect(dataTransfer.getData).toHaveBeenCalledWith("text/plain")
 
     expect(onToggleTask).toHaveBeenCalledWith("expanded-task-1", true)
     expect(onToggleFocus).toHaveBeenCalledWith("expanded-task-1")
     expect(onAddTask).toHaveBeenCalledOnce()
     expect(onOpenTasks).toHaveBeenCalledOnce()
-    expect(onReorderStart).toHaveBeenCalledWith("expanded-task-1")
+    expect(onOpenTask).toHaveBeenCalledWith("expanded-task-1")
+    expect(onReorder).toHaveBeenCalledWith([
+      "expanded-task-2",
+      "expanded-task-1",
+    ])
   })
 
   it("makes only drag handles draggable and sends the pause action for an active task", async () => {
@@ -233,6 +333,7 @@ describe("ExpandedDashboard callbacks", () => {
     render(
       <ExpandedDashboard
         onToggleFocus={onToggleFocus}
+        now={FIXTURE_NOW}
         snapshot={snapshot}
       />,
     )
@@ -255,5 +356,54 @@ describe("ExpandedDashboard callbacks", () => {
     )
 
     expect(onToggleFocus).toHaveBeenCalledWith("expanded-task-1")
+  })
+
+  it("opens task details from the body with Enter and Space", async () => {
+    const user = userEvent.setup()
+    const onOpenTask = vi.fn()
+
+    render(
+      <ExpandedDashboard
+        onOpenTask={onOpenTask}
+        now={FIXTURE_NOW}
+        snapshot={createExpandedDashboardFixtureSnapshot(
+          "expanded",
+          FIXTURE_NOW,
+        )}
+      />,
+    )
+
+    const body = screen.getByRole("button", {
+      name: "Open details for Plan the next focused block",
+    })
+
+    await user.click(body)
+    body.focus()
+    await user.keyboard("{Enter}")
+    await user.keyboard(" ")
+
+    expect(onOpenTask).toHaveBeenCalledTimes(3)
+    expect(onOpenTask).toHaveBeenCalledWith("expanded-task-1")
+  })
+
+  it("opens the add intent from the empty state", async () => {
+    const onAddTask = vi.fn()
+
+    render(
+      <ExpandedDashboard
+        onAddTask={onAddTask}
+        now={FIXTURE_NOW}
+        snapshot={createExpandedDashboardFixtureSnapshot(
+          "expanded-empty",
+          FIXTURE_NOW,
+        )}
+      />,
+    )
+
+    await userEvent.setup().click(
+      screen.getByRole("button", { name: "Add your first task" }),
+    )
+
+    expect(onAddTask).toHaveBeenCalledOnce()
   })
 })

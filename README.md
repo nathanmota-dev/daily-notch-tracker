@@ -155,15 +155,19 @@ em construção, use `VITE_WIDGET_FIXTURE=running npm run tauri:dev`. Esse
 override é habilitado apenas no modo de desenvolvimento.
 
 Os MVPs-006 e 007 reproduzem a apresentação do dashboard com snapshots e
-atividade mockados. O dashboard exibe um heatmap mensal Monday-first, limitado
-ao dia atual e sem dados de sessões reais. O resize ancorado da janela Tauri já
-acompanha as mudanças de apresentação; drag-and-drop funcional e a janela
-completa `Tasks` fica para etapas posteriores.
+atividade mockados. A partir do MVP-015, o dashboard expandido seleciona do
+`AppSnapshot` apenas as tarefas agendadas para o dia local, e suas ações de
+conclusão, foco e reorder enviam mutações reais pelo `desktopApi`; a resposta
+do Rust é a fonte de verdade da UI. O dashboard exibe um heatmap mensal
+Monday-first, limitado ao dia atual e sem dados de sessões reais. O resize
+ancorado da janela Tauri acompanha as mudanças de apresentação, e o
+drag-and-drop do resumo já reordena o bucket do dia.
 A janela completa `Tasks` e a janela `Settings` são abertas sob demanda por
 comandos Rust, reutilizando a janela existente pelo label e trazendo-a para
 frente sem criar duplicatas. As superfícies ainda são placeholders até as
 issues de CRUD e formulário; o argumento de intenção de `Tasks` já é validado,
-mas seu consumo visual fica para essas etapas.
+mas o consumo visual desses intents pertence às issues futuras da janela
+`Tasks`.
 
 O focus engine desta etapa é deliberadamente mínimo: iniciar, pausar, retomar,
 parar e alternar um bloco atualiza apenas o estado de runtime e a `revision`.

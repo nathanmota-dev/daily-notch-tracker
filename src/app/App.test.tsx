@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { vi } from "vitest"
 
 import {
@@ -8,7 +9,9 @@ import {
   createMockDesktopApi,
   DesktopApiError,
   type AppSnapshot,
+  type TasksWindowIntent,
 } from "../lib/desktopApi"
+import { getLocalDateString } from "../lib/local-date"
 import {
   type OverlayWindowAdapter,
 } from "../lib/desktop/overlay-window"
@@ -258,7 +261,7 @@ describe("App", () => {
         "store-changed",
         createExpandedDashboardFixtureSnapshot(
           "expanded-one",
-          Date.parse("2026-08-31T12:00:00.000Z"),
+          Date.now(),
         ),
       )
     })
@@ -283,7 +286,7 @@ describe("App", () => {
 
     const newerSnapshot = createExpandedDashboardFixtureSnapshot(
       "expanded-one",
-      Date.parse("2026-08-31T12:00:00.000Z"),
+      Date.now(),
     )
     newerSnapshot.revision = 5
     act(() => controller.emit("store-changed", newerSnapshot))
@@ -330,4 +333,310 @@ describe("App", () => {
       expect(await screen.findByText("1 tarefa")).toBeInTheDocument()
     },
   )
+
+  it("applies the snapshot returned by a real task mutation", async () => {
+    const now = Date.now()
+    const initialSnapshot = createExpandedDashboardFixtureSnapshot(
+      "expanded",
+      now,
+    )
+    const updatedSnapshot = {
+      ...initialSnapshot,
+      revision: initialSnapshot.revision + 1,
+      tasks: initialSnapshot.tasks.map((task, index) =>
+        index === 0 ? { ...task, isDone: true } : task,
+      ),
+    }
+    const toggleTask = vi.fn(async () => updatedSnapshot)
+    const controller = createMockDesktopApi({
+      handlers: { toggleTask },
+      snapshot: initialSnapshot,
+    })
+
+    render(
+      <App
+        api={controller.api}
+        presentationMode="expanded"
+      />,
+    )
+
+    await screen.findByRole("region", { name: "Expanded dashboard" })
+    await userEvent.setup().click(
+      screen.getByRole("checkbox", {
+        name: "Mark Plan the next focused block as complete",
+      }),
+    )
+
+    await waitFor(() =>
+      expect(toggleTask).toHaveBeenCalledWith("expanded-task-1"),
+    )
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-task-id="expanded-task-1"]'),
+      ).toHaveAttribute("data-completed", "true"),
+    )
+  })
+
+  it("maps the active focus state to pause, resume, and start commands", async () => {
+    const now = Date.now()
+    const initialSnapshot = createExpandedDashboardFixtureSnapshot(
+      "expanded",
+      now,
+    )
+    const runningFocus = {
+      ...initialSnapshot.focus,
+      state: "running" as const,
+      activeTaskId: "expanded-task-1",
+      activeTaskTitle: initialSnapshot.tasks[0]?.title ?? null,
+      startedAt: new Date(now).toISOString(),
+      endAt: new Date(now + 60_000).toISOString(),
+      totalMs: 60_000,
+    }
+    const runningSnapshot = {
+      ...initialSnapshot,
+      focus: runningFocus,
+    }
+    const pausedSnapshot = {
+      ...runningSnapshot,
+      revision: 2,
+      focus: {
+        ...runningFocus,
+        state: "paused" as const,
+        endAt: null,
+        pausedRemainingMs: 30_000,
+      },
+    }
+    const resumedSnapshot = {
+      ...pausedSnapshot,
+      revision: 3,
+      focus: runningFocus,
+    }
+    const startedSnapshot = {
+      ...resumedSnapshot,
+      revision: 4,
+      focus: {
+        ...runningFocus,
+        activeTaskId: "expanded-task-2",
+        activeTaskTitle: initialSnapshot.tasks[1]?.title ?? null,
+      },
+    }
+    const pauseFocus = vi.fn(async () => pausedSnapshot)
+    const resumeFocus = vi.fn(async () => resumedSnapshot)
+    const startFocus = vi.fn(async () => startedSnapshot)
+    const controller = createMockDesktopApi({
+      handlers: { pauseFocus, resumeFocus, startFocus },
+      snapshot: runningSnapshot,
+    })
+
+    render(
+      <App
+        api={controller.api}
+        presentationMode="expanded"
+      />,
+    )
+
+    await screen.findByRole("region", { name: "Expanded dashboard" })
+    const user = userEvent.setup()
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Pause focus for Plan the next focused block",
+      }),
+    )
+    await waitFor(() => expect(pauseFocus).toHaveBeenCalledOnce())
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Resume focus for Plan the next focused block",
+      }),
+    )
+    await waitFor(() => expect(resumeFocus).toHaveBeenCalledOnce())
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Start focus for Review the desktop contract",
+      }),
+    )
+    await waitFor(() => expect(startFocus).toHaveBeenCalledWith("expanded-task-2"))
+  })
+
+  it("sends list, add, and task intents to the Tasks window", async () => {
+    const snapshot = createExpandedDashboardFixtureSnapshot("expanded", Date.now())
+    const openTasksWindow = vi.fn(async (intent?: TasksWindowIntent) => {
+      void intent
+    })
+    const controller = createMockDesktopApi({
+      handlers: { openTasksWindow },
+      snapshot,
+    })
+
+    render(
+      <App
+        api={controller.api}
+        presentationMode="expanded"
+      />,
+    )
+
+    await screen.findByRole("region", { name: "Expanded dashboard" })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Open Tasks" }))
+    await user.click(screen.getByRole("button", { name: "Add a task" }))
+    await user.click(
+      screen.getByRole("button", {
+        name: "Open details for Plan the next focused block",
+      }),
+    )
+
+    await waitFor(() => expect(openTasksWindow).toHaveBeenCalledTimes(3))
+    expect(openTasksWindow.mock.calls.map(([intent]) => intent)).toEqual([
+      { kind: "list" },
+      { kind: "add" },
+      { kind: "task", taskId: "expanded-task-1" },
+    ])
+  })
+
+  it("opens the add intent when the dashboard has no tasks", async () => {
+    const snapshot = createExpandedDashboardFixtureSnapshot(
+      "expanded-empty",
+      Date.now(),
+    )
+    const openTasksWindow = vi.fn(async (intent?: TasksWindowIntent) => {
+      void intent
+    })
+    const controller = createMockDesktopApi({
+      handlers: { openTasksWindow },
+      snapshot,
+    })
+
+    render(
+      <App
+        api={controller.api}
+        presentationMode="expanded"
+      />,
+    )
+
+    await screen.findByRole("region", { name: "Expanded dashboard" })
+    await userEvent.setup().click(
+      screen.getByRole("button", { name: "Add your first task" }),
+    )
+
+    await waitFor(() =>
+      expect(openTasksWindow).toHaveBeenCalledWith({ kind: "add" }),
+    )
+  })
+
+  it("sends the complete current-day permutation and renders Rust's order", async () => {
+    const now = Date.now()
+    const initialSnapshot = createExpandedDashboardFixtureSnapshot(
+      "expanded",
+      now,
+    )
+    const updatedSnapshot = {
+      ...initialSnapshot,
+      revision: initialSnapshot.revision + 1,
+      tasks: initialSnapshot.tasks.map((task, index) => ({
+        ...task,
+        sortOrder: index === 0 ? 1 : 0,
+      })),
+    }
+    const moveTasks = vi.fn(async () => updatedSnapshot)
+    const controller = createMockDesktopApi({
+      handlers: { moveTasks },
+      snapshot: initialSnapshot,
+    })
+
+    render(
+      <App
+        api={controller.api}
+        presentationMode="expanded"
+      />,
+    )
+
+    await screen.findByRole("region", { name: "Expanded dashboard" })
+    const rows = document.querySelectorAll('[data-slot="compact-task-row"]')
+    const dataTransfer = {
+      effectAllowed: "none",
+      dropEffect: "none",
+      getData: vi.fn(() => "expanded-task-1"),
+      setData: vi.fn(),
+    }
+
+    fireEvent.dragStart(
+      screen.getByRole("button", {
+        name: "Reorder Plan the next focused block",
+      }),
+      { dataTransfer },
+    )
+    fireEvent.dragOver(rows[1], { dataTransfer })
+    fireEvent.drop(rows[1], { dataTransfer })
+
+    expect(
+      Array.from(
+        document.querySelectorAll('[data-slot="compact-task-row"]'),
+      ).map((row) => row.getAttribute("data-task-id")),
+    ).toEqual(["expanded-task-1", "expanded-task-2"])
+    await waitFor(() => expect(moveTasks).toHaveBeenCalledOnce())
+    expect(moveTasks).toHaveBeenCalledWith({
+      taskIds: ["expanded-task-2", "expanded-task-1"],
+      source: { scheduledDate: getLocalDateString(now) },
+      destination: { scheduledDate: getLocalDateString(now) },
+    })
+    await waitFor(() =>
+      expect(
+        Array.from(
+          document.querySelectorAll('[data-slot="compact-task-row"]'),
+        ).map((row) => row.getAttribute("data-task-id")),
+      ).toEqual(["expanded-task-2", "expanded-task-1"]),
+    )
+  })
+
+  it("reconciles a failed mutation without replacing the current snapshot", async () => {
+    const now = Date.now()
+    const initialSnapshot = createExpandedDashboardFixtureSnapshot(
+      "expanded",
+      now,
+    )
+    const reconciledSnapshot = {
+      ...initialSnapshot,
+      revision: initialSnapshot.revision + 1,
+    }
+    const getSnapshot = vi
+      .fn<() => Promise<AppSnapshot>>()
+      .mockResolvedValueOnce(initialSnapshot)
+      .mockResolvedValueOnce(reconciledSnapshot)
+    const toggleTask = vi.fn(async () => {
+      throw new DesktopApiError({
+        operation: "toggleTask",
+        code: "conflict",
+        message: "The private task title and note are not relevant here.",
+      })
+    })
+    const controller = createMockDesktopApi({
+      handlers: { getSnapshot, toggleTask },
+      snapshot: initialSnapshot,
+    })
+
+    render(
+      <App
+        api={controller.api}
+        presentationMode="expanded"
+      />,
+    )
+
+    await screen.findByRole("region", { name: "Expanded dashboard" })
+    await userEvent.setup().click(
+      screen.getByRole("checkbox", {
+        name: "Mark Plan the next focused block as complete",
+      }),
+    )
+
+    const alert = await screen.findByRole("alert")
+    await waitFor(() => expect(getSnapshot).toHaveBeenCalledTimes(2))
+    expect(alert).toHaveTextContent("conflict")
+    expect(alert).not.toHaveTextContent("private task title")
+    expect(alert).not.toHaveTextContent("note")
+    expect(
+      document.querySelector('[data-task-id="expanded-task-1"]'),
+    ).toBeInTheDocument()
+  })
 })
