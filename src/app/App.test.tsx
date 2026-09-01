@@ -194,6 +194,20 @@ describe("App", () => {
     )
   })
 
+  it("still loads the snapshot when an event subscription is unavailable", async () => {
+    const { api } = createMockDesktopApi({
+      failures: { subscribe: "integration-unavailable" },
+    })
+
+    render(<App api={api} />)
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot="collapsed-focus-widget"]'),
+      ).toHaveAttribute("data-state", "idle"),
+    )
+  })
+
   it("keeps the hover presentation while Rust updates the snapshot", async () => {
     const runningSnapshot = createCollapsedWidgetFixtureSnapshot(
       "running",

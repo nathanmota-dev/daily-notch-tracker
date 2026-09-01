@@ -44,9 +44,9 @@ impl AppState {
     }
 
     pub fn load(mut repository: Repository) -> DomainResult<Self> {
-        let loaded = repository.load().map_err(|error| {
-            AppError::persistence(format!("Unable to load local data: {error}"))
-        })?;
+        let loaded = repository
+            .load()
+            .map_err(|_| AppError::persistence("Unable to load local data."))?;
 
         Ok(Self::with_payload(
             loaded.payload,

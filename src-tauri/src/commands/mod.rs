@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
 use crate::domain::{
     parse_task_id, AppDiagnostics, AppError, AppSnapshot, CreateTaskInput, FocusSettingsPatch,
@@ -25,38 +25,53 @@ pub fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
-pub async fn get_snapshot(app: AppHandle) -> Result<AppSnapshot, AppError> {
+pub async fn get_snapshot<R: Runtime>(app: AppHandle<R>) -> Result<AppSnapshot, AppError> {
     with_state(&app, |state| Ok(state.snapshot())).await
 }
 
 #[tauri::command]
-pub async fn add_task(app: AppHandle, input: CreateTaskInput) -> Result<AppSnapshot, AppError> {
+pub async fn add_task<R: Runtime>(
+    app: AppHandle<R>,
+    input: CreateTaskInput,
+) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, STORE_EVENTS, move |state| state.add_task(input)).await
 }
 
 #[tauri::command]
-pub async fn update_task(app: AppHandle, input: UpdateTaskInput) -> Result<AppSnapshot, AppError> {
+pub async fn update_task<R: Runtime>(
+    app: AppHandle<R>,
+    input: UpdateTaskInput,
+) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, STORE_EVENTS, move |state| state.update_task(input)).await
 }
 
 #[tauri::command]
-pub async fn delete_task(app: AppHandle, task_id: String) -> Result<AppSnapshot, AppError> {
+pub async fn delete_task<R: Runtime>(
+    app: AppHandle<R>,
+    task_id: String,
+) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, STORE_EVENTS, move |state| state.delete_task(&task_id)).await
 }
 
 #[tauri::command]
-pub async fn toggle_task(app: AppHandle, task_id: String) -> Result<AppSnapshot, AppError> {
+pub async fn toggle_task<R: Runtime>(
+    app: AppHandle<R>,
+    task_id: String,
+) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, STORE_EVENTS, move |state| state.toggle_task(&task_id)).await
 }
 
 #[tauri::command]
-pub async fn move_tasks(app: AppHandle, input: MoveTasksInput) -> Result<AppSnapshot, AppError> {
+pub async fn move_tasks<R: Runtime>(
+    app: AppHandle<R>,
+    input: MoveTasksInput,
+) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, STORE_EVENTS, move |state| state.move_tasks(input)).await
 }
 
 #[tauri::command]
-pub async fn update_settings(
-    app: AppHandle,
+pub async fn update_settings<R: Runtime>(
+    app: AppHandle<R>,
     patch: FocusSettingsPatch,
 ) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, SETTINGS_EVENTS, move |state| {
@@ -66,46 +81,54 @@ pub async fn update_settings(
 }
 
 #[tauri::command]
-pub async fn start_focus(app: AppHandle, task_id: Option<String>) -> Result<AppSnapshot, AppError> {
+pub async fn start_focus<R: Runtime>(
+    app: AppHandle<R>,
+    task_id: Option<String>,
+) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, FOCUS_EVENTS, move |state| state.start_focus(task_id)).await
 }
 
 #[tauri::command]
-pub async fn pause_focus(app: AppHandle) -> Result<AppSnapshot, AppError> {
+pub async fn pause_focus<R: Runtime>(app: AppHandle<R>) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, FOCUS_EVENTS, |state| state.pause_focus()).await
 }
 
 #[tauri::command]
-pub async fn resume_focus(app: AppHandle) -> Result<AppSnapshot, AppError> {
+pub async fn resume_focus<R: Runtime>(app: AppHandle<R>) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, FOCUS_EVENTS, |state| state.resume_focus()).await
 }
 
 #[tauri::command]
-pub async fn stop_focus(app: AppHandle) -> Result<AppSnapshot, AppError> {
+pub async fn stop_focus<R: Runtime>(app: AppHandle<R>) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, FOCUS_EVENTS, |state| state.stop_focus()).await
 }
 
 #[tauri::command]
-pub async fn toggle_focus(app: AppHandle) -> Result<AppSnapshot, AppError> {
+pub async fn toggle_focus<R: Runtime>(app: AppHandle<R>) -> Result<AppSnapshot, AppError> {
     mutate_and_emit(app, FOCUS_EVENTS, |state| state.toggle_focus()).await
 }
 
 #[tauri::command]
-pub async fn get_app_diagnostics(app: AppHandle) -> Result<AppDiagnostics, AppError> {
+pub async fn get_app_diagnostics<R: Runtime>(
+    app: AppHandle<R>,
+) -> Result<AppDiagnostics, AppError> {
     let app_version = app.package_info().version.to_string();
     with_state(&app, move |state| Ok(state.diagnostics(app_version))).await
 }
 
 #[tauri::command]
-pub async fn set_autostart(_app: AppHandle, _enabled: bool) -> Result<AppSnapshot, AppError> {
+pub async fn set_autostart<R: Runtime>(
+    _app: AppHandle<R>,
+    _enabled: bool,
+) -> Result<AppSnapshot, AppError> {
     Err(AppError::integration_unavailable(
         "Autostart integration is not available yet.",
     ))
 }
 
 #[tauri::command]
-pub async fn open_tasks_window(
-    app: AppHandle,
+pub async fn open_tasks_window<R: Runtime>(
+    app: AppHandle<R>,
     intent: Option<TasksWindowIntent>,
 ) -> Result<(), AppError> {
     validate_tasks_window_intent(intent.as_ref())?;
@@ -113,7 +136,7 @@ pub async fn open_tasks_window(
 }
 
 #[tauri::command]
-pub async fn open_settings_window(app: AppHandle) -> Result<(), AppError> {
+pub async fn open_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
     open_window(&app, "settings", "Settings", 720.0, 640.0)
 }
 
@@ -131,8 +154,9 @@ pub async fn open_external_release(url: String) -> Result<(), AppError> {
     ))
 }
 
-async fn with_state<T, F>(app: &AppHandle, operation: F) -> Result<T, AppError>
+async fn with_state<R, T, F>(app: &AppHandle<R>, operation: F) -> Result<T, AppError>
 where
+    R: Runtime,
     T: Send + 'static,
     F: FnOnce(&mut AppState) -> Result<T, AppError> + Send + 'static,
 {
@@ -150,12 +174,13 @@ where
     .map_err(|_| AppError::internal("The state operation could not be completed."))?
 }
 
-async fn mutate_and_emit<F>(
-    app: AppHandle,
+async fn mutate_and_emit<R, F>(
+    app: AppHandle<R>,
     event_names: &'static [&'static str],
     mutation: F,
 ) -> Result<AppSnapshot, AppError>
 where
+    R: Runtime,
     F: FnOnce(&mut AppState) -> Result<AppSnapshot, AppError> + Send + 'static,
 {
     let snapshot = with_state(&app, mutation).await?;
@@ -175,8 +200,8 @@ fn validate_tasks_window_intent(intent: Option<&TasksWindowIntent>) -> Result<()
     parse_task_id(task_id, "intent.taskId").map(|_| ())
 }
 
-fn open_window(
-    app: &AppHandle,
+fn open_window<R: Runtime>(
+    app: &AppHandle<R>,
     label: &str,
     title: &str,
     width: f64,
@@ -209,38 +234,5 @@ fn is_allowed_release_url(url: &str) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{greet, is_allowed_release_url, validate_tasks_window_intent};
-    use crate::domain::TasksWindowIntent;
-
-    #[test]
-    fn greet_returns_a_rust_message() {
-        assert_eq!(
-            greet("DailyNotch"),
-            "Hello, DailyNotch! DailyNotch Linux is running with Rust."
-        );
-    }
-
-    #[test]
-    fn task_window_intent_accepts_list_and_add_modes() {
-        assert!(validate_tasks_window_intent(Some(&TasksWindowIntent::List)).is_ok());
-        assert!(validate_tasks_window_intent(Some(&TasksWindowIntent::Add)).is_ok());
-    }
-
-    #[test]
-    fn task_window_intent_rejects_an_invalid_task_id() {
-        let error = validate_tasks_window_intent(Some(&TasksWindowIntent::Task {
-            task_id: "not-a-uuid".to_owned(),
-        }))
-        .expect_err("invalid task intent should fail");
-
-        assert_eq!(error.code, crate::domain::AppErrorCode::Validation);
-    }
-
-    #[test]
-    fn release_url_validation_requires_an_https_host() {
-        assert!(is_allowed_release_url("https://github.com/example/release"));
-        assert!(!is_allowed_release_url("http://github.com/example/release"));
-        assert!(!is_allowed_release_url("https://release"));
-    }
-}
+#[path = "../commands-tests.rs"]
+mod tests;

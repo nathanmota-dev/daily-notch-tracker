@@ -171,8 +171,8 @@ pub struct ShortcutDiagnostic {
 #[serde(rename_all = "camelCase")]
 pub struct AutostartDiagnostic {
     pub enabled: bool,
-    pub status: IntegrationStatus,
     pub message: Option<String>,
+    pub status: IntegrationStatus,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
