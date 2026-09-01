@@ -33,6 +33,21 @@ export default tseslint.config(
     },
   },
   {
+    files: ["src/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+    ignores: [
+      "src/**/__tests__/**",
+      "src/test/**",
+      "src/tests/**",
+      "src/**/*.{test,spec}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+    ],
+    rules: {
+      "max-lines-per-function": [
+        "error",
+        { max: 100, skipBlankLines: true, skipComments: true },
+      ],
+    },
+  },
+  {
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
       globals: {

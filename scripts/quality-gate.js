@@ -13,38 +13,87 @@ const MARKDOWN_PATH = path.join(REPORTS_DIRECTORY, "quality-gate.md");
 const JSON_PATH = path.join(REPORTS_DIRECTORY, "quality-gate.json");
 const CANDIDATE_BASELINE_PATH = path.join(REPORTS_DIRECTORY, "candidate-baseline.json");
 const COVERAGE_METRICS = ["lines", "statements", "functions", "branches"];
-const DEFAULT_POLICY = Object.freeze({
-    maxFileLines: 300,
+const PROJECT_NAMES = ["frontend", "tauri"];
+
+const DUPLICATION_DEFAULTS = Object.freeze({
+    minLines: 5,
+    minTokens: 50,
+    maxLines: 10_000,
+    mode: "strict",
+    ignore: [
+        "**/__tests__/**",
+        "**/test/**",
+        "**/tests/**",
+        "**/*.test.*",
+        "**/*.spec.*",
+        "**/*-tests.*",
+        "**/*_tests.*",
+        "**/*.d.ts",
+        "**/*.d.mts",
+        "**/*.d.cts",
+        "**/node_modules/**",
+        "**/coverage/**",
+        "**/dist/**",
+        "**/target/**",
+    ],
+});
+
+const DEFAULT_FRONTEND_POLICY = Object.freeze({
+    project: "frontend",
     sourceRoot: "src",
     sourceExtensions: [".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts"],
+    maxFileLines: 350,
+    maxFunctionLines: 100,
     excludeTestsFromFileSize: true,
+    excludeTestsFromFunctionSize: true,
+    allowMissingCoverageFilesWithoutFunctions: false,
+    minimumCoverage: Object.fromEntries(COVERAGE_METRICS.map((metric) => [metric, 80])),
+    coverageFormat: "vitest-v8",
     duplication: {
-        minLines: 5,
-        minTokens: 50,
-        maxLines: 10_000,
-        mode: "strict",
+        ...DUPLICATION_DEFAULTS,
         crossFormats: "js-ts",
-        ignore: [
-            "**/__tests__/**",
-            "**/test/**",
-            "**/tests/**",
-            "**/*.test.*",
-            "**/*.spec.*",
-            "**/*.d.ts",
-            "**/*.d.mts",
-            "**/*.d.cts",
-            "**/node_modules/**",
-            "**/coverage/**",
-            "**/dist/**",
-        ],
     },
+    lint: "eslint",
+    language: "javascript",
 });
+
+const DEFAULT_TAURI_POLICY = Object.freeze({
+    project: "tauri",
+    sourceRoot: "src-tauri/src",
+    sourceExtensions: [".rs"],
+    maxFileLines: 350,
+    maxFunctionLines: 100,
+    excludeTestsFromFileSize: true,
+    excludeTestsFromFunctionSize: true,
+    allowMissingCoverageFilesWithoutFunctions: true,
+    minimumCoverage: null,
+    coverageFormat: "cargo-llvm-cov",
+    coverageRegionMetric: "regions",
+    duplication: {
+        ...DUPLICATION_DEFAULTS,
+        crossFormats: "rust",
+    },
+    lint: "clippy",
+    language: "rust",
+});
+
+const DEFAULT_POLICIES = Object.freeze({
+    frontend: DEFAULT_FRONTEND_POLICY,
+    tauri: DEFAULT_TAURI_POLICY,
+});
+
+// Kept as an alias for callers of the schema-v1 module API.
+const DEFAULT_POLICY = DEFAULT_FRONTEND_POLICY;
 
 class QualityGateInputError extends Error {
     constructor(message) {
         super(message);
         this.name = "QualityGateInputError";
     }
+}
+
+function clone(value) {
+    return JSON.parse(JSON.stringify(value));
 }
 
 function ensureDirectory(directory) {
@@ -90,14 +139,16 @@ function assertFiniteNumber(value, label) {
 
 function validateCoverageCount(value, label) {
     assertObject(value, label);
-    assertNonNegativeInteger(value.covered, `${label}.covered`);
-    assertNonNegativeInteger(value.total, `${label}.total`);
+    const covered = value.covered;
+    const total = value.total ?? value.count;
+    assertNonNegativeInteger(covered, `${label}.covered`);
+    assertNonNegativeInteger(total, `${label}.total`);
 
-    if (value.covered > value.total) {
+    if (covered > total) {
         throw new QualityGateInputError(`${label}.covered cannot exceed ${label}.total.`);
     }
 
-    return { covered: value.covered, total: value.total };
+    return { covered, total };
 }
 
 function parseCoverageSummary(summary, label = "coverage summary") {
@@ -111,18 +162,128 @@ function parseCoverageSummary(summary, label = "coverage summary") {
 }
 
 function isTestFile(filePath) {
-    return /(^|\/)__tests__(\/|$)/.test(filePath)
-        || /(^|\/)(test|tests)(\/|$)/.test(filePath)
-        || /\.(test|spec)\.[^/]+$/.test(filePath);
+    return /(^|\/)(__tests__|test|tests)(\/|$)/.test(filePath)
+        || /(^|\/)[^/]+\.(test|spec)\.[^/]+$/.test(filePath)
+        || /(^|\/)[^/]+(?:-tests|_tests)\.[^/]+$/.test(filePath)
+        || /(^|\/)tests?\.(?:rs|[cm]?[jt]sx?)$/.test(filePath);
 }
 
 function isDeclarationFile(filePath) {
     return /\.d\.(ts|mts|cts)$/.test(filePath);
 }
 
+function policyForProject(projectName = "frontend") {
+    if (!PROJECT_NAMES.includes(projectName)) {
+        throw new QualityGateInputError(`Unknown quality project: ${projectName}`);
+    }
+
+    return clone(DEFAULT_POLICIES[projectName]);
+}
+
+function inferProjectFromPolicy(policy) {
+    return policy?.language === "rust" || String(policy?.sourceRoot || "").includes("src-tauri")
+        ? "tauri"
+        : "frontend";
+}
+
+function validatePolicy(policy, label = "baseline.policy", projectName = inferProjectFromPolicy(policy)) {
+    assertObject(policy, label);
+    const defaults = policyForProject(projectName);
+    const merged = {
+        ...defaults,
+        ...policy,
+        duplication: {
+            ...defaults.duplication,
+            ...(policy.duplication || {}),
+        },
+    };
+
+    assertPositiveInteger(merged.maxFileLines, `${label}.maxFileLines`);
+    assertPositiveInteger(merged.maxFunctionLines, `${label}.maxFunctionLines`);
+
+    if (typeof merged.sourceRoot !== "string" || !merged.sourceRoot) {
+        throw new QualityGateInputError(`${label}.sourceRoot must be a non-empty string.`);
+    }
+
+    if (!Array.isArray(merged.sourceExtensions)
+        || merged.sourceExtensions.length === 0
+        || merged.sourceExtensions.some((extension) => typeof extension !== "string" || !extension)) {
+        throw new QualityGateInputError(`${label}.sourceExtensions must be a non-empty string array.`);
+    }
+
+    for (const key of ["excludeTestsFromFileSize", "excludeTestsFromFunctionSize"]) {
+        if (typeof merged[key] !== "boolean") {
+            throw new QualityGateInputError(`${label}.${key} must be boolean.`);
+        }
+    }
+
+    if (typeof merged.allowMissingCoverageFilesWithoutFunctions !== "boolean") {
+        throw new QualityGateInputError(
+            `${label}.allowMissingCoverageFilesWithoutFunctions must be boolean.`,
+        );
+    }
+
+    if (merged.minimumCoverage !== null) {
+        assertObject(merged.minimumCoverage, `${label}.minimumCoverage`);
+
+        for (const metric of COVERAGE_METRICS) {
+            assertFiniteNumber(merged.minimumCoverage[metric], `${label}.minimumCoverage.${metric}`);
+
+            if (merged.minimumCoverage[metric] > 100) {
+                throw new QualityGateInputError(`${label}.minimumCoverage.${metric} cannot exceed 100.`);
+            }
+        }
+    }
+
+    assertObject(merged.duplication, `${label}.duplication`);
+    assertPositiveInteger(merged.duplication.minLines, `${label}.duplication.minLines`);
+    assertPositiveInteger(merged.duplication.minTokens, `${label}.duplication.minTokens`);
+    assertPositiveInteger(merged.duplication.maxLines, `${label}.duplication.maxLines`);
+
+    for (const key of ["mode", "crossFormats"]) {
+        if (typeof merged.duplication[key] !== "string" || !merged.duplication[key]) {
+            throw new QualityGateInputError(`${label}.duplication.${key} must be a non-empty string.`);
+        }
+    }
+
+    if (!Array.isArray(merged.duplication.ignore)
+        || merged.duplication.ignore.some((entry) => typeof entry !== "string" || !entry)) {
+        throw new QualityGateInputError(`${label}.duplication.ignore must be a string array.`);
+    }
+
+    return merged;
+}
+
+function resolveReportedPath(reportedPath, policy, repositoryRoot) {
+    const sourceRoot = path.resolve(repositoryRoot, policy.sourceRoot);
+    const rawPath = String(reportedPath).replace(/^file:\/\//, "");
+    const portablePath = decodeURIComponent(rawPath).replace(/[\\/]+/g, path.sep);
+    const sourcePrefix = `${policy.sourceRoot}${path.sep}`;
+    const absolutePath = path.isAbsolute(portablePath)
+        ? path.normalize(portablePath)
+        : path.resolve(
+            repositoryRoot,
+            portablePath.startsWith(sourcePrefix)
+                ? portablePath
+                : path.join(policy.sourceRoot, portablePath),
+        );
+    const relativeToSource = path.relative(sourceRoot, absolutePath);
+
+    if (!relativeToSource
+        || relativeToSource === ".."
+        || relativeToSource.startsWith(`..${path.sep}`)
+        || path.isAbsolute(relativeToSource)) {
+        throw new QualityGateInputError(
+            `Coverage report contains a file outside ${policy.sourceRoot}: ${reportedPath}`,
+        );
+    }
+
+    return path.relative(repositoryRoot, absolutePath).split(path.sep).join("/");
+}
+
 function parseCoverageFilePaths(summary, policy = DEFAULT_POLICY, repositoryRoot = REPOSITORY_ROOT) {
     assertObject(summary, "coverage summary");
-    const sourceRoot = path.resolve(repositoryRoot, policy.sourceRoot);
+    const validPolicy = validatePolicy(policy, "coverage policy");
     const files = [];
 
     for (const [reportedPath, fileMetrics] of Object.entries(summary)) {
@@ -131,28 +292,14 @@ function parseCoverageFilePaths(summary, policy = DEFAULT_POLICY, repositoryRoot
         }
 
         assertObject(fileMetrics, `coverage entry ${reportedPath}`);
-        const portablePath = reportedPath.replace(/[\\/]+/g, path.sep);
-        const sourcePrefix = `${policy.sourceRoot}${path.sep}`;
-        const absolutePath = path.isAbsolute(portablePath)
-            ? path.normalize(portablePath)
-            : path.resolve(
-                repositoryRoot,
-                portablePath.startsWith(sourcePrefix)
-                    ? portablePath
-                    : path.join(policy.sourceRoot, portablePath),
-            );
-        const relativeToSource = path.relative(sourceRoot, absolutePath);
+        const normalizedPath = resolveReportedPath(reportedPath, validPolicy, repositoryRoot);
 
-        if (!relativeToSource
-            || relativeToSource === ".."
-            || relativeToSource.startsWith(`..${path.sep}`)
-            || path.isAbsolute(relativeToSource)) {
-            throw new QualityGateInputError(
-                `Coverage report contains a file outside ${policy.sourceRoot}: ${reportedPath}`,
-            );
+        if (validPolicy.excludeTestsFromFileSize
+            && (isTestFile(normalizedPath) || isDeclarationFile(normalizedPath))) {
+            continue;
         }
 
-        files.push(path.relative(repositoryRoot, absolutePath).split(path.sep).join("/"));
+        files.push(normalizedPath);
     }
 
     const uniqueFiles = [...new Set(files)].sort((left, right) => left.localeCompare(right));
@@ -164,7 +311,14 @@ function parseCoverageFilePaths(summary, policy = DEFAULT_POLICY, repositoryRoot
     return uniqueFiles;
 }
 
-function validateCoverageScope(coverageFiles, fileLines, policy = DEFAULT_POLICY) {
+function validateCoverageScope(
+    coverageFiles,
+    fileLines,
+    policy = DEFAULT_POLICY,
+    functionLines = {},
+) {
+    const validPolicy = validatePolicy(policy, "coverage policy");
+
     if (!Array.isArray(coverageFiles) || coverageFiles.some((filePath) => typeof filePath !== "string" || !filePath)) {
         throw new QualityGateInputError("Coverage file paths must be a string array.");
     }
@@ -176,14 +330,26 @@ function validateCoverageScope(coverageFiles, fileLines, policy = DEFAULT_POLICY
         throw new QualityGateInputError("Coverage file paths contain duplicates.");
     }
 
-    const prefix = `${policy.sourceRoot}/`;
+    const prefix = `${validPolicy.sourceRoot}/`;
     const expected = Object.keys(fileLines)
         .filter((filePath) => filePath.startsWith(prefix)
-            && !isTestFile(filePath)
+            && !(validPolicy.excludeTestsFromFileSize && isTestFile(filePath))
             && !isDeclarationFile(filePath))
         .sort((left, right) => left.localeCompare(right));
     const expectedSet = new Set(expected);
-    const missing = expected.filter((filePath) => !actual.has(filePath));
+    const missing = expected.filter((filePath) => {
+        if (actual.has(filePath)) {
+            return false;
+        }
+
+        if (!validPolicy.allowMissingCoverageFilesWithoutFunctions) {
+            return true;
+        }
+
+        return Object.keys(functionLines).some((functionPath) =>
+            functionPath.startsWith(`${filePath}::`),
+        );
+    });
     const unexpected = [...actual].filter((filePath) => !expectedSet.has(filePath)).sort();
 
     if (missing.length > 0 || unexpected.length > 0) {
@@ -216,6 +382,21 @@ function parseEslintReport(report) {
     }, 0);
 }
 
+function countEslintRuleViolations(report, ruleId) {
+    if (!Array.isArray(report)) {
+        throw new QualityGateInputError("ESLint report must be an array.");
+    }
+
+    return report.reduce((total, result, index) => {
+        assertObject(result, `ESLint result ${index}`);
+        if (!Array.isArray(result.messages)) {
+            throw new QualityGateInputError(`ESLint result ${index}.messages must be an array.`);
+        }
+
+        return total + result.messages.filter((message) => message?.ruleId === ruleId).length;
+    }, 0);
+}
+
 function parseJscpdReport(report) {
     assertObject(report, "JSCPD report");
     const total = report.statistics?.total ?? report.statistic?.total;
@@ -244,6 +425,154 @@ function parseJscpdReport(report) {
     };
 }
 
+function rustCoverageMetric(value, label) {
+    assertObject(value, label);
+    const covered = value.covered;
+    const total = value.count ?? value.total;
+    assertNonNegativeInteger(covered, `${label}.covered`);
+    assertNonNegativeInteger(total, `${label}.count`);
+
+    if (covered > total) {
+        throw new QualityGateInputError(`${label}.covered cannot exceed ${label}.count.`);
+    }
+
+    return { covered, total };
+}
+
+function rustCoverageTotals(report) {
+    assertObject(report, "Rust coverage report");
+    const data = Array.isArray(report.data) ? report.data : [];
+    const totals = report.totals ?? data.find((entry) => entry?.totals)?.totals ?? report.summary;
+
+    if (!totals) {
+        throw new QualityGateInputError("Rust coverage report is missing totals.");
+    }
+
+    assertObject(totals, "Rust coverage totals");
+    const lines = rustCoverageMetric(totals.lines, "Rust coverage totals.lines");
+    const regions = rustCoverageMetric(
+        totals.regions ?? totals.statements,
+        "Rust coverage totals.regions",
+    );
+    const functions = rustCoverageMetric(totals.functions, "Rust coverage totals.functions");
+
+    if (!totals.branches) {
+        throw new QualityGateInputError(
+            "Rust coverage report is missing branch coverage; run cargo-llvm-cov with --branch.",
+        );
+    }
+
+    const branches = rustCoverageMetric(totals.branches, "Rust coverage totals.branches");
+
+    return { lines, regions, functions, branches };
+}
+
+function rustCoverageFiles(report) {
+    const data = Array.isArray(report.data) ? report.data : [];
+    const files = data.flatMap((entry) => Array.isArray(entry?.files) ? entry.files : []);
+    const summary = {};
+
+    for (const [index, file] of files.entries()) {
+        assertObject(file, `Rust coverage file ${index}`);
+        if (typeof file.filename !== "string" || !file.filename) {
+            throw new QualityGateInputError(`Rust coverage file ${index}.filename must be a non-empty string.`);
+        }
+
+        summary[file.filename] = file;
+    }
+
+    return summary;
+}
+
+function parseRustCoverageReport(
+    report,
+    label = "Rust coverage report",
+    repositoryRoot = REPOSITORY_ROOT,
+    policy = DEFAULT_TAURI_POLICY,
+) {
+    assertObject(report, label);
+    const totals = rustCoverageTotals(report);
+    const validPolicy = validatePolicy(policy, `${label}.policy`, "tauri");
+    const filePaths = parseCoverageFilePaths(rustCoverageFiles(report), validPolicy, repositoryRoot);
+
+    return {
+        coverage: {
+            lines: totals.lines,
+            statements: totals.regions,
+            functions: totals.functions,
+            branches: totals.branches,
+        },
+        filePaths,
+        regionMetric: "regions",
+    };
+}
+
+function parseJsonLines(report, label) {
+    if (Array.isArray(report)) {
+        return report;
+    }
+
+    if (report && typeof report === "object") {
+        if (Array.isArray(report.messages)) {
+            return report.messages;
+        }
+
+        if (Number.isInteger(report.violations)) {
+            return report.violations;
+        }
+
+        return [report];
+    }
+
+    if (typeof report !== "string") {
+        throw new QualityGateInputError(`${label} must be JSON, JSON lines, or an array.`);
+    }
+
+    const contents = report.trim();
+    if (!contents) {
+        return [];
+    }
+
+    try {
+        return JSON.parse(contents);
+    } catch {
+        return contents.split(/\r?\n/).filter(Boolean).map((line, index) => {
+            try {
+                return JSON.parse(line);
+            } catch (error) {
+                throw new QualityGateInputError(`${label} line ${index + 1} is invalid JSON: ${error.message}`);
+            }
+        });
+    }
+}
+
+function parseClippyReport(report) {
+    const parsed = parseJsonLines(report, "Clippy report");
+
+    if (Number.isInteger(parsed)) {
+        assertNonNegativeInteger(parsed, "Clippy violations");
+        return parsed;
+    }
+
+    if (!Array.isArray(parsed)) {
+        throw new QualityGateInputError("Clippy report must contain an array of diagnostics.");
+    }
+
+    return parsed.reduce((total, item, index) => {
+        assertObject(item, `Clippy diagnostic ${index}`);
+        const diagnostic = item.reason === "compiler-message" ? item.message : item.message ?? item;
+
+        if (!diagnostic || typeof diagnostic !== "object") {
+            return total;
+        }
+
+        const level = String(diagnostic.level || "").toLowerCase();
+        const code = String(diagnostic.code?.code || "").toLowerCase();
+        const isClippy = code.startsWith("clippy::");
+        return total + (isClippy && ["warning", "error"].includes(level) ? 1 : 0);
+    }, 0);
+}
+
 function countPhysicalLines(contents) {
     if (contents.length === 0) {
         return 0;
@@ -255,16 +584,17 @@ function countPhysicalLines(contents) {
 }
 
 function collectFileSizes(policy = DEFAULT_POLICY, repositoryRoot = REPOSITORY_ROOT) {
-    const extensions = new Set(policy.sourceExtensions);
-    const absoluteRoot = path.resolve(repositoryRoot, policy.sourceRoot);
+    const validPolicy = validatePolicy(policy, "source policy");
+    const extensions = new Set(validPolicy.sourceExtensions);
+    const absoluteRoot = path.resolve(repositoryRoot, validPolicy.sourceRoot);
     const files = {};
 
     if (!absoluteRoot.startsWith(`${repositoryRoot}${path.sep}`)) {
-        throw new QualityGateInputError(`Source root escapes the repository: ${policy.sourceRoot}`);
+        throw new QualityGateInputError(`Source root escapes the repository: ${validPolicy.sourceRoot}`);
     }
 
     if (!fs.existsSync(absoluteRoot) || !fs.statSync(absoluteRoot).isDirectory()) {
-        throw new QualityGateInputError(`Source root does not exist: ${policy.sourceRoot}`);
+        throw new QualityGateInputError(`Source root does not exist: ${validPolicy.sourceRoot}`);
     }
 
     function visit(directory) {
@@ -289,7 +619,7 @@ function collectFileSizes(policy = DEFAULT_POLICY, repositoryRoot = REPOSITORY_R
 
             const relativePath = path.relative(repositoryRoot, absolutePath).split(path.sep).join("/");
 
-            if (policy.excludeTestsFromFileSize && isTestFile(relativePath)) {
+            if (validPolicy.excludeTestsFromFileSize && isTestFile(relativePath)) {
                 continue;
             }
 
@@ -301,83 +631,219 @@ function collectFileSizes(policy = DEFAULT_POLICY, repositoryRoot = REPOSITORY_R
     return Object.fromEntries(Object.entries(files).sort(([left], [right]) => left.localeCompare(right)));
 }
 
-function validatePolicy(policy) {
-    assertObject(policy, "baseline.policy");
-    assertPositiveInteger(policy.maxFileLines, "baseline.policy.maxFileLines");
+function maskSource(contents) {
+    const output = contents.split("");
+    let state = "code";
+    let quote = "";
+    let escaped = false;
 
-    if (typeof policy.sourceRoot !== "string" || !policy.sourceRoot) {
-        throw new QualityGateInputError("baseline.policy.sourceRoot must be a non-empty string.");
-    }
+    for (let index = 0; index < output.length; index += 1) {
+        const character = contents[index];
+        const next = contents[index + 1];
 
-    if (!Array.isArray(policy.sourceExtensions)
-        || policy.sourceExtensions.length === 0
-        || policy.sourceExtensions.some((extension) => typeof extension !== "string" || !extension)) {
-        throw new QualityGateInputError("baseline.policy.sourceExtensions must be a non-empty string array.");
-    }
+        if (state === "line-comment") {
+            if (character === "\n" || character === "\r") {
+                state = "code";
+            } else {
+                output[index] = " ";
+            }
+            continue;
+        }
 
-    if (typeof policy.excludeTestsFromFileSize !== "boolean") {
-        throw new QualityGateInputError("baseline.policy.excludeTestsFromFileSize must be boolean.");
-    }
+        if (state === "block-comment") {
+            if (character === "*" && next === "/") {
+                output[index] = " ";
+                output[index + 1] = " ";
+                index += 1;
+                state = "code";
+            } else if (character !== "\n" && character !== "\r") {
+                output[index] = " ";
+            }
+            continue;
+        }
 
-    assertObject(policy.duplication, "baseline.policy.duplication");
-    assertPositiveInteger(policy.duplication.minLines, "baseline.policy.duplication.minLines");
-    assertPositiveInteger(policy.duplication.minTokens, "baseline.policy.duplication.minTokens");
-    assertPositiveInteger(policy.duplication.maxLines, "baseline.policy.duplication.maxLines");
+        if (state === "string") {
+            if (character === "\n" || character === "\r") {
+                state = "code";
+                escaped = false;
+            } else if (escaped) {
+                output[index] = " ";
+                escaped = false;
+            } else if (character === "\\") {
+                output[index] = " ";
+                escaped = true;
+            } else if (character === quote) {
+                output[index] = " ";
+                state = "code";
+            } else {
+                output[index] = " ";
+            }
+            continue;
+        }
 
-    for (const key of ["mode", "crossFormats"]) {
-        if (typeof policy.duplication[key] !== "string" || !policy.duplication[key]) {
-            throw new QualityGateInputError(`baseline.policy.duplication.${key} must be a non-empty string.`);
+        if (character === "/" && next === "/") {
+            output[index] = " ";
+            output[index + 1] = " ";
+            index += 1;
+            state = "line-comment";
+        } else if (character === "/" && next === "*") {
+            output[index] = " ";
+            output[index + 1] = " ";
+            index += 1;
+            state = "block-comment";
+        } else if (["'", '"', "`"].includes(character)) {
+            output[index] = " ";
+            quote = character;
+            escaped = false;
+            state = "string";
         }
     }
 
-    if (!Array.isArray(policy.duplication.ignore)
-        || policy.duplication.ignore.some((entry) => typeof entry !== "string" || !entry)) {
-        throw new QualityGateInputError("baseline.policy.duplication.ignore must be a string array.");
-    }
-
-    return policy;
+    return output.join("");
 }
 
-function validateBaseline(baseline) {
-    assertObject(baseline, "baseline");
+function lineNumberAt(contents, index) {
+    let line = 1;
 
-    if (baseline.schemaVersion !== 1) {
-        throw new QualityGateInputError(`Unsupported baseline schemaVersion: ${baseline.schemaVersion}`);
-    }
-
-    validatePolicy(baseline.policy);
-    assertObject(baseline.coverage, "baseline.coverage");
-
-    for (const metric of COVERAGE_METRICS) {
-        validateCoverageCount(baseline.coverage[metric], `baseline.coverage.${metric}`);
-    }
-
-    assertObject(baseline.duplication, "baseline.duplication");
-    assertNonNegativeInteger(baseline.duplication.duplicatedLines, "baseline.duplication.duplicatedLines");
-    assertNonNegativeInteger(baseline.duplication.totalLines, "baseline.duplication.totalLines");
-    assertNonNegativeInteger(baseline.duplication.fragments, "baseline.duplication.fragments");
-    assertObject(baseline.violations, "baseline.violations");
-    assertNonNegativeInteger(baseline.violations.eslint, "baseline.violations.eslint");
-    assertNonNegativeInteger(baseline.violations.oversizedFiles, "baseline.violations.oversizedFiles");
-    assertObject(baseline.fileLines, "baseline.fileLines");
-
-    for (const [filePath, lines] of Object.entries(baseline.fileLines)) {
-        if (!filePath || filePath.includes("\\")) {
-            throw new QualityGateInputError(`Invalid baseline file path: ${filePath}`);
+    for (let cursor = 0; cursor < index; cursor += 1) {
+        if (contents[cursor] === "\n") {
+            line += 1;
         }
-
-        assertNonNegativeInteger(lines, `baseline.fileLines.${filePath}`);
     }
 
-    const oversizedFiles = Object.values(baseline.fileLines)
-        .filter((lines) => lines > baseline.policy.maxFileLines)
-        .length;
+    return line;
+}
 
-    if (oversizedFiles !== baseline.violations.oversizedFiles) {
-        throw new QualityGateInputError("Baseline oversized-file count does not match fileLines.");
+function matchingBrace(contents, openIndex) {
+    let depth = 0;
+
+    for (let index = openIndex; index < contents.length; index += 1) {
+        if (contents[index] === "{") {
+            depth += 1;
+        } else if (contents[index] === "}") {
+            depth -= 1;
+
+            if (depth === 0) {
+                return index;
+            }
+        }
     }
 
-    return baseline;
+    return contents.length - 1;
+}
+
+function functionBodyBrace(contents, startIndex) {
+    let parentheses = 0;
+    let brackets = 0;
+
+    for (let index = startIndex; index < contents.length; index += 1) {
+        if (contents[index] === "(") {
+            parentheses += 1;
+        } else if (contents[index] === ")") {
+            parentheses -= 1;
+        } else if (contents[index] === "[") {
+            brackets += 1;
+        } else if (contents[index] === "]") {
+            brackets -= 1;
+        } else if (contents[index] === "{" && parentheses === 0 && brackets === 0) {
+            return index;
+        }
+    }
+
+    return -1;
+}
+
+function testModuleRanges(masked) {
+    const ranges = [];
+    const pattern = /#\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*mod\s+[A-Za-z_][\w]*\s*\{/g;
+
+    for (const match of masked.matchAll(pattern)) {
+        const openIndex = match.index + match[0].lastIndexOf("{");
+        ranges.push([match.index, matchingBrace(masked, openIndex)]);
+    }
+
+    return ranges;
+}
+
+function inRanges(index, ranges) {
+    return ranges.some(([start, end]) => index >= start && index <= end);
+}
+
+function sourceFunctionMatches(masked, language) {
+    if (language === "rust") {
+        return [...masked.matchAll(/\bfn\s+([A-Za-z_][\w]*)\s*(?:<[^>{}]*>)?\s*\([^)]*\)[^{;]*\{/g)]
+            .map((match) => ({ name: match[1], index: functionBodyBrace(masked, match.index) }))
+            .filter((match) => match.index >= 0);
+    }
+
+    const matches = [];
+    const functionPattern = /\bfunction\s*\*?\s*([A-Za-z_$][\w$]*)?\s*\([^)]*\)[^{;]*\{/g;
+    const arrowPattern = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*(?::[^=;\n]+)?=>\s*\{/g;
+    const methodPattern = /(?:^|[\n;{}])\s*(?:async\s+)?([A-Za-z_$][\w$]*)\s*\([^;{}]*\)\s*(?::[^{}=>]+)?\s*\{/gm;
+
+    for (const match of masked.matchAll(functionPattern)) {
+        const bodyIndex = functionBodyBrace(masked, match.index);
+        matches.push({
+            name: match[1] || "anonymous",
+            index: bodyIndex,
+        });
+    }
+
+    for (const match of masked.matchAll(arrowPattern)) {
+        const bodyIndex = functionBodyBrace(masked, match.index);
+        matches.push({
+            name: match[1],
+            index: bodyIndex,
+        });
+    }
+
+    for (const match of masked.matchAll(methodPattern)) {
+        const name = match[1];
+        if (!["if", "for", "while", "switch", "catch", "with"].includes(name)) {
+            const bodyIndex = functionBodyBrace(masked, match.index);
+            matches.push({
+                name,
+                index: bodyIndex,
+            });
+        }
+    }
+
+    return matches.filter((match) => match.index >= 0);
+}
+
+function collectFunctionSizes(policy = DEFAULT_POLICY, repositoryRoot = REPOSITORY_ROOT) {
+    const validPolicy = validatePolicy(policy, "function policy");
+    const fileLines = collectFileSizes(validPolicy, repositoryRoot);
+    const functionLines = {};
+
+    for (const relativePath of Object.keys(fileLines)) {
+        const absolutePath = path.join(repositoryRoot, relativePath);
+        const contents = fs.readFileSync(absolutePath, "utf8");
+        const masked = maskSource(contents);
+        const ranges = validPolicy.excludeTestsFromFunctionSize ? testModuleRanges(masked) : [];
+        const language = validPolicy.language === "rust" ? "rust" : "javascript";
+        const seenNames = new Map();
+
+        for (const match of sourceFunctionMatches(masked, language)) {
+            if (inRanges(match.index, ranges)) {
+                continue;
+            }
+
+            const endIndex = matchingBrace(masked, match.index);
+            const startLine = lineNumberAt(contents, match.index);
+            const endLine = lineNumberAt(contents, endIndex);
+            const occurrence = (seenNames.get(match.name) || 0) + 1;
+            seenNames.set(match.name, occurrence);
+            const suffix = occurrence > 1 ? `#${occurrence}` : "";
+            functionLines[`${relativePath}::${match.name}${suffix}`] = endLine - startLine + 1;
+        }
+    }
+
+    return Object.fromEntries(Object.entries(functionLines).sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function countLargeFunctions(functionLines, maxFunctionLines) {
+    return Object.values(functionLines).filter((lines) => lines > maxFunctionLines).length;
 }
 
 function runCommand(command, args, options = {}) {
@@ -396,12 +862,12 @@ function runCommand(command, args, options = {}) {
     return result;
 }
 
-function generateEslintReport() {
+function generateEslintReport(policy) {
     const result = runCommand(process.platform === "win32" ? "npm.cmd" : "npm", [
         "exec",
         "--",
         "eslint",
-        ".",
+        policy.sourceRoot,
         "--format",
         "json",
     ]);
@@ -418,10 +884,10 @@ function generateEslintReport() {
         throw new QualityGateInputError(`ESLint returned invalid JSON: ${error.message}`);
     }
 
-    writeJson(path.join(REPORTS_DIRECTORY, "eslint.json"), report);
+    writeJson(path.join(REPORTS_DIRECTORY, "frontend-eslint.json"), report);
 }
 
-function generateJscpdReport(policy) {
+function generateJscpdReport(policy, projectName) {
     const executable = process.platform === "win32" ? "jscpd.cmd" : "jscpd";
     const binaryPath = path.join(REPOSITORY_ROOT, "node_modules", ".bin", executable);
 
@@ -429,7 +895,7 @@ function generateJscpdReport(policy) {
         throw new QualityGateInputError(`JSCPD is not installed at ${binaryPath}. Run npm ci first.`);
     }
 
-    const outputDirectory = path.join(REPORTS_DIRECTORY, "jscpd");
+    const outputDirectory = path.join(REPORTS_DIRECTORY, "jscpd", projectName);
     ensureDirectory(outputDirectory);
     const duplication = policy.duplication;
     const result = runCommand(binaryPath, [
@@ -450,37 +916,126 @@ function generateJscpdReport(policy) {
     fs.writeFileSync(path.join(outputDirectory, "console.txt"), `${result.stdout}${result.stderr}`, "utf8");
 
     if (result.status !== 0) {
-        throw new QualityGateInputError(`JSCPD report generation failed with exit code ${result.status}.`);
+        throw new QualityGateInputError(`JSCPD ${projectName} report generation failed with exit code ${result.status}.`);
     }
 }
 
-function collectMetrics({ policy = DEFAULT_POLICY, collectToolReports = true } = {}) {
-    const validPolicy = validatePolicy(policy);
+function generateClippyReport() {
+    const outputDirectory = path.join(REPORTS_DIRECTORY, "tauri");
+    ensureDirectory(outputDirectory);
+    const result = runCommand("cargo", [
+        "clippy",
+        "--manifest-path", "src-tauri/Cargo.toml",
+        "--locked",
+        "--all-targets",
+        "--all-features",
+        "--message-format=json",
+    ]);
+
+    fs.writeFileSync(path.join(outputDirectory, "clippy.ndjson"), result.stdout, "utf8");
+    fs.writeFileSync(path.join(outputDirectory, "clippy.stderr"), result.stderr, "utf8");
+
+    if (result.status !== 0) {
+        throw new QualityGateInputError(`Clippy report generation failed with exit code ${result.status}.`);
+    }
+}
+
+function collectMetrics({ policies = DEFAULT_POLICIES, policy, collectToolReports = true } = {}) {
+    const selectedPolicies = policy
+        ? { frontend: validatePolicy(policy, "policy", "frontend"), tauri: policyForProject("tauri") }
+        : {
+            frontend: validatePolicy(policies.frontend, "frontend policy", "frontend"),
+            tauri: validatePolicy(policies.tauri, "tauri policy", "tauri"),
+        };
 
     if (collectToolReports) {
-        generateEslintReport();
-        generateJscpdReport(validPolicy);
+        generateEslintReport(selectedPolicies.frontend);
+        generateJscpdReport(selectedPolicies.frontend, "frontend");
+        generateJscpdReport(selectedPolicies.tauri, "tauri");
+
+        if (!fs.existsSync(path.join(REPORTS_DIRECTORY, "tauri", "clippy.ndjson"))) {
+            generateClippyReport();
+        }
     }
 
-    const coverageSummary = readJson(path.join(REPOSITORY_ROOT, "coverage", "coverage-summary.json"), "coverage summary");
-    const fileLines = collectFileSizes(validPolicy);
-    const coverageFiles = parseCoverageFilePaths(coverageSummary, validPolicy);
-    const coverageFileCount = validateCoverageScope(coverageFiles, fileLines, validPolicy);
-    const eslint = parseEslintReport(readJson(path.join(REPORTS_DIRECTORY, "eslint.json"), "ESLint report"));
+    const frontend = collectFrontendMetrics(selectedPolicies.frontend);
+    const tauri = collectTauriMetrics(selectedPolicies.tauri);
+
+    return {
+        schemaVersion: 2,
+        projects: { frontend, tauri },
+    };
+}
+
+function collectFrontendMetrics(policy) {
+    const coverageSummary = readJson(path.join(REPOSITORY_ROOT, "coverage", "coverage-summary.json"), "frontend coverage summary");
+    const fileLines = collectFileSizes(policy);
+    const functionLines = collectFunctionSizes(policy);
+    const coverageFiles = parseCoverageFilePaths(coverageSummary, policy);
+    const coverageFileCount = validateCoverageScope(
+        coverageFiles,
+        fileLines,
+        policy,
+        functionLines,
+    );
+    const eslintReport = readJson(path.join(REPORTS_DIRECTORY, "frontend-eslint.json"), "Frontend ESLint report");
     const duplication = parseJscpdReport(
-        readJson(path.join(REPORTS_DIRECTORY, "jscpd", "jscpd-report.json"), "JSCPD report"),
+        readJson(path.join(REPORTS_DIRECTORY, "jscpd", "frontend", "jscpd-report.json"), "Frontend JSCPD report"),
     );
 
     return {
+        policy,
         coverage: parseCoverageSummary(coverageSummary),
         coverageFileCount,
         duplication,
         violations: {
-            eslint,
-            oversizedFiles: Object.values(fileLines).filter((lines) => lines > validPolicy.maxFileLines).length,
+            eslint: parseEslintReport(eslintReport),
+            largeFunctions: countLargeFunctions(functionLines, policy.maxFunctionLines),
+            oversizedFiles: Object.values(fileLines).filter((lines) => lines > policy.maxFileLines).length,
+            eslintLargeFunctions: countEslintRuleViolations(eslintReport, "max-lines-per-function"),
         },
         fileLines,
+        functionLines,
     };
+}
+
+function collectTauriMetrics(policy) {
+    const report = readJson(path.join(REPOSITORY_ROOT, "coverage", "tauri", "coverage.json"), "Tauri coverage report");
+    const parsedCoverage = parseRustCoverageReport(report, "Tauri coverage report", REPOSITORY_ROOT, policy);
+    const fileLines = collectFileSizes(policy);
+    const functionLines = collectFunctionSizes(policy);
+    const coverageFileCount = validateCoverageScope(
+        parsedCoverage.filePaths,
+        fileLines,
+        policy,
+        functionLines,
+    );
+    const duplication = parseJscpdReport(
+        readJson(path.join(REPORTS_DIRECTORY, "jscpd", "tauri", "jscpd-report.json"), "Tauri JSCPD report"),
+    );
+    const clippyReportPath = path.join(REPORTS_DIRECTORY, "tauri", "clippy.ndjson");
+
+    return {
+        policy,
+        coverage: parsedCoverage.coverage,
+        coverageFileCount,
+        duplication,
+        violations: {
+            clippy: parseClippyReport(readTextOrEmpty(clippyReportPath)),
+            largeFunctions: countLargeFunctions(functionLines, policy.maxFunctionLines),
+            oversizedFiles: Object.values(fileLines).filter((lines) => lines > policy.maxFileLines).length,
+        },
+        fileLines,
+        functionLines,
+    };
+}
+
+function readTextOrEmpty(filePath) {
+    if (!fs.existsSync(filePath)) {
+        throw new QualityGateInputError(`Required report is missing at ${filePath}.`);
+    }
+
+    return fs.readFileSync(filePath, "utf8");
 }
 
 function percentage(count) {
@@ -520,79 +1075,381 @@ function duplicationRatioIsHigher(current, baseline) {
         > baseline.duplicatedLines * current.totalLines;
 }
 
-function compareMetrics(baseline, current) {
-    validateBaseline(baseline);
-    assertObject(current, "current metrics");
+function validateDuplication(value, label) {
+    assertObject(value, label);
+    assertNonNegativeInteger(value.duplicatedLines, `${label}.duplicatedLines`);
+    assertNonNegativeInteger(value.totalLines, `${label}.totalLines`);
+    assertNonNegativeInteger(value.fragments, `${label}.fragments`);
+
+    if (value.duplicatedLines > value.totalLines) {
+        throw new QualityGateInputError(`${label}.duplicatedLines cannot exceed ${label}.totalLines.`);
+    }
+
+    return {
+        duplicatedLines: value.duplicatedLines,
+        totalLines: value.totalLines,
+        fragments: value.fragments,
+    };
+}
+
+function validateLineMap(value, label) {
+    assertObject(value, label);
+
+    for (const [filePath, lines] of Object.entries(value)) {
+        if (!filePath || filePath.includes("\\")) {
+            throw new QualityGateInputError(`Invalid ${label} path: ${filePath}`);
+        }
+
+        assertNonNegativeInteger(lines, `${label}.${filePath}`);
+    }
+
+    return value;
+}
+
+function validateProjectMetrics(project, projectName, label = `${projectName} metrics`) {
+    assertObject(project, label);
+    const policy = validatePolicy(project.policy || policyForProject(projectName), `${label}.policy`, projectName);
+    assertObject(project.coverage, `${label}.coverage`);
+
+    for (const metric of COVERAGE_METRICS) {
+        validateCoverageCount(project.coverage[metric], `${label}.coverage.${metric}`);
+    }
+
+    assertNonNegativeInteger(project.coverageFileCount, `${label}.coverageFileCount`);
+    const duplication = validateDuplication(project.duplication, `${label}.duplication`);
+    assertObject(project.violations, `${label}.violations`);
+    const lintKey = projectName === "frontend" ? "eslint" : "clippy";
+    assertNonNegativeInteger(project.violations[lintKey] ?? 0, `${label}.violations.${lintKey}`);
+    assertNonNegativeInteger(project.violations.largeFunctions, `${label}.violations.largeFunctions`);
+    assertNonNegativeInteger(project.violations.oversizedFiles, `${label}.violations.oversizedFiles`);
+    const fileLines = validateLineMap(project.fileLines, `${label}.fileLines`);
+    const functionLines = validateLineMap(project.functionLines, `${label}.functionLines`);
+    const oversizedFiles = Object.values(fileLines).filter((lines) => lines > policy.maxFileLines).length;
+    const largeFunctions = Object.values(functionLines).filter((lines) => lines > policy.maxFunctionLines).length;
+
+    if (oversizedFiles !== project.violations.oversizedFiles) {
+        throw new QualityGateInputError(`${label} oversized-file count does not match fileLines.`);
+    }
+
+    if (largeFunctions !== project.violations.largeFunctions) {
+        throw new QualityGateInputError(`${label} large-function count does not match functionLines.`);
+    }
+
+    return {
+        policy,
+        coverage: Object.fromEntries(COVERAGE_METRICS.map((metric) => [
+            metric,
+            validateCoverageCount(project.coverage[metric], `${label}.coverage.${metric}`),
+        ])),
+        coverageFileCount: project.coverageFileCount,
+        duplication,
+        violations: {
+            [lintKey]: project.violations[lintKey] ?? 0,
+            largeFunctions: project.violations.largeFunctions,
+            oversizedFiles: project.violations.oversizedFiles,
+        },
+        fileLines,
+        functionLines,
+    };
+}
+
+function legacyPolicy(policy) {
+    assertObject(policy, "baseline.policy");
+    return validatePolicy({
+        ...policy,
+        maxFunctionLines: policy.maxFunctionLines || 100,
+        minimumCoverage: null,
+        project: "frontend",
+        language: "javascript",
+    }, "baseline.policy", "frontend");
+}
+
+function validateLegacyBaseline(baseline) {
+    const policy = legacyPolicy(baseline.policy);
+    assertObject(baseline.coverage, "baseline.coverage");
+
+    for (const metric of COVERAGE_METRICS) {
+        validateCoverageCount(baseline.coverage[metric], `baseline.coverage.${metric}`);
+    }
+
+    const duplication = validateDuplication(baseline.duplication, "baseline.duplication");
+    assertObject(baseline.violations, "baseline.violations");
+    assertNonNegativeInteger(baseline.violations.eslint, "baseline.violations.eslint");
+    assertNonNegativeInteger(baseline.violations.oversizedFiles, "baseline.violations.oversizedFiles");
+    const fileLines = validateLineMap(baseline.fileLines, "baseline.fileLines");
+    const oversizedFiles = Object.values(fileLines).filter((lines) => lines > policy.maxFileLines).length;
+
+    if (oversizedFiles !== baseline.violations.oversizedFiles) {
+        throw new QualityGateInputError("Baseline oversized-file count does not match fileLines.");
+    }
+
+    return {
+        schemaVersion: 2,
+        generatedFromCommit: baseline.generatedFromCommit,
+        migratedFromSchemaVersion: 1,
+        projects: {
+            frontend: {
+                policy,
+                coverage: Object.fromEntries(COVERAGE_METRICS.map((metric) => [
+                    metric,
+                    validateCoverageCount(baseline.coverage[metric], `baseline.coverage.${metric}`),
+                ])),
+                coverageFileCount: baseline.coverageFileCount ?? 0,
+                duplication,
+                violations: {
+                    eslint: baseline.violations.eslint,
+                    largeFunctions: 0,
+                    oversizedFiles: baseline.violations.oversizedFiles,
+                },
+                fileLines,
+                functionLines: {},
+            },
+            tauri: null,
+        },
+    };
+}
+
+function validateBaseline(baseline) {
+    assertObject(baseline, "baseline");
+
+    if (baseline.schemaVersion === 1) {
+        return validateLegacyBaseline(baseline);
+    }
+
+    if (baseline.schemaVersion !== 2) {
+        throw new QualityGateInputError(`Unsupported baseline schemaVersion: ${baseline.schemaVersion}`);
+    }
+
+    const projects = baseline.projects;
+    assertObject(projects, "baseline.projects");
+
+    for (const projectName of PROJECT_NAMES) {
+        if (!projects[projectName]) {
+            throw new QualityGateInputError(`baseline.projects.${projectName} is required.`);
+        }
+
+        validateProjectMetrics(projects[projectName], projectName, `baseline.projects.${projectName}`);
+    }
+
+    return {
+        ...baseline,
+        projects: {
+            frontend: validateProjectMetrics(projects.frontend, "frontend", "baseline.projects.frontend"),
+            tauri: validateProjectMetrics(projects.tauri, "tauri", "baseline.projects.tauri"),
+        },
+    };
+}
+
+function currentProjects(metrics) {
+    if (metrics?.projects && typeof metrics.projects === "object") {
+        return metrics.projects;
+    }
+
+    if (metrics?.frontend || metrics?.tauri) {
+        return { frontend: metrics.frontend, tauri: metrics.tauri };
+    }
+
+    if (metrics?.coverage) {
+        return { frontend: metrics };
+    }
+
+    throw new QualityGateInputError("Current metrics must contain frontend and tauri projects.");
+}
+
+function currentProject(metrics, projectName) {
+    const projects = currentProjects(metrics);
+    const project = projects[projectName];
+
+    if (!project) {
+        throw new QualityGateInputError(`Current metrics are missing the ${projectName} project.`);
+    }
+
+    return validateProjectMetrics(project, projectName, `current.projects.${projectName}`);
+}
+
+function projectLintKey(projectName) {
+    return projectName === "frontend" ? "eslint" : "clippy";
+}
+
+function projectLabel(projectName) {
+    return projectName === "frontend" ? "Frontend" : "Tauri";
+}
+
+function compareAbsoluteLimits(projectName, project) {
+    const label = projectLabel(projectName);
     const failures = [];
     const regressions = [];
 
+    for (const [filePath, lines] of Object.entries(project.fileLines).sort()) {
+        if (lines > project.policy.maxFileLines) {
+            regressions.push(
+                `${label} file ${filePath} exceeds the ${project.policy.maxFileLines}-line limit with ${lines} lines.`,
+            );
+        }
+    }
+
+    for (const [functionPath, lines] of Object.entries(project.functionLines).sort()) {
+        if (lines > project.policy.maxFunctionLines) {
+            regressions.push(
+                `${label} function ${functionPath} exceeds the ${project.policy.maxFunctionLines}-line limit with ${lines} lines.`,
+            );
+        }
+    }
+
+    const lintKey = projectLintKey(projectName);
+    if (project.violations[lintKey] > 0) {
+        failures.push(`${label} ${lintKey} reported ${project.violations[lintKey]} violation(s).`);
+    }
+
+    if (project.violations.largeFunctions > 0 && Object.keys(project.functionLines).length === 0) {
+        failures.push(`${label} reported large functions without function-size details.`);
+    }
+
+    return { failures, regressions };
+}
+
+function compareProject(projectName, baseline, current) {
+    const failures = [];
+    const regressions = [];
+    const label = projectLabel(projectName);
+    const limits = compareAbsoluteLimits(projectName, current);
+    failures.push(...limits.failures);
+    regressions.push(...limits.regressions);
+
     for (const metric of COVERAGE_METRICS) {
+        const floor = current.policy.minimumCoverage?.[metric];
+        if (floor !== undefined && current.coverage[metric].covered * 100 < floor * current.coverage[metric].total) {
+            failures.push(
+                `${label} ${metric} coverage is ${formatCoverage(current.coverage[metric])}, below the required ${floor.toFixed(2)}%.`,
+            );
+        }
+
         if (ratioIsLower(current.coverage[metric], baseline.coverage[metric])) {
             failures.push(
-                `${metric} coverage decreased from ${formatPercentage(percentage(baseline.coverage[metric]))} to ${formatPercentage(percentage(current.coverage[metric]))}.`,
+                `${label} ${metric} coverage decreased from ${formatPercentage(percentage(baseline.coverage[metric]))} to ${formatPercentage(percentage(current.coverage[metric]))}.`,
             );
         }
     }
 
     if (current.duplication.totalLines === 0 && baseline.duplication.totalLines > 0) {
-        failures.push(`Duplication report is empty; the baseline scanned ${baseline.duplication.totalLines} lines.`);
+        failures.push(`${label} duplication report is empty; the baseline scanned ${baseline.duplication.totalLines} lines.`);
     } else if (duplicationRatioIsHigher(current.duplication, baseline.duplication)) {
         failures.push(
-            `Duplication increased from ${formatPercentage(duplicationPercentage(baseline.duplication))} to ${formatPercentage(duplicationPercentage(current.duplication))}.`,
+            `${label} duplication increased from ${formatPercentage(duplicationPercentage(baseline.duplication))} to ${formatPercentage(duplicationPercentage(current.duplication))}.`,
         );
     }
 
     if (current.duplication.fragments > baseline.duplication.fragments) {
         failures.push(
-            `Duplicate fragments increased from ${baseline.duplication.fragments} to ${current.duplication.fragments}.`,
+            `${label} duplicate fragments increased from ${baseline.duplication.fragments} to ${current.duplication.fragments}.`,
         );
     }
 
-    if (current.violations.eslint > baseline.violations.eslint) {
-        failures.push(`ESLint violations increased from ${baseline.violations.eslint} to ${current.violations.eslint}.`);
+    const lintKey = projectLintKey(projectName);
+    if (current.violations[lintKey] > baseline.violations[lintKey]) {
+        failures.push(`${label} ${lintKey} violations increased from ${baseline.violations[lintKey]} to ${current.violations[lintKey]}.`);
+    }
+
+    if (current.violations.largeFunctions > baseline.violations.largeFunctions) {
+        failures.push(
+            `${label} large functions increased from ${baseline.violations.largeFunctions} to ${current.violations.largeFunctions}.`,
+        );
     }
 
     if (current.violations.oversizedFiles > baseline.violations.oversizedFiles) {
         failures.push(
-            `Oversized files increased from ${baseline.violations.oversizedFiles} to ${current.violations.oversizedFiles}.`,
+            `${label} oversized files increased from ${baseline.violations.oversizedFiles} to ${current.violations.oversizedFiles}.`,
         );
     }
 
-    for (const [filePath, currentLines] of Object.entries(current.fileLines).sort()) {
-        if (currentLines <= baseline.policy.maxFileLines) {
+    return {
+        passed: failures.length === 0 && regressions.length === 0,
+        failures,
+        regressions,
+    };
+}
+
+function compareMetrics(baseline, current) {
+    const trustedBaseline = validateBaseline(baseline);
+    const currentByProject = currentProjects(current);
+    const failures = [];
+    const regressions = [];
+    const projectComparisons = {};
+
+    for (const projectName of PROJECT_NAMES) {
+        const currentMetrics = currentProject(current, projectName);
+        const baselineMetrics = trustedBaseline.projects[projectName];
+
+        if (!baselineMetrics) {
+            const limits = compareAbsoluteLimits(projectName, currentMetrics);
+            projectComparisons[projectName] = {
+                passed: limits.failures.length === 0 && limits.regressions.length === 0,
+                failures: limits.failures,
+                regressions: limits.regressions,
+                baselineAvailable: false,
+            };
+            failures.push(...limits.failures);
+            regressions.push(...limits.regressions);
             continue;
         }
 
-        const baselineLines = baseline.fileLines[filePath];
-
-        if (baselineLines === undefined) {
-            regressions.push(`${filePath} is a new oversized file with ${currentLines} lines.`);
-        } else if (baselineLines <= baseline.policy.maxFileLines) {
-            regressions.push(`${filePath} grew from ${baselineLines} to ${currentLines} lines and crossed the limit.`);
-        } else if (currentLines > baselineLines) {
-            regressions.push(`${filePath} grew from ${baselineLines} to ${currentLines} lines while already oversized.`);
-        }
+        const comparison = compareProject(projectName, baselineMetrics, currentMetrics);
+        projectComparisons[projectName] = { ...comparison, baselineAvailable: true };
+        failures.push(...comparison.failures);
+        regressions.push(...comparison.regressions);
     }
 
     failures.push(...regressions);
-    return { passed: failures.length === 0, failures, regressions };
+
+    return {
+        passed: failures.length === 0,
+        failures,
+        regressions,
+        projects: projectComparisons,
+        baselineMigration: trustedBaseline.migratedFromSchemaVersion === 1,
+        currentProjects: currentByProject,
+    };
 }
 
-function buildBaseline(metrics, policy = DEFAULT_POLICY, generatedFromCommit = "unknown") {
+function buildProjectBaseline(metrics, projectName, policy) {
+    const project = currentProject({ projects: { [projectName]: metrics } }, projectName);
     return {
-        schemaVersion: 1,
-        generatedFromCommit,
-        policy: JSON.parse(JSON.stringify(policy)),
+        policy: validatePolicy(policy || project.policy, `${projectName}.policy`, projectName),
         coverage: Object.fromEntries(COVERAGE_METRICS.map((metric) => [
             metric,
             {
-                covered: metrics.coverage[metric].covered,
-                total: metrics.coverage[metric].total,
+                covered: project.coverage[metric].covered,
+                total: project.coverage[metric].total,
             },
         ])),
-        duplication: { ...metrics.duplication },
-        violations: { ...metrics.violations },
-        fileLines: Object.fromEntries(Object.entries(metrics.fileLines).sort()),
+        coverageFileCount: project.coverageFileCount,
+        duplication: { ...project.duplication },
+        violations: { ...project.violations },
+        fileLines: Object.fromEntries(Object.entries(project.fileLines).sort()),
+        functionLines: Object.fromEntries(Object.entries(project.functionLines).sort()),
+    };
+}
+
+function buildBaseline(metrics, policies = DEFAULT_POLICIES, generatedFromCommit = "unknown") {
+    const selectedPolicies = policies?.frontend
+        ? policies
+        : { frontend: policies, tauri: DEFAULT_TAURI_POLICY };
+
+    return {
+        schemaVersion: 2,
+        generatedFromCommit,
+        projects: {
+            frontend: buildProjectBaseline(
+                currentProject(metrics, "frontend"),
+                "frontend",
+                selectedPolicies.frontend,
+            ),
+            tauri: buildProjectBaseline(
+                currentProject(metrics, "tauri"),
+                "tauri",
+                selectedPolicies.tauri,
+            ),
+        },
     };
 }
 
@@ -612,10 +1469,61 @@ function formatPercentage(value) {
 }
 
 function formatCoverage(count) {
+    if (!count) {
+        return "No baseline";
+    }
+
     return count.total === 0 ? "No data" : formatPercentage(percentage(count));
 }
 
+function formatBaselineMetric(project, metric) {
+    return project ? formatCoverage(project.coverage[metric]) : "No baseline";
+}
+
+function renderProjectMarkdown(lines, projectName, baseline, metrics) {
+    const label = projectLabel(projectName);
+    const baselineProject = baseline.projects[projectName];
+    const currentProjectMetrics = metrics.projects[projectName];
+    const lintKey = projectLintKey(projectName);
+    const lintLabel = projectName === "frontend" ? "ESLint violations" : "Clippy violations";
+    const statementNote = projectName === "tauri" ? " (LLVM regions)" : "";
+
+    lines.push(
+        `## ${label} coverage`,
+        "",
+        "| Metric | Baseline | Current |",
+        "|---|---:|---:|",
+    );
+
+    for (const metric of COVERAGE_METRICS) {
+        lines.push(
+            `| ${metric}${metric === "statements" ? statementNote : ""} | ${formatBaselineMetric(baselineProject, metric)} | ${formatCoverage(currentProjectMetrics.coverage[metric])} |`,
+        );
+    }
+
+    lines.push(
+        "",
+        `## ${label} maintainability`,
+        "",
+        "| Metric | Baseline | Current |",
+        "|---|---:|---:|",
+        `| Duplication | ${baselineProject ? formatPercentage(duplicationPercentage(baselineProject.duplication)) : "No baseline"} | ${formatPercentage(duplicationPercentage(currentProjectMetrics.duplication))} |`,
+        `| Duplicate fragments | ${baselineProject?.duplication.fragments ?? "No baseline"} | ${currentProjectMetrics.duplication.fragments} |`,
+        `| ${lintLabel} | ${baselineProject?.violations[lintKey] ?? "No baseline"} | ${currentProjectMetrics.violations[lintKey]} |`,
+        `| Large functions (> ${currentProjectMetrics.policy.maxFunctionLines} lines) | ${baselineProject?.violations.largeFunctions ?? "No baseline"} | ${currentProjectMetrics.violations.largeFunctions} |`,
+        `| Oversized files (> ${currentProjectMetrics.policy.maxFileLines} lines) | ${baselineProject?.violations.oversizedFiles ?? "No baseline"} | ${currentProjectMetrics.violations.oversizedFiles} |`,
+        "",
+    );
+}
+
 function renderMarkdown({ baseline, metrics, comparison, baselineLabel = "scripts/baseline.json" }) {
+    const trustedBaseline = validateBaseline(baseline);
+    const current = {
+        projects: {
+            frontend: currentProject(metrics, "frontend"),
+            tauri: currentProject(metrics, "tauri"),
+        },
+    };
     const lines = [
         "# Quality Gate",
         "",
@@ -623,44 +1531,37 @@ function renderMarkdown({ baseline, metrics, comparison, baselineLabel = "script
             ? "✅ **PASS** — Baseline captured for this quality suite. Blocking comparisons start after this reference is merged to the base branch."
             : comparison.passed
                 ? "✅ **PASS** — No quality regression detected."
-                : `❌ **FAIL** — ${comparison.failures.length} regression(s) detected.`,
+                : `❌ **FAIL** — ${comparison.failures.length} quality issue(s) detected.`,
         "",
-        `Baseline: \`${markdownEscape(baselineLabel)}\` (commit \`${markdownEscape(baseline.generatedFromCommit)}\`)`,
+        `Baseline: \`${markdownEscape(baselineLabel)}\` (commit \`${markdownEscape(trustedBaseline.generatedFromCommit)}\`)`,
         "",
     ];
+
+    if (comparison.baselineMigration) {
+        lines.push(
+            "⚠️ **MIGRATION** — The trusted baseline uses schema v1. Generate and merge the schema-v2 baseline to compare both projects.",
+            "",
+        );
+    }
 
     if (!comparison.passed) {
         lines.push("## Failures", "", ...comparison.failures.map((failure) => `- ${markdownEscape(failure)}`), "");
     }
 
-    lines.push(
-        "## Frontend coverage",
-        "",
-        "| Metric | Baseline | Current |",
-        "|---|---:|---:|",
-    );
-
-    for (const metric of COVERAGE_METRICS) {
-        lines.push(`| ${metric} | ${formatCoverage(baseline.coverage[metric])} | ${formatCoverage(metrics.coverage[metric])} |`);
+    for (const projectName of PROJECT_NAMES) {
+        renderProjectMarkdown(lines, projectName, trustedBaseline, current);
     }
 
     lines.push(
-        "",
-        "## Maintainability",
-        "",
-        "| Metric | Baseline | Current |",
-        "|---|---:|---:|",
-        `| Duplication | ${formatPercentage(duplicationPercentage(baseline.duplication))} | ${formatPercentage(duplicationPercentage(metrics.duplication))} |`,
-        `| Duplicate fragments | ${baseline.duplication.fragments} | ${metrics.duplication.fragments} |`,
-        `| ESLint violations | ${baseline.violations.eslint} | ${metrics.violations.eslint} |`,
-        `| Oversized files (> ${baseline.policy.maxFileLines} lines) | ${baseline.violations.oversizedFiles} | ${metrics.violations.oversizedFiles} |`,
-        "",
         "## Diagnostics",
         "",
-        `- Production source files: ${Object.keys(metrics.fileLines).length}`,
-        `- Files represented in coverage: ${metrics.coverageFileCount}`,
-        `- JSCPD lines: ${metrics.duplication.duplicatedLines} duplicated / ${metrics.duplication.totalLines} scanned`,
-        "- Rust formatting, Clippy and tests are reported by the workflow wrapper.",
+        `- Frontend production source files: ${Object.keys(current.projects.frontend.fileLines).length}`,
+        `- Frontend files represented in coverage: ${current.projects.frontend.coverageFileCount}`,
+        `- Frontend JSCPD lines: ${current.projects.frontend.duplication.duplicatedLines} duplicated / ${current.projects.frontend.duplication.totalLines} scanned`,
+        `- Tauri production source files: ${Object.keys(current.projects.tauri.fileLines).length}`,
+        `- Tauri files represented in coverage: ${current.projects.tauri.coverageFileCount}`,
+        `- Tauri JSCPD lines: ${current.projects.tauri.duplication.duplicatedLines} duplicated / ${current.projects.tauri.duplication.totalLines} scanned`,
+        "- Tauri `statements` maps to LLVM `regions`; branches require the `cargo-llvm-cov --branch` export.",
         "",
     );
 
@@ -718,7 +1619,7 @@ function writeFailureReport(error) {
         "",
     ].join("\n");
     fs.writeFileSync(MARKDOWN_PATH, markdown, "utf8");
-    writeJson(JSON_PATH, { schemaVersion: 1, status: "error", error: error.message });
+    writeJson(JSON_PATH, { schemaVersion: 2, status: "error", error: error.message });
 }
 
 function runCli(args = process.argv.slice(2)) {
@@ -736,9 +1637,16 @@ function runCli(args = process.argv.slice(2)) {
         const existingBaseline = !options.bootstrap && fs.existsSync(options.baselinePath)
             ? validateBaseline(readJson(options.baselinePath, "quality baseline"))
             : null;
-        const policy = existingBaseline?.policy ?? DEFAULT_POLICY;
-        const metrics = collectMetrics({ policy, collectToolReports: options.collectToolReports });
-        const candidate = buildBaseline(metrics, policy, currentCommit());
+        const policies = existingBaseline?.migratedFromSchemaVersion === 1
+            ? DEFAULT_POLICIES
+            : existingBaseline
+                ? {
+                    frontend: existingBaseline.projects.frontend.policy,
+                    tauri: existingBaseline.projects.tauri.policy,
+                }
+                : DEFAULT_POLICIES;
+        const metrics = collectMetrics({ policies, collectToolReports: options.collectToolReports });
+        const candidate = buildBaseline(metrics, policies, currentCommit());
         writeJson(CANDIDATE_BASELINE_PATH, candidate);
 
         if (options.bootstrap) {
@@ -752,17 +1660,14 @@ function runCli(args = process.argv.slice(2)) {
             });
             fs.writeFileSync(MARKDOWN_PATH, markdown, "utf8");
             writeJson(JSON_PATH, {
-                schemaVersion: 1,
+                schemaVersion: 2,
                 status: "bootstrap",
-                baseline: {
-                    label: "bootstrap",
-                    generatedFromCommit: candidate.generatedFromCommit,
-                },
+                baseline: { label: "bootstrap", generatedFromCommit: candidate.generatedFromCommit },
                 metrics,
                 comparison,
             });
             process.stdout.write(markdown);
-            return 0;
+            return comparison.passed ? 0 : 1;
         }
 
         if (options.updateBaseline) {
@@ -776,15 +1681,15 @@ function runCli(args = process.argv.slice(2)) {
             });
             fs.writeFileSync(MARKDOWN_PATH, markdown, "utf8");
             writeJson(JSON_PATH, {
-                schemaVersion: 1,
-                status: "pass",
+                schemaVersion: 2,
+                status: comparison.passed ? "pass" : "fail",
                 baselineUpdated: path.relative(REPOSITORY_ROOT, options.baselinePath),
                 metrics,
                 comparison,
             });
             process.stdout.write(`Quality baseline updated: ${path.relative(REPOSITORY_ROOT, options.baselinePath)}\n`);
             process.stdout.write(markdown);
-            return 0;
+            return comparison.passed ? 0 : 1;
         }
 
         if (!existingBaseline) {
@@ -804,11 +1709,12 @@ function runCli(args = process.argv.slice(2)) {
         });
         fs.writeFileSync(MARKDOWN_PATH, markdown, "utf8");
         writeJson(JSON_PATH, {
-            schemaVersion: 1,
+            schemaVersion: 2,
             status: comparison.passed ? "pass" : "fail",
             baseline: {
                 label: baselineLabel,
                 generatedFromCommit: existingBaseline.generatedFromCommit,
+                migratedFromSchemaVersion: existingBaseline.migratedFromSchemaVersion,
             },
             metrics,
             comparison,
@@ -826,24 +1732,34 @@ function runCli(args = process.argv.slice(2)) {
 module.exports = {
     COVERAGE_METRICS,
     DEFAULT_POLICY,
+    DEFAULT_FRONTEND_POLICY,
+    DEFAULT_TAURI_POLICY,
+    DEFAULT_POLICIES,
+    PROJECT_NAMES,
     QualityGateInputError,
     buildBaseline,
     collectFileSizes,
+    collectFunctionSizes,
     collectMetrics,
     compareMetrics,
+    countEslintRuleViolations,
+    countLargeFunctions,
     countPhysicalLines,
     duplicationPercentage,
     duplicationRatioIsHigher,
     markdownEscape,
     parseArguments,
+    parseClippyReport,
     parseCoverageFilePaths,
     parseCoverageSummary,
     parseEslintReport,
     parseJscpdReport,
+    parseRustCoverageReport,
     renderMarkdown,
     runCli,
     validateBaseline,
     validateCoverageScope,
+    validatePolicy,
 };
 
 if (require.main === module) {

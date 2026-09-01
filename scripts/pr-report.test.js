@@ -98,7 +98,19 @@ test("combineReports extracts base details and never includes PR wrappers", () =
 
 test("renderPrReport sanitizes only the comment copy and preserves status meanings", () => {
     const report = renderPrReport({
-        qualityReport: "# Quality Gate\n\n✅ **PASS** — No quality regression detected.",
+        qualityReport: [
+            "# Quality Gate",
+            "",
+            "✅ **PASS** — No quality regression detected.",
+            "",
+            "## Frontend coverage",
+            "",
+            "## Frontend maintainability",
+            "",
+            "## Tauri coverage",
+            "",
+            "## Tauri maintainability",
+        ].join("\n"),
         performanceReport: "# Performance\n\n❌ **FAIL** — Regression.\n\n⚠️ WARNING\n\n🆕 NEW\n\n⏭️ SKIPPED",
         qualityManifest: qualityManifest({ overall: "FAIL" }),
         performanceManifest: performanceManifest(),
@@ -111,6 +123,14 @@ test("renderPrReport sanitizes only the comment copy and preserves status meanin
     assert.match(report, /\bWARNING\b/);
     assert.match(report, /\bNEW\b/);
     assert.match(report, /\bSKIPPED\b/);
+    for (const heading of [
+        "## Frontend coverage",
+        "## Frontend maintainability",
+        "## Tauri coverage",
+        "## Tauri maintainability",
+    ]) {
+        assert.match(report, new RegExp(heading));
+    }
     assert.doesNotMatch(report, /(?:✅|❌|⚠️|🆕|⏭️)/u);
 });
 
