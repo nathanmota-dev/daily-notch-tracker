@@ -49,14 +49,25 @@ npm run tauri:dev
 ```
 
 O comando `tauri:dev` inicia o Vite automaticamente e abre a janela desktop.
-O shell seleciona automaticamente o `desktopApi` real no webview Tauri. Até os
-comandos de foco e a persistência serem implementados, os comandos de tarefas e
-settings usam um estado Rust em memória. O comando temporário `greet` continua
-coberto pelo teste Rust do scaffold, mas não é registrado na aplicação.
+O shell seleciona automaticamente o `desktopApi` real no webview Tauri. Tarefas,
+sessões e settings do desktop são persistidos pelo backend Rust em
+`app_data_dir()/dailynotch.json`, usando o diretório retornado pela API de paths
+do Tauri, sem um caminho de usuário hardcoded. O foco e o status de atalhos são
+estado de runtime e voltam aos defaults ao iniciar o app.
+
+Se o arquivo ainda não existir, o diretório é criado e o app começa com um
+payload vazio. JSON inválido ou um `schema_version` desconhecido inicia um
+estado vazio recuperável, preserva o arquivo original e registra um diagnóstico
+interno. Antes da primeira gravação desse estado recuperado, o backend cria
+`dailynotch.json.recovery-<uuid>.bak` no mesmo diretório. Ainda não há tela ou
+comando de diagnostics; a exposição desse diagnóstico fica para uma issue
+futura. O comando temporário `greet` continua coberto pelo teste Rust do
+scaffold, mas não é registrado na aplicação.
 
 Ao executar somente a UI no navegador, o shell usa um snapshot mockado,
-determinístico e sem persistência. Testes e futuras superfícies podem criar
-outros snapshots ou falhas com `createMockDesktopApi`.
+determinístico e sem persistência; esse mock não lê nem escreve o arquivo do
+desktop. Testes e futuras superfícies podem criar outros snapshots ou falhas com
+`createMockDesktopApi`.
 
 Para executar o teste E2E da interface no navegador, instale o navegador do
 Playwright uma vez e rode:
@@ -160,7 +171,8 @@ componente `rustfmt` estiver instalado.
 │   │   ├── main.rs
 │   │   ├── commands/
 │   │   ├── services/
-│   │   └── state/
+│   │   ├── state/
+│   │   └── storage/
 │   ├── capabilities/
 │   ├── Cargo.toml
 │   └── tauri.conf.json

@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use super::task::clamp_minutes;
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", default)]
 pub struct FocusSettings {
     pub focus_minutes: u32,
     pub notifications_enabled: bool,

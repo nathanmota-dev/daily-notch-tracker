@@ -80,6 +80,14 @@ impl AppError {
         }
     }
 
+    pub fn persistence(message: impl Into<String>) -> Self {
+        Self {
+            code: AppErrorCode::Persistence,
+            message: message.into(),
+            field: None,
+        }
+    }
+
     pub fn internal(message: impl Into<String>) -> Self {
         Self {
             code: AppErrorCode::Internal,
