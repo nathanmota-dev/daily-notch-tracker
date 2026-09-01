@@ -7,6 +7,7 @@ use crate::domain::{
 };
 use crate::state::AppState;
 
+#[tauri::command]
 pub fn greet(name: &str) -> String {
     format!("Hello, {name}! DailyNotch Linux is running with Rust.")
 }
