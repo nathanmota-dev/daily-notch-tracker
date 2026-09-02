@@ -161,9 +161,12 @@ atividade mockados. A partir do MVP-015, o dashboard expandido seleciona do
 `AppSnapshot` apenas as tarefas agendadas para o dia local, e suas ações de
 conclusão, foco e reorder enviam mutações reais pelo `desktopApi`; a resposta
 do Rust é a fonte de verdade da UI. O dashboard exibe um heatmap mensal
-Monday-first, limitado ao dia atual e sem dados de sessões reais. O resize
-ancorado da janela Tauri acompanha as mudanças de apresentação, e o
-drag-and-drop do resumo já reordena o bucket do dia.
+Monday-first alimentado pelo histórico real de sessões: cada sessão é contada
+uma vez pela data local de `startedAt`, incluindo sessões concluídas e
+interrompidas, e o streak pode terminar hoje ou ontem. A grade é limitada ao
+dia atual e não mostra dados futuros. O resize ancorado da janela Tauri
+acompanha as mudanças de apresentação, e o drag-and-drop do resumo já reordena
+o bucket do dia.
 A janela completa `Tasks` e a janela `Settings` são abertas sob demanda por
 comandos Rust, reutilizando a janela existente pelo label e trazendo-a para
 frente sem criar duplicatas. `Settings` continua sendo a superfície reservada

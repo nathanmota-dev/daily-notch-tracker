@@ -1,18 +1,16 @@
-import {
-  getActivityHeatmapModel,
-  type ActivityLevelsByDay,
-} from "./activity-heatmap-model"
+import type { ActivityCountsByDate } from "./activity-model"
+import { getActivityHeatmapModel } from "./activity-heatmap-model"
 
 export type ActivityHeatmapProps = {
-  levelsByDay?: ActivityLevelsByDay
-  today?: Date
+  countsByDate?: ActivityCountsByDate
+  today?: Date | number
 }
 
 export function ActivityHeatmap({
-  levelsByDay,
-  today = new Date(),
+  countsByDate,
+  today = Date.now(),
 }: ActivityHeatmapProps) {
-  const model = getActivityHeatmapModel(today, levelsByDay)
+  const model = getActivityHeatmapModel(today, countsByDate)
 
   return (
     <div
