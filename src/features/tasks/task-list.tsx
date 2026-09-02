@@ -7,6 +7,7 @@ import { useTaskReorder } from "../../components/use-task-reorder"
 import { Checkbox } from "../../components/ui/checkbox"
 import { DragHandle } from "../../components/drag-handle"
 import { IconButton } from "../../components/icon-button"
+import { cn } from "../../lib/utils"
 
 export type TaskListProps = {
   tasks: readonly Task[]
@@ -55,7 +56,7 @@ function TaskRow({
 
   return (
     <article
-      className="tasks-task-row"
+      className="grid min-h-16 grid-cols-[36px_20px_minmax(0,1fr)_36px] items-center gap-2 rounded-card border border-border bg-panel p-[8px_12px_8px_0] transition-[background-color,border-color] duration-150 hover:border-border-strong hover:bg-panel-hover"
       data-completed={task.isDone ? "true" : "false"}
       data-slot="tasks-task-row"
       data-task-id={task.id}
@@ -85,15 +86,27 @@ function TaskRow({
       />
       <button
         aria-label={`Open details for ${task.title}`}
-        className="tasks-task-row__body"
+        className="min-w-0 cursor-pointer border-0 bg-transparent py-1 text-left text-inherit outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         disabled={busy}
         onClick={() => onOpenTask(task.id)}
         type="button"
       >
-        <span className="tasks-task-row__title">{task.title}</span>
-        <span className="tasks-task-row__meta">
+        <span
+          className={cn(
+            "block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.95rem] font-[650]",
+            task.isDone && "text-muted line-through",
+          )}
+        >
+          {task.title}
+        </span>
+        <span
+          className={cn(
+            "mt-1 block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.75rem] text-muted",
+            task.isDone && "opacity-70",
+          )}
+        >
           <span>{task.notes || "No note"}</span>
-          <span aria-hidden="true" className="tasks-task-row__meta-dot">
+          <span aria-hidden="true" className="inline-block px-1.5">
             ·
           </span>
           <span>{formatTaskDuration(task.estimateMinutes)}</span>
@@ -101,7 +114,7 @@ function TaskRow({
       </button>
       <IconButton
         aria-label={label}
-        className="tasks-task-row__focus-button"
+        className="text-accent"
         disabled={busy || !canFocus}
         onClick={() => onToggleFocus(task.id)}
         size="sm"
@@ -136,20 +149,20 @@ export function TaskList({
     return (
       <button
         aria-label="Add your first task"
-        className="tasks-empty"
+        className="flex min-h-[180px] w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-card border border-dashed border-border-strong bg-white/[0.02] p-6 text-muted outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         disabled={busy}
         onClick={onAddTask}
         type="button"
       >
         <span className="sr-only">Nenhuma tarefa ainda.</span>
-        <span>No tasks in this list</span>
-        <span>Add a task to get started.</span>
+        <span className="font-[650] text-content">No tasks in this list</span>
+        <span className="text-[0.8rem]">Add a task to get started.</span>
       </button>
     )
   }
 
   return (
-    <div className="tasks-task-list" data-slot="tasks-task-list">
+    <div className="grid gap-2" data-slot="tasks-task-list">
       {tasks.map((task) => (
         <TaskRow
           busy={busy}

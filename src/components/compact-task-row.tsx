@@ -5,6 +5,7 @@ import { Checkbox } from "./ui/checkbox"
 import { DragHandle } from "./drag-handle"
 import { IconButton } from "./icon-button"
 import { formatTaskDuration } from "./expanded-dashboard-model"
+import { cn } from "../lib/utils"
 
 export type CompactTaskRowProps = {
   task: Task
@@ -30,7 +31,7 @@ function TaskBody({
     <div
       aria-label={"Open details for " + task.title}
       aria-disabled={isBusy || undefined}
-      className="expanded-task-row__body"
+      className="min-w-0 cursor-pointer overflow-hidden rounded-control text-left outline-none focus-visible:shadow-[0_0_0_2px_var(--ring)]"
       data-slot="task-body"
       onClick={() => {
         if (!isBusy) {
@@ -51,15 +52,24 @@ function TaskBody({
       tabIndex={isBusy ? -1 : 0}
     >
       <span
-        className="expanded-task-row__title"
+        className={cn(
+          "block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.79rem] font-semibold leading-[1.25] text-content",
+          task.isDone &&
+            "text-muted line-through decoration-[rgb(161_161_170_/_0.7)]",
+        )}
         data-slot="task-title"
         title={task.title}
       >
         {task.title}
       </span>
-      <span className="expanded-task-row__meta">
+      <span
+        className={cn(
+          "mt-0.5 block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.67rem] leading-[1.15] text-muted",
+          task.isDone && "text-[rgb(161_161_170_/_0.65)]",
+        )}
+      >
         <span data-slot="task-notes">{task.notes || "No note"}</span>
-        <span aria-hidden="true" className="expanded-task-row__meta-dot">
+        <span aria-hidden="true" className="inline-block px-1">
           ·
         </span>
         <span data-slot="task-duration">
@@ -96,7 +106,7 @@ export function CompactTaskRow({
 
   return (
     <article
-      className="expanded-task-row"
+      className="grid min-h-[var(--expanded-task-row-height)] min-w-0 grid-cols-[32px_16px_minmax(0,1fr)_32px] items-center gap-1.5 rounded-control bg-white/[0.035] p-[0_4px_0_0] transition-colors duration-150 hover:bg-white/[0.075]"
       data-completed={task.isDone ? "true" : "false"}
       data-slot="compact-task-row"
       data-task-id={task.id}
@@ -130,7 +140,7 @@ export function CompactTaskRow({
 
       <IconButton
         aria-label={focusActionLabel}
-        className="expanded-task-row__focus-button"
+        className="text-accent"
         data-slot="task-focus-toggle"
         disabled={isBusy || !canFocus}
         onClick={() => onToggleFocus(task.id)}

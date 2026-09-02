@@ -48,7 +48,11 @@ export function ProgressTray({
   return (
     <div
       {...props}
-      className={cn("progress-tray", className)}
+      className={cn(
+        "relative min-h-[var(--progress-tray-height)] w-full overflow-hidden rounded-pill bg-transparent",
+        !showTimeline && "min-h-[var(--progress-tray-height-off)]",
+        className,
+      )}
       data-rainbow={rainbowEnabled ? "on" : "off"}
       data-progress={clampedProgress}
       data-slot="progress-tray"
@@ -63,7 +67,7 @@ export function ProgressTray({
           aria-valuemin={0}
           aria-valuenow={progressPercentage}
           aria-valuetext={`${progressPercentage}%`}
-          className="progress-tray__timeline"
+          className="pointer-events-none absolute inset-0 block size-full overflow-visible"
           data-slot="progress-tray-timeline"
           focusable="false"
           preserveAspectRatio="none"
@@ -87,14 +91,15 @@ export function ProgressTray({
           )}
 
           <ProgressPath
-            className="progress-tray__track"
+            className="fill-none"
             data-slot="progress-tray-track"
             stroke="var(--progress-track)"
           />
           <ProgressPath
             className={cn(
-              "progress-tray__fill",
-              rainbowEnabled && "progress-tray__fill--rainbow",
+              "fill-none transition-[stroke-dashoffset] duration-[180ms] ease-linear",
+              rainbowEnabled &&
+                "animate-[progress-tray-rainbow_6s_linear_infinite] drop-shadow-[var(--progress-rgb-shadow)]",
             )}
             data-rainbow={rainbowEnabled ? "on" : "off"}
             data-slot="progress-tray-fill"

@@ -181,7 +181,7 @@ test.describe("DailyNotch surface router", () => {
 
     const heatmap = page.locator('[data-slot="activity-heatmap"]')
     const cellMetadata = await heatmap
-      .locator(".activity-heatmap__cell")
+      .locator(":scope > span")
       .evaluateAll((cells) =>
         cells.map((cell) => ({
           column: Number(cell.getAttribute("data-column")),
