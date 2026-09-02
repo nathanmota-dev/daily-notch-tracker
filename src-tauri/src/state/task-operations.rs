@@ -30,10 +30,9 @@ impl AppState {
                     "id",
                 ));
             }
-            let scheduled_date =
-                parse_scheduled_date(input.scheduled_date.as_deref(), "scheduledDate")?;
-            let sort_order = next_sort_order(&state.tasks, scheduled_date, &[])?;
-            let task = Task::from_input(input, id, created_at, sort_order)?;
+            let mut task = Task::from_input(input, id, created_at, 0)?;
+            let scheduled_date = task.scheduled_date;
+            task.sort_order = next_sort_order(&state.tasks, scheduled_date, &[])?;
 
             state.tasks.push(task);
             reindex_bucket(&mut state.tasks, scheduled_date)?;

@@ -80,6 +80,19 @@ fn update_input(
     }
 }
 
+fn assert_invalid_estimate_update(
+    state: &mut AppState,
+    input: UpdateTaskInput,
+    before: &crate::domain::AppSnapshot,
+) {
+    let error = state
+        .update_task(input)
+        .expect_err("an out-of-range estimate should fail");
+    assert_eq!(error.code, AppErrorCode::Validation);
+    assert_eq!(error.field.as_deref(), Some("estimateMinutes"));
+    assert_eq!(&state.snapshot(), before);
+}
+
 fn add_task(
     state: &mut AppState,
     id: &str,
@@ -164,7 +177,7 @@ fn task_crud_increments_revision_only_after_success() {
             task_id,
             "Updated task",
             Some("2026-09-01"),
-            200,
+            180,
             true,
         ))
         .expect("existing task should update");
@@ -174,6 +187,13 @@ fn task_crud_increments_revision_only_after_success() {
         Some(date(2026, 9, 1))
     );
     assert_eq!(state.snapshot().tasks[0].estimate_minutes, 180);
+
+    let before_invalid_update = state.snapshot();
+    assert_invalid_estimate_update(
+        &mut state,
+        update_input(task_id, "Updated task", Some("2026-09-01"), 181, true),
+        &before_invalid_update,
+    );
 
     state
         .toggle_task(&task_id.to_string())
@@ -224,8 +244,14 @@ fn task_validation_rejects_invalid_text_and_dates_without_mutating_state() {
 }
 
 #[test]
-fn task_durations_are_clamped_on_create_and_settings_update() {
+fn task_durations_are_rejected_while_settings_keep_defensive_clamp() {
     let mut state = AppState::default();
+    let error = state
+        .add_task(create_input("Invalid task", None, 0))
+        .expect_err("an out-of-range estimate should fail on create");
+    assert_eq!(error.code, AppErrorCode::Validation);
+    assert_eq!(error.field.as_deref(), Some("estimateMinutes"));
+
     let task_id = add_task(
         &mut state,
         "22222222-2222-4222-8222-222222222222",
@@ -234,10 +260,12 @@ fn task_durations_are_clamped_on_create_and_settings_update() {
         31,
         9,
     );
-    let snapshot = state
-        .update_task(update_input(task_id, "Clamped task", None, -20, false))
-        .expect("negative estimate should be clamped");
-    assert_eq!(snapshot.tasks[0].estimate_minutes, 1);
+    let before_invalid_update = state.snapshot();
+    assert_invalid_estimate_update(
+        &mut state,
+        update_input(task_id, "Clamped task", None, -20, false),
+        &before_invalid_update,
+    );
 
     let snapshot = state
         .update_settings(FocusSettingsPatch {
