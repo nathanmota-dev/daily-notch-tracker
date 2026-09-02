@@ -22,6 +22,15 @@ fn test_app() -> tauri::App<tauri::test::MockRuntime> {
         .expect("mock app should build")
 }
 
+fn wait_for_focus_events(focus_events: &AtomicUsize, store_events: &AtomicUsize) {
+    let deadline = Instant::now() + StdDuration::from_secs(1);
+    while (focus_events.load(Ordering::Acquire) < 1 || store_events.load(Ordering::Acquire) < 1)
+        && Instant::now() < deadline
+    {
+        std::thread::sleep(StdDuration::from_millis(5));
+    }
+}
+
 #[test]
 fn greet_returns_a_rust_message() {
     assert_eq!(
@@ -297,6 +306,7 @@ fn due_focus_is_completed_by_the_managed_scheduler() {
     assert_eq!(snapshot.focus.state, crate::domain::FocusState::Idle);
     assert_eq!(snapshot.sessions.len(), 1);
     assert!(snapshot.sessions[0].completed);
+    wait_for_focus_events(&focus_events, &store_events);
     assert_eq!(focus_events.load(Ordering::Acquire), 1);
     assert_eq!(store_events.load(Ordering::Acquire), 1);
 }
