@@ -7,6 +7,7 @@ import type {
 import { FocusTimePicker } from "../../components/focus-time-picker"
 import { Button } from "../../components/ui/button"
 import { Checkbox } from "../../components/ui/checkbox"
+import { cn } from "../../lib/utils"
 import {
   countTaskCharacters,
   TASK_DURATION_PRESETS,
@@ -44,21 +45,33 @@ function FieldError({ error, id }: Pick<FieldProps, "error" | "id">) {
   }
 
   return (
-    <p className="tasks-form__field-error" id={id} role="alert">
+    <p
+      className="m-0 text-[0.78rem] leading-[1.4] text-danger"
+      id={id}
+      role="alert"
+    >
       {error}
     </p>
   )
 }
 
 function fieldClassName(error?: string) {
-  return `tasks-form__input${error ? " tasks-form__input--invalid" : ""}`
+  return cn(
+    "min-h-10 w-full rounded-control border border-border bg-canvas px-2.5 py-2 text-content outline-none focus:border-ring focus:shadow-[0_0_0_2px_rgb(96_165_250_/_0.28)]",
+    error && "border-danger",
+  )
 }
 
 function LabeledField({ error, id, label }: FieldProps) {
   return (
-    <label className="tasks-form__label" htmlFor={id}>
+    <label
+      className="flex justify-between gap-3 text-[0.78rem] font-semibold text-muted"
+      htmlFor={id}
+    >
       <span>{label}</span>
-      {error && <span className="tasks-form__label-error">{error}</span>}
+      {error && (
+        <span className="font-medium text-right text-danger">{error}</span>
+      )}
     </label>
   )
 }
@@ -103,7 +116,7 @@ function TaskTextFields({
 
   return (
     <>
-      <div className="tasks-form__field">
+      <div className="mb-[18px] grid gap-2">
         <LabeledField error={errors.title} id="task-title" label="Title" />
         <input
           aria-describedby={errors.title ? "task-title-error" : undefined}
@@ -128,12 +141,12 @@ function TaskTextFields({
         <FieldError error={errors.title} id="task-title-error" />
       </div>
 
-      <div className="tasks-form__field">
+      <div className="mb-[18px] grid gap-2">
         <LabeledField error={errors.notes} id="task-notes" label="Notes" />
         <textarea
           aria-describedby={errors.notes ? "task-notes-error" : undefined}
           aria-invalid={Boolean(errors.notes)}
-          className={`${fieldClassName(errors.notes)} tasks-form__textarea`}
+          className={`${fieldClassName(errors.notes)} min-h-28 resize-y`}
           id="task-notes"
           onChange={handleChange("notes")}
           maxLength={TASK_NOTES_MAX_CHARS}
@@ -159,8 +172,8 @@ function TaskScheduleFields({
   onChange,
 }: Pick<TaskFormProps, "draft" | "errors" | "onChange">) {
   return (
-    <div className="tasks-form__grid">
-      <div className="tasks-form__field">
+    <div className="grid grid-cols-2 gap-4 max-[640px]:grid-cols-1 max-[640px]:gap-0">
+      <div className="mb-[18px] grid gap-2">
         <FocusTimePicker
           error={errors.estimateMinutes}
           id="task-duration"
@@ -171,7 +184,7 @@ function TaskScheduleFields({
         />
       </div>
 
-      <div className="tasks-form__field">
+      <div className="mb-[18px] grid gap-2">
         <LabeledField
           error={errors.scheduledDate}
           id="task-date"
@@ -214,13 +227,21 @@ export function TaskForm({
   }
 
   return (
-    <form className="tasks-form" noValidate onSubmit={handleSubmit}>
-      <div className="tasks-form__heading">
+    <form
+      className="mt-5 min-h-0 w-full flex-[1_1_auto] overflow-y-auto rounded-panel border border-border bg-panel p-[clamp(20px,4vw,36px)] shadow-panel"
+      noValidate
+      onSubmit={handleSubmit}
+    >
+      <div className="mb-7 flex items-start justify-between gap-4 max-[640px]:flex-col">
         <div>
-          <p className="tasks-form__eyebrow">Task details</p>
-          <h2>{mode === "create" ? "New task" : "Edit task"}</h2>
+          <p className="m-0 mb-1.5 text-[0.7rem] font-[650] uppercase tracking-[0.16em] text-muted">
+            Task details
+          </p>
+          <h2 className="m-0 text-[clamp(1.5rem,3vw,2rem)] font-bold leading-[1.05] tracking-[-0.045em] text-content">
+            {mode === "create" ? "New task" : "Edit task"}
+          </h2>
         </div>
-        <div className="tasks-form__heading-actions">
+        <div className="flex flex-wrap justify-end gap-2 max-[640px]:justify-start">
           {onFocus && focusActionLabel && (
             <Button
               disabled={busy || draft.isDone}
@@ -246,7 +267,7 @@ export function TaskForm({
       <TaskScheduleFields draft={draft} errors={errors} onChange={onChange} />
 
       {mode === "edit" && onDoneChange && (
-        <label className="tasks-form__done-control">
+        <label className="inline-flex cursor-pointer items-center gap-2.5 text-[0.85rem] text-content">
           <Checkbox
             aria-label="Mark task as complete"
             checked={draft.isDone}
@@ -261,7 +282,7 @@ export function TaskForm({
         </label>
       )}
 
-      <footer className="tasks-form__footer">
+      <footer className="mt-7 flex items-center gap-2 border-t border-border pt-5">
         {onDelete && (
           <Button
             className="mr-auto"

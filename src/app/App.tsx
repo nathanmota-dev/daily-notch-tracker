@@ -30,6 +30,7 @@ import {
 } from "./use-overlay-resize"
 import { useAppSnapshot } from "./use-app-snapshot"
 import { useDashboardActions } from "./use-dashboard-actions"
+import { cn } from "../lib/utils"
 
 export type PresentationMode = "collapsed" | "expanded"
 
@@ -82,11 +83,10 @@ export function AppShell({
     <OverlayInteractionProvider value={interaction}>
       <main
         ref={surfaceRef}
-        className={
-          isExpanded
-            ? "expanded-dashboard-surface"
-            : "collapsed-focus-surface"
-        }
+        className={cn(
+          "grid min-h-screen min-w-0 w-screen place-items-center overflow-hidden bg-transparent transition-opacity duration-[240ms] ease-[ease] data-[resizing=true]:opacity-[0.98]",
+          isExpanded && "py-2",
+        )}
         data-presentation-mode={effectivePresentationMode}
         data-resizing={isResizing ? "true" : "false"}
         data-surface="overlay"

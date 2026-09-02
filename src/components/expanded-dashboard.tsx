@@ -52,7 +52,10 @@ export function ExpandedDashboard({
   return (
     <ProgressTray
       aria-label="Focus timeline"
-      className={cn("expanded-dashboard", className)}
+      className={cn(
+        "min-h-[var(--expanded-dashboard-min-height)] w-[var(--expanded-dashboard-width)] rounded-panel bg-transparent",
+        className,
+      )}
       data-focus-state={snapshot.focus.state}
       data-slot="expanded-dashboard-tray"
       progress={getExpandedDashboardProgress(snapshot.focus, countdown.now)}
@@ -61,12 +64,15 @@ export function ExpandedDashboard({
     >
       <Panel
         aria-label="Expanded dashboard"
-        className="expanded-dashboard__panel"
+        className="relative z-[1] min-h-[var(--expanded-dashboard-min-height)] w-full gap-0 rounded-panel bg-panel p-0 shadow-none"
         data-dashboard-state={snapshot.focus.state}
         data-slot="expanded-dashboard"
         role="region"
       >
-        <div className="expanded-dashboard__grid">
+        <div
+          className="grid min-h-[var(--expanded-dashboard-min-height)] w-full grid-cols-[minmax(0,1fr)_var(--expanded-dashboard-activity-width)] gap-0 px-5 pb-4 pt-[18px]"
+          data-slot="expanded-dashboard-grid"
+        >
           <TodoPanel
             busy={busy}
             dashboardError={dashboardError}

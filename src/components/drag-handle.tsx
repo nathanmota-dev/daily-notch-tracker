@@ -35,7 +35,7 @@ export function DragHandle({
   return (
     <IconButton
       aria-label={"Reorder " + taskTitle}
-      className="expanded-task-row__drag-handle"
+      className="cursor-grab text-muted active:cursor-grabbing"
       data-slot="drag-handle"
       disabled={disabled}
       draggable={!disabled}
@@ -47,12 +47,12 @@ export function DragHandle({
     >
       <span
         aria-hidden="true"
-        className="expanded-task-row__drag-dots"
+        className="grid w-2.5 grid-cols-[repeat(2,3px)] grid-rows-[repeat(3,3px)] gap-x-[3px] gap-y-0.5"
       >
         {Array.from({ length: 6 }, (_, index) => (
           <span
             aria-hidden="true"
-            className="expanded-task-row__drag-dot"
+            className="size-[3px] rounded-full bg-current"
             data-slot="drag-dot"
             key={"drag-dot-" + index}
           />

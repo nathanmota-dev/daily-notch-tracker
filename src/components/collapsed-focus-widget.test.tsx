@@ -103,7 +103,7 @@ describe("CollapsedFocusWidget", () => {
 
     expect(widget).toHaveAttribute("data-state", state)
     expect(widget).toHaveAttribute("data-mode", mode)
-    expect(widget).toHaveClass("collapsed-focus-widget")
+    expect(widget).toHaveClass("min-w-0", "rounded-pill")
 
     if (fixture === "minimal") {
       expect(screen.queryByRole("timer")).not.toBeInTheDocument()
@@ -141,7 +141,7 @@ describe("CollapsedFocusWidget", () => {
     renderSnapshot("long-title")
 
     const title = document.querySelector('[data-slot="focus-task-title"]')
-    expect(title).toHaveClass("collapsed-focus-widget__task-title")
+    expect(title).toHaveClass("block", "text-ellipsis")
     expect(title).toHaveAttribute(
       "title",
       "Review and refine the complete DailyNotch Linux focus workflow before the next implementation milestone",
@@ -189,9 +189,7 @@ describe("CollapsedFocusWidget countdown", () => {
     })
 
     expect(screen.getByRole("timer")).toHaveTextContent("14:31")
-    expect(screen.getByRole("group")).toHaveClass(
-      "collapsed-focus-widget",
-    )
+    expect(screen.getByRole("group")).toHaveClass("min-w-0", "rounded-pill")
     expect(screen.getByRole("group")).toHaveAttribute(
       "data-mode",
       "normal",

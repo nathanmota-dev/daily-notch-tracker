@@ -76,7 +76,7 @@ describe("ProgressTray", () => {
     )
 
     expect(screen.getByText("Focus content")).toBeInTheDocument()
-    expect(root).toHaveClass("progress-tray", "custom-tray")
+    expect(root).toHaveClass("relative", "custom-tray")
     expect(track).toHaveAttribute("stroke-linecap", "round")
     expect(track).toHaveAttribute("stroke-linejoin", "round")
     expect(track).toHaveAttribute("vector-effect", "non-scaling-stroke")
@@ -96,7 +96,9 @@ describe("ProgressTray", () => {
 
     expect(root).toHaveAttribute("data-rainbow", "on")
     expect(fill).toHaveAttribute("data-rainbow", "on")
-    expect(fill).toHaveClass("progress-tray__fill--rainbow")
+    expect(fill).toHaveClass(
+      "animate-[progress-tray-rainbow_6s_linear_infinite]",
+    )
     expect(fill?.getAttribute("stroke")).toMatch(
       /^url\(#progress-tray-gradient-/,
     )

@@ -1,7 +1,6 @@
 import { useState } from "react"
 
 import { useDesktopMutations } from "../../app/use-desktop-mutations"
-import { Button } from "../../components/ui/button"
 import {
   type AppSnapshot,
   type DesktopApi,
@@ -16,6 +15,7 @@ import {
   selectTasksForTasksSurface,
   type TasksTab,
 } from "./tasks-model"
+import { TasksContentHeader } from "./tasks-content-header"
 import { useTaskDraftController, useTaskSurfaceRouting } from "./tasks-state"
 import { TasksSidebar } from "./tasks-sidebar"
 import { useTasksWindowIntent } from "./tasks-window-intent"
@@ -45,106 +45,17 @@ function focusLabel(snapshot: AppSnapshot, taskId: string) {
   return `Start focus for ${title}`
 }
 
-function formatSelectedDay(dateValue: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue)
-  if (!match) {
-    return "Choose a day"
-  }
-
-  const date = new Date(0)
-  date.setHours(0, 0, 0, 0)
-  date.setFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-
-  if (Number.isNaN(date.getTime())) {
-    return "Choose a day"
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    month: "long",
-    weekday: "long",
-    year: "numeric",
-  }).format(date)
-}
-
-function TasksContentHeader({
-  activeTab,
-  busy,
-  date,
-  totalCount,
-  onAdd,
-  onTabChange,
-  showAdd,
-}: {
-  activeTab: TasksTab
-  busy: boolean
-  date: string
-  totalCount: number
-  onAdd: () => void
-  onTabChange: (tab: TasksTab) => void
-  showAdd: boolean
-}) {
-  return (
-    <header
-      className="tasks-surface__content-header"
-      data-date={date}
-      data-slot="tasks-day-header"
-    >
-      <div>
-        <p className="tasks-surface__eyebrow">Selected day</p>
-        <h2>Day</h2>
-        <p className="tasks-surface__day-title" data-slot="tasks-day-title">
-          {formatSelectedDay(date)}
-        </p>
-        <p className="tasks-surface__summary">
-          {totalCount} {totalCount === 1 ? "tarefa" : "tarefas"}
-        </p>
-      </div>
-      {showAdd && (
-        <Button
-          aria-label="Add task"
-          disabled={busy}
-          onClick={onAdd}
-          type="button"
-        >
-          Add a task
-        </Button>
-      )}
-      <div
-        aria-label="Task lists"
-        className="tasks-surface__tabs"
-        role="tablist"
-      >
-        <button
-          aria-selected={activeTab === "day"}
-          className="tasks-surface__tab"
-          onClick={() => onTabChange("day")}
-          role="tab"
-          type="button"
-        >
-          Day
-        </button>
-        <button
-          aria-selected={activeTab === "unscheduled"}
-          className="tasks-surface__tab"
-          onClick={() => onTabChange("unscheduled")}
-          role="tab"
-          type="button"
-        >
-          Unscheduled
-        </button>
-      </div>
-    </header>
-  )
-}
-
 function MutationError({ error }: { error: DesktopApiError | null }) {
   if (!error) {
     return null
   }
 
   return (
-    <p className="tasks-surface__error" data-slot="tasks-error" role="alert">
+    <p
+      className="m-0 mb-3 text-[0.78rem] leading-[1.4] text-danger"
+      data-slot="tasks-error"
+      role="alert"
+    >
       Could not update tasks. Code: {error.code}.
     </p>
   )
@@ -172,7 +83,10 @@ function TasksListView({
   tasks: AppSnapshot["tasks"]
 }) {
   return (
-    <section aria-label="Tasks in selected list" className="tasks-surface__list-panel">
+    <section
+      aria-label="Tasks in selected list"
+      className="min-h-0 flex-[1_1_auto] overflow-y-auto pb-2 pr-1"
+    >
       <MutationError error={error} />
       <TaskList
         busy={busy}
@@ -212,14 +126,20 @@ function TasksSurfaceContent({
   snapshot,
 }: TasksSurfaceContentProps) {
   return (
-    <main className="tasks-surface bg-canvas" data-surface="tasks">
+    <main
+      className="grid h-screen min-h-[480px] min-w-0 grid-cols-[minmax(280px,320px)_minmax(0,1fr)] gap-6 overflow-hidden bg-canvas p-6 text-content max-[640px]:h-auto max-[640px]:min-h-screen max-[640px]:grid-cols-1 max-[640px]:overflow-visible"
+      data-surface="tasks"
+    >
       <TasksSidebar
         busy={mutations.busy}
         onDateChange={setSelectedDate}
         onOpenSettings={actions.openSettings}
         selectedDate={selectedDate}
       />
-      <section className="tasks-surface__content" data-slot="tasks-content">
+      <section
+        className="min-h-0 min-w-0 flex flex-col overflow-hidden pb-0 pl-0 pr-2 pt-1 max-[640px]:overflow-visible"
+        data-slot="tasks-content"
+      >
         <TasksContentHeader
           activeTab={activeTab}
           busy={mutations.busy}

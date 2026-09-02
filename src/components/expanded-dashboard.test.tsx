@@ -117,14 +117,16 @@ describe("ExpandedDashboard", () => {
 
     const title = document.querySelector('[data-slot="task-title"]')
     const activity = document.querySelector('[data-slot="activity-panel"]')
-    const grid = document.querySelector(".expanded-dashboard__grid")
+    const grid = document.querySelector(
+      '[data-slot="expanded-dashboard-grid"]',
+    )
 
     expect(title).toHaveAttribute(
       "title",
       "Review and refine the complete DailyNotch Linux focus workflow before the next implementation milestone",
     )
-    expect(activity).toHaveClass("activity-panel")
-    expect(grid).toHaveClass("expanded-dashboard__grid")
+    expect(activity).toBeInTheDocument()
+    expect(grid).toHaveClass("grid", "grid-cols-[minmax(0,1fr)_var(--expanded-dashboard-activity-width)]")
   })
 
   it("updates the timeline from the local running clock", () => {
