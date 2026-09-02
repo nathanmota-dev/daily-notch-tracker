@@ -16,9 +16,62 @@ export type CompactTaskRowProps = {
   onDragOver: (event: DragEvent<HTMLElement>) => void
   onDrop: (event: DragEvent<HTMLElement>) => void
   onOpenTask: (taskId: string) => void
+  busy?: boolean
+}
+
+function TaskBody({
+  busy,
+  onOpenTask,
+  task,
+}: Pick<CompactTaskRowProps, "busy" | "onOpenTask" | "task">) {
+  const isBusy = busy ?? false
+
+  return (
+    <div
+      aria-label={"Open details for " + task.title}
+      aria-disabled={isBusy || undefined}
+      className="expanded-task-row__body"
+      data-slot="task-body"
+      onClick={() => {
+        if (!isBusy) {
+          onOpenTask(task.id)
+        }
+      }}
+      onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+        if (isBusy) {
+          return
+        }
+
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault()
+          onOpenTask(task.id)
+        }
+      }}
+      role="button"
+      tabIndex={isBusy ? -1 : 0}
+    >
+      <span
+        className="expanded-task-row__title"
+        data-slot="task-title"
+        title={task.title}
+      >
+        {task.title}
+      </span>
+      <span className="expanded-task-row__meta">
+        <span data-slot="task-notes">{task.notes || "No note"}</span>
+        <span aria-hidden="true" className="expanded-task-row__meta-dot">
+          ·
+        </span>
+        <span data-slot="task-duration">
+          {formatTaskDuration(task.estimateMinutes)}
+        </span>
+      </span>
+    </div>
+  )
 }
 
 export function CompactTaskRow({
+  busy,
   focus,
   onDragEnd,
   onDragOver,
@@ -29,8 +82,10 @@ export function CompactTaskRow({
   onToggleTask,
   task,
 }: CompactTaskRowProps) {
+  const isBusy = busy ?? false
+  const canFocus = !task.isDone
   const isFocused =
-    focus.activeTaskId === task.id && focus.state !== "idle"
+    canFocus && focus.activeTaskId === task.id && focus.state !== "idle"
   const focusActionLabel = isFocused
     ? focus.state === "paused"
       ? "Resume focus for " + task.title
@@ -49,6 +104,7 @@ export function CompactTaskRow({
       onDrop={onDrop}
     >
       <DragHandle
+        disabled={isBusy}
         onReorderEnd={onDragEnd}
         onReorderStart={onReorderStart}
         taskId={task.id}
@@ -56,8 +112,13 @@ export function CompactTaskRow({
       />
 
       <Checkbox
-        aria-label={"Mark " + task.title + " as complete"}
+        aria-label={
+          task.isDone
+            ? "Mark " + task.title + " as incomplete"
+            : "Mark " + task.title + " as complete"
+        }
         checked={task.isDone}
+        disabled={isBusy}
         onCheckedChange={(checked) => {
           if (typeof checked === "boolean") {
             onToggleTask(task.id, checked)
@@ -65,42 +126,13 @@ export function CompactTaskRow({
         }}
       />
 
-      <div
-        aria-label={"Open details for " + task.title}
-        className="expanded-task-row__body"
-        data-slot="task-body"
-        onClick={() => onOpenTask(task.id)}
-        onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault()
-            onOpenTask(task.id)
-          }
-        }}
-        role="button"
-        tabIndex={0}
-      >
-        <span
-          className="expanded-task-row__title"
-          data-slot="task-title"
-          title={task.title}
-        >
-          {task.title}
-        </span>
-        <span className="expanded-task-row__meta">
-          <span data-slot="task-notes">{task.notes || "No note"}</span>
-          <span aria-hidden="true" className="expanded-task-row__meta-dot">
-            ·
-          </span>
-          <span data-slot="task-duration">
-            {formatTaskDuration(task.estimateMinutes)}
-          </span>
-        </span>
-      </div>
+      <TaskBody busy={isBusy} onOpenTask={onOpenTask} task={task} />
 
       <IconButton
         aria-label={focusActionLabel}
         className="expanded-task-row__focus-button"
         data-slot="task-focus-toggle"
+        disabled={isBusy || !canFocus}
         onClick={() => onToggleFocus(task.id)}
         size="sm"
         type="button"

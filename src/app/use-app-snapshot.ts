@@ -12,6 +12,7 @@ import {
   snapshotStoreReducer,
   type SnapshotStoreState,
 } from "./snapshot-store"
+import { useSnapshotResync } from "./use-snapshot-resync"
 
 const snapshotEventNames = [
   "focus-changed",
@@ -52,6 +53,13 @@ export function useAppSnapshot(api: DesktopApi): {
       throw normalizeDesktopApiError(error, "getSnapshot")
     }
   }, [api, applySnapshot])
+
+  useSnapshotResync({
+    active:
+      state.status === "ready" && state.snapshot.focus.state !== "idle",
+    enabled: state.status === "ready",
+    refreshSnapshot,
+  })
 
   useEffect(() => {
     let active = true

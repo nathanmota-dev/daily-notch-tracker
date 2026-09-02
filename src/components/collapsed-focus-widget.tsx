@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react"
-
 import { ClockIcon, PauseIcon } from "../icons"
 import type { FocusSettings, FocusSnapshot } from "../lib/desktopApi"
 import { cn } from "../lib/utils"
@@ -8,45 +6,22 @@ import {
   deriveCollapsedFocusPresentation,
   formatFocusTime,
 } from "./collapsed-focus"
-
-const PRESENTATION_TICK_MS = 250
+import { useFocusCountdown } from "./use-focus-countdown"
 
 export type CollapsedFocusWidgetProps = {
   focus: FocusSnapshot
   settings: Pick<FocusSettings, "minimalMode" | "rainbowTimeline" | "showTimeline">
   className?: string
-}
-
-function usePresentationNow(focus: FocusSnapshot) {
-  const [now, setNow] = useState(() => Date.now())
-  const endAt = focus.endAt ? Date.parse(focus.endAt) : Number.NaN
-  const hasPresentationTime =
-    focus.state === "running" &&
-    (!Number.isFinite(endAt) || endAt > now)
-
-  useEffect(() => {
-    if (!hasPresentationTime) {
-      return
-    }
-
-    setNow(Date.now())
-    const interval = window.setInterval(
-      () => setNow(Date.now()),
-      PRESENTATION_TICK_MS,
-    )
-
-    return () => window.clearInterval(interval)
-  }, [hasPresentationTime])
-
-  return now
+  now?: Date | number
 }
 
 export function CollapsedFocusWidget({
   className,
   focus,
+  now: controlledNow,
   settings,
 }: CollapsedFocusWidgetProps) {
-  const now = usePresentationNow(focus)
+  const { now } = useFocusCountdown(focus, { now: controlledNow })
   const presentation = deriveCollapsedFocusPresentation(focus, settings, now)
 
   if (!presentation.isVisible) {

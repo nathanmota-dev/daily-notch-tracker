@@ -28,6 +28,7 @@ type UseDashboardActionsOptions = {
 
 type UseDashboardActionsResult = {
   callbacks: DashboardActionCallbacks
+  busy: boolean
   error: DesktopApiError | null
 }
 
@@ -38,7 +39,7 @@ export function useDashboardActions({
   refreshSnapshot,
   snapshot,
 }: UseDashboardActionsOptions): UseDashboardActionsResult {
-  const { error, runMutation } = useDesktopMutations({
+  const { busy, error, runMutation } = useDesktopMutations({
     applySnapshot,
     refreshSnapshot,
   })
@@ -109,6 +110,7 @@ export function useDashboardActions({
   )
 
   return {
+    busy,
     callbacks: {
       onAddTask,
       onOpenTask,

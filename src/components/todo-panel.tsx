@@ -16,12 +16,14 @@ export type TodoPanelProps = {
   onOpenTasks: () => void
   onOpenTask: (taskId: string) => void
   onReorder: (taskIds: string[]) => void
+  busy?: boolean
   dashboardError?: DesktopApiError | null
 }
 
 type TodoTaskListProps = Pick<
   TodoPanelProps,
   | "focus"
+  | "busy"
   | "onOpenTask"
   | "onReorder"
   | "onToggleFocus"
@@ -30,6 +32,7 @@ type TodoTaskListProps = Pick<
 >
 
 function TodoTaskList({
+  busy = false,
   focus,
   onOpenTask,
   onReorder,
@@ -38,24 +41,20 @@ function TodoTaskList({
   tasks,
 }: TodoTaskListProps) {
   const taskIds = tasks.map((task) => task.id)
-  const {
-    handleDragOver,
-    handleDrop,
-    onReorderEnd,
-    onReorderStart,
-  } = useTaskReorder({ onReorder, taskIds })
+  const taskReorder = useTaskReorder({ disabled: busy, onReorder, taskIds })
 
   return (
     <div className="todo-panel__task-list">
       {tasks.map((task) => (
         <CompactTaskRow
+          busy={busy}
           focus={focus}
           key={task.id}
-          onDragEnd={onReorderEnd}
-          onDragOver={handleDragOver}
-          onDrop={(event) => handleDrop(event, task.id)}
+          onDragEnd={taskReorder.onReorderEnd}
+          onDragOver={taskReorder.handleDragOver}
+          onDrop={(event) => taskReorder.handleDrop(event, task.id)}
           onOpenTask={onOpenTask}
-          onReorderStart={onReorderStart}
+          onReorderStart={taskReorder.onReorderStart}
           onToggleFocus={onToggleFocus}
           onToggleTask={onToggleTask}
           task={task}
@@ -66,6 +65,7 @@ function TodoTaskList({
 }
 
 export function TodoPanel({
+  busy = false,
   focus,
   dashboardError = null,
   onAddTask,
@@ -94,6 +94,7 @@ export function TodoPanel({
           aria-label="Open Tasks"
           className="todo-panel__open-button"
           data-slot="open-tasks"
+          disabled={busy}
           onClick={onOpenTasks}
           size="sm"
           title="Open Tasks"
@@ -121,6 +122,7 @@ export function TodoPanel({
             aria-label="Add your first task"
             className="todo-panel__empty"
             data-slot="todo-empty"
+            disabled={busy}
             onClick={onAddTask}
             type="button"
           >
@@ -129,6 +131,7 @@ export function TodoPanel({
           </button>
         ) : (
           <TodoTaskList
+            busy={busy}
             focus={focus}
             onOpenTask={onOpenTask}
             onReorder={onReorder}
@@ -142,6 +145,7 @@ export function TodoPanel({
       <Button
         className="todo-panel__add-button"
         data-slot="add-task"
+        disabled={busy}
         onClick={onAddTask}
         type="button"
         variant="ghost"
