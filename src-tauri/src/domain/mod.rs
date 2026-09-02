@@ -5,11 +5,16 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use uuid::Uuid;
 
+pub mod focus;
 pub mod session;
 pub mod settings;
 pub mod streak;
 pub mod task;
 
+pub use focus::{
+    validate_duration_seconds, StartFocusInput, MAX_FOCUS_DURATION_SECONDS,
+    MIN_FOCUS_DURATION_SECONDS,
+};
 pub use session::{
     activity_by_local_date, activity_by_offset, local_date, total_focused_seconds, FocusSession,
 };

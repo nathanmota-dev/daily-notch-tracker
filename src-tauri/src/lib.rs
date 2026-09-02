@@ -12,8 +12,8 @@ pub use commands::greet;
 pub use domain::{
     AppDiagnostics, AppError, AppErrorCode, AppSnapshot, AutostartDiagnostic, CreateTaskInput,
     DomainResult, FocusSession, FocusSettings, FocusSettingsPatch, FocusSnapshot, FocusState,
-    IntegrationStatus, MoveTasksInput, ShortcutDiagnostic, ShortcutStatus, Task, TaskBucket,
-    TasksWindowIntent, UpdateTaskInput, WindowPlacementSnapshot,
+    IntegrationStatus, MoveTasksInput, ShortcutDiagnostic, ShortcutStatus, StartFocusInput, Task,
+    TaskBucket, TasksWindowIntent, UpdateTaskInput, WindowPlacementSnapshot,
 };
 pub use services::FocusScheduler;
 pub use state::AppState;
@@ -60,6 +60,7 @@ pub fn run() {
             commands::get_app_diagnostics,
             commands::set_autostart,
             commands::open_tasks_window,
+            commands::close_tasks_window,
             commands::open_settings_window,
             commands::open_external_release,
         ])

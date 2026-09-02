@@ -7,7 +7,11 @@ import type {
   DesktopEventName,
   DesktopUnlisten,
 } from "./api"
-import type { DesktopCommandMap, DesktopEventMap } from "./contracts"
+import type {
+  DesktopCommandMap,
+  DesktopEventMap,
+  StartFocusInput,
+} from "./contracts"
 import { normalizeDesktopApiError } from "./errors"
 
 export interface TauriTransport {
@@ -25,6 +29,18 @@ const defaultTauriTransport: TauriTransport = {
 }
 
 type DesktopCommandName = keyof DesktopCommandMap
+
+type StartFocusRequest = StartFocusInput | string | null
+
+function normalizeStartFocusInput(input: StartFocusRequest): StartFocusInput {
+  if (typeof input === "object" && input !== null) {
+    return input
+  }
+
+  // Keep callers compiled against the original task-id-only API compatible;
+  // Rust applies the null custom-duration default when the field is absent.
+  return { taskId: input } as StartFocusInput
+}
 
 export function isTauriRuntime() {
   return isTauri()
@@ -70,7 +86,12 @@ export function createTauriDesktopApi(
     deleteTask: (taskId) => execute("deleteTask", "delete_task", { taskId }),
     toggleTask: (taskId) => execute("toggleTask", "toggle_task", { taskId }),
     moveTasks: (input) => execute("moveTasks", "move_tasks", { input }),
-    startFocus: (taskId) => execute("startFocus", "start_focus", { taskId }),
+    startFocus: (input) =>
+      execute(
+        "startFocus",
+        "start_focus",
+        normalizeStartFocusInput(input),
+      ),
     pauseFocus: () => execute("pauseFocus", "pause_focus", undefined),
     resumeFocus: () => execute("resumeFocus", "resume_focus", undefined),
     stopFocus: () => execute("stopFocus", "stop_focus", undefined),
@@ -85,6 +106,8 @@ export function createTauriDesktopApi(
       execute("openTasksWindow", "open_tasks_window", {
         intent: intent ?? null,
       }),
+    closeTasksWindow: () =>
+      execute("closeTasksWindow", "close_tasks_window", undefined),
     openSettingsWindow: () =>
       execute("openSettingsWindow", "open_settings_window", undefined),
     openExternalRelease: (url) =>

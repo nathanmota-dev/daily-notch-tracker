@@ -7,6 +7,8 @@ import {
   type TasksWindowIntent,
 } from "../lib/desktopApi"
 import { getLocalDateString } from "../lib/local-date"
+import { useFocusSessionFlow } from "../components/use-focus-session-flow"
+import type { FocusSessionPickerProps } from "../components/focus-session-picker"
 import { useDesktopMutations } from "./use-desktop-mutations"
 
 type DashboardActionCallbacks = {
@@ -16,6 +18,7 @@ type DashboardActionCallbacks = {
   onOpenTasks: () => void
   onOpenTask: (taskId: string) => void
   onReorder: (taskIds: string[]) => void
+  focusSessionPicker: FocusSessionPickerProps
 }
 
 type UseDashboardActionsOptions = {
@@ -43,6 +46,13 @@ export function useDashboardActions({
     applySnapshot,
     refreshSnapshot,
   })
+  const focusSession = useFocusSessionFlow({
+    api,
+    mutationBusy: busy,
+    mutationError: error,
+    runMutation,
+    snapshot,
+  })
 
   const onToggleTask = useCallback(
     (taskId: string) => {
@@ -53,22 +63,9 @@ export function useDashboardActions({
 
   const onToggleFocus = useCallback(
     (taskId: string) => {
-      const focus = snapshot?.focus
-      const isActiveTask = focus?.activeTaskId === taskId
-
-      if (isActiveTask && focus?.state === "running") {
-        void runMutation("pauseFocus", () => api.pauseFocus())
-        return
-      }
-
-      if (isActiveTask && focus?.state === "paused") {
-        void runMutation("resumeFocus", () => api.resumeFocus())
-        return
-      }
-
-      void runMutation("startFocus", () => api.startFocus(taskId))
+      focusSession.requestFocus(taskId)
     },
-    [api, runMutation, snapshot],
+    [focusSession],
   )
 
   const openTasksWindow = useCallback(
@@ -118,6 +115,7 @@ export function useDashboardActions({
       onReorder,
       onToggleFocus,
       onToggleTask,
+      focusSessionPicker: focusSession.picker,
     },
     error,
   }

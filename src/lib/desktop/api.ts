@@ -5,6 +5,7 @@ import type {
   DesktopEventMap,
   FocusSettingsPatch,
   MoveTasksInput,
+  StartFocusInput,
   TasksWindowIntent,
   UpdateTaskInput,
 } from "./contracts"
@@ -22,6 +23,8 @@ export interface DesktopApi {
   deleteTask(taskId: string): Promise<AppSnapshot>
   toggleTask(taskId: string): Promise<AppSnapshot>
   moveTasks(input: MoveTasksInput): Promise<AppSnapshot>
+  startFocus(input: StartFocusInput): Promise<AppSnapshot>
+  /** @deprecated Pass the complete duration payload instead. */
   startFocus(taskId: string | null): Promise<AppSnapshot>
   pauseFocus(): Promise<AppSnapshot>
   resumeFocus(): Promise<AppSnapshot>
@@ -31,6 +34,7 @@ export interface DesktopApi {
   getAppDiagnostics(): Promise<AppDiagnostics>
   setAutostart(enabled: boolean): Promise<AppSnapshot>
   openTasksWindow(intent?: TasksWindowIntent): Promise<void>
+  closeTasksWindow(): Promise<void>
   openSettingsWindow(): Promise<void>
   openExternalRelease(url: string): Promise<void>
   subscribe<EventName extends DesktopEventName>(

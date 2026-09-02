@@ -104,6 +104,11 @@ export const desktopOperationErrorCodes = {
     "command-unavailable",
     "internal",
   ],
+  closeTasksWindow: [
+    "integration-unavailable",
+    "command-unavailable",
+    "internal",
+  ],
   openSettingsWindow: [
     "integration-unavailable",
     "command-unavailable",

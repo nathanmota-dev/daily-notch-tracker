@@ -1,3 +1,7 @@
+import type { StartFocusInput } from "./focus-contracts"
+
+export type { StartFocusInput } from "./focus-contracts"
+
 export type IsoDateString = string
 export type IsoDateTimeString = string
 
@@ -149,7 +153,7 @@ export type DesktopCommandMap = {
     result: AppSnapshot
   }
   start_focus: {
-    args: { taskId: string | null }
+    args: StartFocusInput
     result: AppSnapshot
   }
   pause_focus: {
@@ -182,6 +186,10 @@ export type DesktopCommandMap = {
   }
   open_tasks_window: {
     args: { intent: TasksWindowIntent | null }
+    result: void
+  }
+  close_tasks_window: {
+    args: undefined
     result: void
   }
   open_settings_window: {

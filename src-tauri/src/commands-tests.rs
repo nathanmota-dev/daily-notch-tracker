@@ -6,8 +6,8 @@ use std::time::{Duration as StdDuration, Instant};
 
 use super::*;
 use crate::domain::{
-    CreateTaskInput, FocusSettingsPatch, MoveTasksInput, TaskBucket, TasksWindowIntent,
-    UpdateTaskInput,
+    CreateTaskInput, FocusSettingsPatch, MoveTasksInput, StartFocusInput, TaskBucket,
+    TasksWindowIntent, UpdateTaskInput,
 };
 use crate::services::FocusScheduler;
 use crate::state::AppState;
@@ -78,6 +78,9 @@ fn release_url_validation_requires_an_https_host() {
     assert!(is_allowed_release_url("https://github.com/example/release"));
     assert!(!is_allowed_release_url("http://github.com/example/release"));
     assert!(!is_allowed_release_url("https://release"));
+    assert!(!is_allowed_release_url(
+        " https://github.com/example/release"
+    ));
 }
 
 #[test]
@@ -136,8 +139,11 @@ fn state_commands_share_the_managed_state_and_emit_snapshots() {
     ))
     .expect("task should move");
 
-    tauri::async_runtime::block_on(start_focus(handle.clone(), Some(task_id.to_string())))
-        .expect("task focus should start");
+    tauri::async_runtime::block_on(start_focus(
+        handle.clone(),
+        StartFocusInput::without_custom_duration(Some(task_id.to_string())),
+    ))
+    .expect("task focus should start");
     tauri::async_runtime::block_on(pause_focus(handle.clone())).expect("focus should pause");
     tauri::async_runtime::block_on(resume_focus(handle.clone())).expect("focus should resume");
     tauri::async_runtime::block_on(stop_focus(handle.clone())).expect("focus should stop");
