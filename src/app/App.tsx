@@ -46,6 +46,7 @@ type AppShellProps = {
   snapshot: AppSnapshot
   presentationMode?: PresentationMode
   overlayWindowAdapter?: OverlayWindowAdapter | null
+  busy?: boolean
   dashboardError?: DesktopApiError | null
 } & PresentationCallbacks
 
@@ -55,6 +56,7 @@ type SurfaceRenderOptions = {
 }
 
 export function AppShell({
+  busy = false,
   presentationMode = "collapsed",
   snapshot,
   overlayWindowAdapter,
@@ -93,6 +95,7 @@ export function AppShell({
       >
         {isExpanded ? (
           <ExpandedDashboard
+            busy={busy}
             dashboardError={dashboardError}
             snapshot={snapshot}
             {...callbacks}
@@ -114,6 +117,7 @@ function renderSurface(
   presentationMode: PresentationMode,
   callbacks: PresentationCallbacks,
   dashboardError: DesktopApiError | null,
+  dashboardBusy: boolean,
   overlayWindowAdapter?: OverlayWindowAdapter | null,
   api?: DesktopApi,
   snapshotOptions?: SurfaceRenderOptions,
@@ -123,6 +127,7 @@ function renderSurface(
       <AppShell
         overlayWindowAdapter={overlayWindowAdapter}
         presentationMode={presentationMode}
+        busy={dashboardBusy}
         dashboardError={dashboardError}
         snapshot={snapshot}
         {...callbacks}
@@ -188,6 +193,7 @@ export function App({
     presentationMode,
     { ...dashboardActions.callbacks, ...callbacks },
     dashboardActions.error,
+    dashboardActions.busy,
     overlayWindowAdapter,
     api,
     { applySnapshot, refreshSnapshot },

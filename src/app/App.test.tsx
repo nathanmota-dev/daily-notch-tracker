@@ -460,6 +460,111 @@ describe("App", () => {
     await waitFor(() => expect(startFocus).toHaveBeenCalledWith("expanded-task-2"))
   })
 
+  it("lets Rust focus events drive running, paused, and idle presentation", async () => {
+    const now = Date.now()
+    const runningSnapshot = createCollapsedWidgetFixtureSnapshot("running", now)
+    const pausedSnapshot = {
+      ...runningSnapshot,
+      revision: runningSnapshot.revision + 1,
+      focus: {
+        ...runningSnapshot.focus,
+        state: "paused" as const,
+        endAt: null,
+        pausedRemainingMs: 30_000,
+      },
+    }
+    const completedSnapshot = {
+      ...pausedSnapshot,
+      revision: pausedSnapshot.revision + 1,
+      focus: createEmptyAppSnapshot().focus,
+      sessions: [
+        {
+          id: "session-1",
+          taskId: runningSnapshot.focus.activeTaskId,
+          startedAt: new Date(now - 60_000).toISOString(),
+          endedAt: new Date(now).toISOString(),
+          focusedSeconds: 60,
+          completed: true,
+        },
+      ],
+    }
+    const controller = createMockDesktopApi({ snapshot: runningSnapshot })
+
+    render(<App api={controller.api} />)
+    await screen.findByRole("group", { name: "Foco em andamento" })
+
+    act(() => controller.emit("focus-changed", pausedSnapshot))
+    expect(
+      await screen.findByRole("group", { name: "Foco pausado" }),
+    ).toHaveAttribute("data-state", "paused")
+
+    act(() => controller.emit("focus-changed", completedSnapshot))
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-slot="collapsed-focus-widget"]'),
+      ).toHaveAttribute("data-state", "idle"),
+    )
+  })
+
+  it("propagates dashboard busy state and keeps rapid commands single-flight", async () => {
+    const initialSnapshot = createExpandedDashboardFixtureSnapshot(
+      "expanded",
+      Date.now(),
+    )
+    const updatedSnapshot = {
+      ...initialSnapshot,
+      revision: initialSnapshot.revision + 1,
+      tasks: initialSnapshot.tasks.map((task, index) =>
+        index === 0 ? { ...task, isDone: true } : task,
+      ),
+    }
+    let resolveToggle: ((snapshot: AppSnapshot) => void) | undefined
+    const toggleTask = vi.fn(
+      () =>
+        new Promise<AppSnapshot>((resolve) => {
+          resolveToggle = resolve
+        }),
+    )
+    const controller = createMockDesktopApi({
+      handlers: { toggleTask },
+      snapshot: initialSnapshot,
+    })
+
+    render(
+      <App
+        api={controller.api}
+        presentationMode="expanded"
+      />,
+    )
+
+    await screen.findByRole("region", { name: "Expanded dashboard" })
+    const checkbox = screen.getByRole("checkbox", {
+      name: "Mark Plan the next focused block as complete",
+    })
+    fireEvent.click(checkbox)
+    fireEvent.click(checkbox)
+
+    await waitFor(() => expect(toggleTask).toHaveBeenCalledOnce())
+    expect(checkbox).toHaveAttribute("data-disabled", "")
+    expect(screen.getByRole("button", { name: "Open Tasks" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Add a task" })).toBeDisabled()
+    expect(
+      screen.getByRole("button", {
+        name: "Start focus for Plan the next focused block",
+      }),
+    ).toBeDisabled()
+
+    await act(async () => {
+      resolveToggle?.(updatedSnapshot)
+    })
+
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-task-id="expanded-task-1"]'),
+      ).toHaveAttribute("data-completed", "true"),
+    )
+  })
+
   it("sends list, add, and task intents to the Tasks window", async () => {
     const snapshot = createExpandedDashboardFixtureSnapshot("expanded", Date.now())
     const openTasksWindow = vi.fn(async (intent?: TasksWindowIntent) => {

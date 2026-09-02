@@ -8,6 +8,7 @@ import {
   getExpandedDashboardProgress,
   selectTasksForDashboard,
 } from "./expanded-dashboard-model"
+import { useFocusCountdown } from "./use-focus-countdown"
 
 export type ExpandedDashboardCallbacks = {
   onToggleTask: (taskId: string, isDone: boolean) => void
@@ -21,6 +22,7 @@ export type ExpandedDashboardCallbacks = {
 export type ExpandedDashboardProps = {
   snapshot: AppSnapshot
   className?: string
+  busy?: boolean
   dashboardError?: DesktopApiError | null
   now?: Date | number
 } & Partial<ExpandedDashboardCallbacks>
@@ -30,6 +32,7 @@ const noopTask = (taskId: string) => void taskId
 const noopReorder = (taskIds: string[]) => void taskIds
 
 export function ExpandedDashboard({
+  busy = false,
   className,
   onAddTask = noop,
   onOpenTasks = noop,
@@ -41,7 +44,8 @@ export function ExpandedDashboard({
   now,
   snapshot,
 }: ExpandedDashboardProps) {
-  const orderedTasks = selectTasksForDashboard(snapshot.tasks, now)
+  const countdown = useFocusCountdown(snapshot.focus, { now })
+  const orderedTasks = selectTasksForDashboard(snapshot.tasks, countdown.now)
 
   return (
     <ProgressTray
@@ -49,7 +53,7 @@ export function ExpandedDashboard({
       className={cn("expanded-dashboard", className)}
       data-focus-state={snapshot.focus.state}
       data-slot="expanded-dashboard-tray"
-      progress={getExpandedDashboardProgress(snapshot.focus)}
+      progress={getExpandedDashboardProgress(snapshot.focus, countdown.now)}
       rainbowTimeline={snapshot.settings.rainbowTimeline}
       showTimeline
     >
@@ -62,6 +66,7 @@ export function ExpandedDashboard({
       >
         <div className="expanded-dashboard__grid">
           <TodoPanel
+            busy={busy}
             dashboardError={dashboardError}
             focus={snapshot.focus}
             onAddTask={onAddTask}

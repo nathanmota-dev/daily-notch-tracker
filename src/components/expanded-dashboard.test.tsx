@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { vi } from "vitest"
 
@@ -111,6 +111,38 @@ describe("ExpandedDashboard", () => {
     )
     expect(activity).toHaveClass("activity-panel")
     expect(grid).toHaveClass("expanded-dashboard__grid")
+  })
+
+  it("updates the timeline from the local running clock", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(FIXTURE_NOW)
+
+    try {
+      const snapshot = createExpandedDashboardFixtureSnapshot(
+        "expanded",
+        FIXTURE_NOW,
+      )
+      snapshot.focus = {
+        ...snapshot.focus,
+        state: "running",
+        activeTaskId: "expanded-task-1",
+        activeTaskTitle: snapshot.tasks[0]?.title ?? null,
+        startedAt: new Date(FIXTURE_NOW).toISOString(),
+        endAt: new Date(FIXTURE_NOW + 60_000).toISOString(),
+        totalMs: 60_000,
+      }
+
+      render(<ExpandedDashboard snapshot={snapshot} />)
+      const tray = document.querySelector('[data-slot="progress-tray"]')
+
+      expect(tray).toHaveAttribute("data-progress", "0")
+
+      act(() => vi.advanceTimersByTime(1_000))
+
+      expect(tray).toHaveAttribute("data-progress", "0.016666666666666666")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -405,5 +437,85 @@ describe("ExpandedDashboard callbacks", () => {
     )
 
     expect(onAddTask).toHaveBeenCalledOnce()
+  })
+
+  it("blocks focus for completed tasks", async () => {
+    const onToggleFocus = vi.fn()
+
+    render(
+      <ExpandedDashboard
+        onToggleFocus={onToggleFocus}
+        now={FIXTURE_NOW}
+        snapshot={createExpandedDashboardFixtureSnapshot(
+          "expanded-completed",
+          FIXTURE_NOW,
+        )}
+      />,
+    )
+
+    const focusButton = screen.getByRole("button", {
+      name: "Start focus for Ship the completed dashboard draft",
+    })
+
+    expect(focusButton).toBeDisabled()
+    await userEvent.setup().click(focusButton)
+    expect(onToggleFocus).not.toHaveBeenCalled()
+  })
+
+  it("disables dashboard actions while a command is busy", async () => {
+    const onAddTask = vi.fn()
+    const onOpenTasks = vi.fn()
+    const onOpenTask = vi.fn()
+    const onToggleFocus = vi.fn()
+    const onToggleTask = vi.fn()
+    const onReorder = vi.fn()
+
+    render(
+      <ExpandedDashboard
+        busy
+        onAddTask={onAddTask}
+        onOpenTask={onOpenTask}
+        onOpenTasks={onOpenTasks}
+        onReorder={onReorder}
+        onToggleFocus={onToggleFocus}
+        onToggleTask={onToggleTask}
+        now={FIXTURE_NOW}
+        snapshot={createExpandedDashboardFixtureSnapshot(
+          "expanded",
+          FIXTURE_NOW,
+        )}
+      />,
+    )
+
+    expect(screen.getByRole("button", { name: "Open Tasks" })).toBeDisabled()
+    expect(screen.getByRole("button", { name: "Add a task" })).toBeDisabled()
+    expect(
+      screen.getByRole("checkbox", {
+        name: "Mark Plan the next focused block as complete",
+      }),
+    ).toHaveAttribute("data-disabled", "")
+    expect(
+      screen.getByRole("button", {
+        name: "Start focus for Plan the next focused block",
+      }),
+    ).toBeDisabled()
+    expect(
+      screen.getByRole("button", {
+        name: "Reorder Plan the next focused block",
+      }),
+    ).toBeDisabled()
+
+    const body = screen.getByRole("button", {
+      name: "Open details for Plan the next focused block",
+    })
+    expect(body).toHaveAttribute("aria-disabled", "true")
+
+    await userEvent.setup().click(body)
+    expect(onOpenTask).not.toHaveBeenCalled()
+    expect(onAddTask).not.toHaveBeenCalled()
+    expect(onOpenTasks).not.toHaveBeenCalled()
+    expect(onToggleFocus).not.toHaveBeenCalled()
+    expect(onToggleTask).not.toHaveBeenCalled()
+    expect(onReorder).not.toHaveBeenCalled()
   })
 })
