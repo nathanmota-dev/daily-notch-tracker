@@ -1,5 +1,6 @@
 import { useState } from "react"
 
+import { useDesktopMutations } from "../../app/use-desktop-mutations"
 import { Button } from "../../components/ui/button"
 import {
   type AppSnapshot,
@@ -8,7 +9,6 @@ import {
   type TasksWindowIntent,
 } from "../../lib/desktopApi"
 import { getLocalDateString } from "../../lib/local-date"
-import { useDesktopMutations } from "../../app/use-desktop-mutations"
 import { createTaskSurfaceActions } from "./tasks-actions"
 import { TaskForm } from "./task-form"
 import { TaskList } from "./task-list"
@@ -17,6 +17,7 @@ import {
   type TasksTab,
 } from "./tasks-model"
 import { useTaskDraftController, useTaskSurfaceRouting } from "./tasks-state"
+import { TasksSidebar } from "./tasks-sidebar"
 import { useTasksWindowIntent } from "./tasks-window-intent"
 
 export type TasksSurfaceProps = {
@@ -44,13 +45,34 @@ function focusLabel(snapshot: AppSnapshot, taskId: string) {
   return `Start focus for ${title}`
 }
 
-function TaskSurfaceHeader({
+function formatSelectedDay(dateValue: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue)
+  if (!match) {
+    return "Choose a day"
+  }
+
+  const date = new Date(0)
+  date.setHours(0, 0, 0, 0)
+  date.setFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
+
+  if (Number.isNaN(date.getTime())) {
+    return "Choose a day"
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "long",
+    weekday: "long",
+    year: "numeric",
+  }).format(date)
+}
+
+function TasksContentHeader({
   activeTab,
   busy,
   date,
   totalCount,
   onAdd,
-  onDateChange,
   onTabChange,
 }: {
   activeTab: TasksTab
@@ -58,22 +80,37 @@ function TaskSurfaceHeader({
   date: string
   totalCount: number
   onAdd: () => void
-  onDateChange: (date: string) => void
   onTabChange: (tab: TasksTab) => void
 }) {
   return (
-    <header className="tasks-surface__header">
+    <header
+      className="tasks-surface__content-header"
+      data-date={date}
+      data-slot="tasks-day-header"
+    >
       <div>
-        <p className="tasks-surface__eyebrow">DailyNotch Linux</p>
-        <h1>Tasks</h1>
+        <p className="tasks-surface__eyebrow">Selected day</p>
+        <h2>Day</h2>
+        <p className="tasks-surface__day-title" data-slot="tasks-day-title">
+          {formatSelectedDay(date)}
+        </p>
         <p className="tasks-surface__summary">
           {totalCount} {totalCount === 1 ? "tarefa" : "tarefas"}
         </p>
       </div>
-      <Button disabled={busy} onClick={onAdd} type="button">
-        Add task
+      <Button
+        aria-label="Add task"
+        disabled={busy}
+        onClick={onAdd}
+        type="button"
+      >
+        Add a task
       </Button>
-      <div aria-label="Task lists" className="tasks-surface__tabs" role="tablist">
+      <div
+        aria-label="Task lists"
+        className="tasks-surface__tabs"
+        role="tablist"
+      >
         <button
           aria-selected={activeTab === "day"}
           className="tasks-surface__tab"
@@ -92,17 +129,6 @@ function TaskSurfaceHeader({
         >
           Unscheduled
         </button>
-        {activeTab === "day" && (
-          <label className="tasks-surface__date-label">
-            <span>Day</span>
-            <input
-              aria-label="Selected day"
-              onChange={(event) => onDateChange(event.currentTarget.value)}
-              type="date"
-              value={date}
-            />
-          </label>
-        )}
       </div>
     </header>
   )
@@ -183,60 +209,71 @@ function TasksSurfaceContent({
 }: TasksSurfaceContentProps) {
   return (
     <main className="tasks-surface bg-canvas" data-surface="tasks">
-      <TaskSurfaceHeader
-        activeTab={activeTab}
+      <TasksSidebar
         busy={mutations.busy}
-        date={selectedDate}
-        onAdd={actions.openAdd}
         onDateChange={setSelectedDate}
-        onTabChange={setActiveTab}
-        totalCount={snapshot.tasks.length}
+        onOpenSettings={actions.openSettings}
+        selectedDate={selectedDate}
       />
-      {(routing.panel === "create" || routing.panel === "detail") && (
-        <MutationError error={mutations.error} />
-      )}
-      {routing.panel === "create" || routing.panel === "detail" ? (
-        <TaskForm
+      <section className="tasks-surface__content" data-slot="tasks-content">
+        <TasksContentHeader
+          activeTab={activeTab}
           busy={mutations.busy}
-          draft={draftController.draft}
-          errors={draftController.draftErrors}
-          focusActionLabel={
-            routing.panel === "detail" && routing.selectedTaskId
-              ? focusLabel(snapshot, routing.selectedTaskId)
-              : undefined
-          }
-          mode={routing.panel === "create" ? "create" : "edit"}
-          onCancel={actions.backToList}
-          onChange={actions.updateDraft}
-          onDelete={
-            routing.panel === "detail"
-              ? actions.deleteSelectedTask
-              : undefined
-          }
-          onDoneChange={(isDone) =>
-            draftController.setDraft((current) => ({ ...current, isDone }))
-          }
-          onFocus={
-            routing.panel === "detail" && routing.selectedTaskId
-              ? () => actions.toggleFocus(routing.selectedTaskId!)
-              : undefined
-          }
-          onSubmit={actions.saveDraft}
-          titleRef={draftController.titleRef}
-        />
-      ) : (
-        <TasksListView
-          busy={mutations.busy}
-          error={mutations.error}
-          focus={snapshot.focus}
+          date={selectedDate}
           onAdd={actions.openAdd}
-          onOpenTask={actions.openTask}
-          onReorder={actions.reorder}
-          onToggleFocus={actions.toggleFocus}
-          onToggleTask={actions.toggleTask}
-          tasks={selectTasksForTasksSurface(snapshot.tasks, activeTab, selectedDate)}
+          onTabChange={setActiveTab}
+          totalCount={snapshot.tasks.length}
         />
-      )}
+        {(routing.panel === "create" || routing.panel === "detail") && (
+          <MutationError error={mutations.error} />
+        )}
+        {routing.panel === "create" || routing.panel === "detail" ? (
+          <TaskForm
+            busy={mutations.busy}
+            draft={draftController.draft}
+            errors={draftController.draftErrors}
+            focusActionLabel={
+              routing.panel === "detail" && routing.selectedTaskId
+                ? focusLabel(snapshot, routing.selectedTaskId)
+                : undefined
+            }
+            mode={routing.panel === "create" ? "create" : "edit"}
+            onCancel={actions.backToList}
+            onChange={actions.updateDraft}
+            onDelete={
+              routing.panel === "detail"
+                ? actions.deleteSelectedTask
+                : undefined
+            }
+            onDoneChange={(isDone) =>
+              draftController.setDraft((current) => ({ ...current, isDone }))
+            }
+            onFocus={
+              routing.panel === "detail" && routing.selectedTaskId
+                ? () => actions.toggleFocus(routing.selectedTaskId!)
+                : undefined
+            }
+            onSubmit={actions.saveDraft}
+            titleRef={draftController.titleRef}
+          />
+        ) : (
+          <TasksListView
+            busy={mutations.busy}
+            error={mutations.error}
+            focus={snapshot.focus}
+            onAdd={actions.openAdd}
+            onOpenTask={actions.openTask}
+            onReorder={actions.reorder}
+            onToggleFocus={actions.toggleFocus}
+            onToggleTask={actions.toggleTask}
+            tasks={selectTasksForTasksSurface(
+              snapshot.tasks,
+              activeTab,
+              selectedDate,
+            )}
+          />
+        )}
+      </section>
     </main>
   )
 }

@@ -15,6 +15,10 @@ const STORE_EVENTS: &[&str] = &["store-changed"];
 const SETTINGS_EVENTS: &[&str] = &["store-changed", "settings-changed"];
 const FOCUS_EVENTS: &[&str] = &["focus-changed"];
 const TASKS_WINDOW_INTENT_EVENT: &str = "tasks-window-intent";
+const TASKS_WINDOW_WIDTH: f64 = 960.0;
+const TASKS_WINDOW_HEIGHT: f64 = 720.0;
+const TASKS_WINDOW_MIN_WIDTH: f64 = 760.0;
+const TASKS_WINDOW_MIN_HEIGHT: f64 = 480.0;
 
 #[tauri::command]
 pub fn greet(name: &str) -> String {
@@ -242,7 +246,9 @@ fn open_tasks_window_with_intent<R: Runtime>(
             WebviewUrl::App(tasks_window_url(intent).into()),
         )
         .title("Tasks")
-        .inner_size(960.0, 720.0)
+        .inner_size(TASKS_WINDOW_WIDTH, TASKS_WINDOW_HEIGHT)
+        .min_inner_size(TASKS_WINDOW_MIN_WIDTH, TASKS_WINDOW_MIN_HEIGHT)
+        .resizable(true)
         .center()
         .build()
         .map_err(|_| {

@@ -238,6 +238,29 @@ test.describe("DailyNotch surface router", () => {
     ).toHaveAttribute("data-completed", "true")
   })
 
+  test("renders the Tasks two-column shell without ICS events", async ({
+    page,
+  }) => {
+    await page.goto("/?surface=tasks")
+
+    const tasksSurface = page.locator('[data-surface="tasks"]')
+    const sidebar = page.locator('[data-slot="tasks-sidebar"]')
+    const content = page.locator('[data-slot="tasks-content"]')
+
+    await expect(tasksSurface).toBeVisible()
+    await expect(sidebar).toBeVisible()
+    await expect(content).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Day" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Settings" })).toBeVisible()
+    await expect(
+      page.locator('[data-slot="tasks-events"]'),
+    ).toHaveCount(0)
+
+    const sidebarBox = await sidebar.boundingBox()
+    expect(sidebarBox?.width).toBe(320)
+  })
+
   for (const { label, heading } of normalSurfaces) {
     test(`renders the ${label} surface from the browser query`, async ({
       page,
