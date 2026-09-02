@@ -128,7 +128,9 @@ describe("ActivityHeatmap", () => {
     const heatmap = screen.getByRole("img", {
       name: "Activity heatmap for August 2026",
     })
-    const cells = heatmap.querySelectorAll(".activity-heatmap__cell")
+    const cells = heatmap.querySelectorAll(
+      '[data-slot="activity-heatmap-cell"]',
+    )
 
     expect(heatmap).toHaveAttribute("data-month", "2026-08")
     expect(heatmap).toHaveAttribute("data-row-count", "6")

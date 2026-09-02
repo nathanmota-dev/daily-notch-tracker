@@ -74,7 +74,7 @@ describe("App", () => {
     )
 
     expect(screen.getByRole("main")).toHaveAttribute("data-surface", "overlay")
-    expect(screen.getByRole("main")).toHaveClass("collapsed-focus-surface")
+    expect(screen.getByRole("main")).toHaveClass("grid", "w-screen")
     expect(
       document.querySelector('[data-slot="collapsed-focus-widget"]'),
     ).toHaveAttribute("data-state", "idle")
@@ -114,9 +114,7 @@ describe("App", () => {
       "data-presentation-mode",
       "expanded",
     )
-    expect(screen.getByRole("main")).toHaveClass(
-      "expanded-dashboard-surface",
-    )
+    expect(screen.getByRole("main")).toHaveClass("grid", "w-screen", "py-2")
     expect(screen.getByRole("main")).toHaveAttribute("data-resizing", "false")
     expect(
       screen.getByRole("region", { name: "Expanded dashboard" }),

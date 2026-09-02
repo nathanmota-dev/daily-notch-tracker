@@ -19,24 +19,35 @@ export function ActivityPanel({
   return (
     <aside
       aria-labelledby="expanded-dashboard-activity-title"
-      className="activity-panel"
+      className="relative w-[var(--expanded-dashboard-activity-width)] min-w-[var(--expanded-dashboard-activity-width)] pl-5"
       data-column="activity"
       data-slot="activity-panel"
     >
       <Divider
         aria-hidden="true"
-        className="activity-panel__divider"
+        className="absolute inset-y-0 left-0"
         orientation="vertical"
       />
-      <p className="activity-panel__eyebrow">Activity</p>
-      <div className="activity-panel__heading">
-        <h2 id="expanded-dashboard-activity-title">Journey Streak</h2>
-        <strong aria-label={`${streak} day streak`} data-slot="streak-count">
+      <p className="m-0 mb-[5px] text-[0.65rem] font-semibold uppercase leading-[1.2] tracking-[0.12em] text-muted">
+        Activity
+      </p>
+      <div className="flex items-baseline justify-between gap-2">
+        <h2
+          className="m-0 text-[0.9rem] font-[650] leading-[1.2] tracking-[-0.01em] text-content"
+          id="expanded-dashboard-activity-title"
+        >
+          Journey Streak
+        </h2>
+        <strong
+          className="text-base font-bold leading-none tracking-[-0.04em] text-accent"
+          aria-label={`${streak} day streak`}
+          data-slot="streak-count"
+        >
           {streak}d
         </strong>
       </div>
       <ActivityHeatmap countsByDate={countsByDate} today={today} />
-      <p className="activity-panel__caption">Keep showing up</p>
+      <p className="m-[10px_0_0] text-[0.67rem] text-muted">Keep showing up</p>
     </aside>
   )
 }
