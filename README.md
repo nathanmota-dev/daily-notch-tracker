@@ -53,7 +53,9 @@ O shell seleciona automaticamente o `desktopApi` real no webview Tauri. Tarefas,
 sessões e settings do desktop são persistidos pelo backend Rust em
 `app_data_dir()/dailynotch.json`, usando o diretório retornado pela API de paths
 do Tauri, sem um caminho de usuário hardcoded. O foco e o status de atalhos são
-estado de runtime e voltam aos defaults ao iniciar o app.
+estado de runtime e um foco em andamento volta ao estado idle ao iniciar o app;
+as sessões concluídas ou interrompidas e o `focusedSeconds` permanecem
+persistidos.
 
 Se o arquivo ainda não existir, o diretório é criado e o app começa com um
 payload vazio. JSON inválido ou um `schema_version` desconhecido inicia um
@@ -168,8 +170,15 @@ frente sem criar duplicatas. `Settings` continua sendo a superfície reservada
 para configurações futuras; `Tasks` já é a superfície funcional descrita
 abaixo.
 
-O focus engine desta etapa é deliberadamente mínimo: iniciar, pausar, retomar,
-parar e alternar um bloco atualiza apenas o estado de runtime e a `revision`.
+O focus engine é autoritativo no Rust: iniciar, pausar, retomar, parar e
+alternar um bloco persistem cada transição relevante, e `endAt` é a fonte de
+verdade para concluir o bloco mesmo quando o WebView atrasa, a máquina é
+bloqueada ou volta de suspend. O tempo é acumulado somente nos intervalos em
+que o foco está `running`; uma sessão concluída recebe `completed: true`, uma
+interrompida recebe `completed: false`, e o tempo de uma execução atrasada é
+limitado ao seu deadline. O scheduler cancelável mantém no máximo um callback
+vigente por vez, e tokens de geração descartam callbacks obsoletos.
+
 Na janela `Tasks`, o CRUD é persistido pelo Rust: a lista separa os buckets
 `Day` e `Unscheduled`, permite escolher a data, mantém pendentes antes de
 concluídas e envia a permutação completa do bucket ao reordenar pelo handle.
@@ -177,11 +186,10 @@ O formulário também permite editar título, notas, duração, data e conclusã
 além de iniciar, pausar e retomar o foco da tarefa selecionada. Os intents
 `list`, `add` e `task` chegam pela URL na abertura da janela e por
 `tasks-window-intent` quando ela já existe; são transitórios e não entram no
-arquivo persistido. Concluir ou excluir a tarefa ativa limpa somente a
-referência de foco em runtime.
-
-Scheduler, conclusão automática, sessões e acumulação de `focusedSeconds`
-continuam no MVP-017.
+arquivo persistido. Concluir a tarefa ativa finaliza sua sessão como concluída,
+soma o tempo e marca a tarefa como feita na mesma mutação atômica. Excluir a
+tarefa ativa finaliza a sessão como interrompida e, quando houver tempo válido,
+preserva o registro como sessão standalone sem atribuí-lo à tarefa removida.
 
 ## Verificações
 
