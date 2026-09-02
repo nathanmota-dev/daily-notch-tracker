@@ -173,6 +173,13 @@ frente sem criar duplicatas. `Settings` continua sendo a superfície reservada
 para configurações futuras; `Tasks` já é a superfície funcional descrita
 abaixo.
 
+A janela `Tasks` é criada sob demanda com tamanho inicial de 960 x 720 px,
+permite redimensionamento e respeita o tamanho mínimo de 760 x 480 px. Fechar
+a janela apenas a oculta para que o processo, o estado compartilhado e um foco
+em andamento continuem ativos; ao reabrir, a mesma janela é reutilizada. A
+seção estrutural `Calendar` reutiliza o seletor de data atual. Eventos ainda
+não são exibidos porque a integração ICS pertence a uma etapa posterior.
+
 O focus engine é autoritativo no Rust: iniciar, pausar, retomar, parar e
 alternar um bloco persistem cada transição relevante, e `endAt` é a fonte de
 verdade para concluir o bloco mesmo quando o WebView atrasa, a máquina é

@@ -339,6 +339,33 @@ describe("App", () => {
     },
   )
 
+  it("updates the Tasks list when a newer snapshot arrives", async () => {
+    const controller = createMockDesktopApi()
+    render(<App api={controller.api} surface="tasks" />)
+
+    await screen.findByRole("heading", { name: "Tasks" })
+
+    const updatedSnapshot = createEmptyAppSnapshot()
+    updatedSnapshot.revision = 1
+    updatedSnapshot.tasks = [
+      {
+        id: "task-1",
+        title: "Shared task",
+        notes: "",
+        scheduledDate: getLocalDateString(),
+        estimateMinutes: 25,
+        isDone: false,
+        createdAt: "2026-08-31T12:00:00Z",
+        focusedSeconds: 0,
+        sortOrder: 0,
+      },
+    ]
+
+    act(() => controller.emit("store-changed", updatedSnapshot))
+
+    expect(await screen.findByText("Shared task")).toBeInTheDocument()
+  })
+
   it("applies the snapshot returned by a real task mutation", async () => {
     const now = Date.now()
     const initialSnapshot = createExpandedDashboardFixtureSnapshot(

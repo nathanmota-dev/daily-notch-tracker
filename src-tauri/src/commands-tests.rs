@@ -22,6 +22,15 @@ fn test_app() -> tauri::App<tauri::test::MockRuntime> {
         .expect("mock app should build")
 }
 
+fn wait_for_focus_events(focus_events: &AtomicUsize, store_events: &AtomicUsize) {
+    let deadline = Instant::now() + StdDuration::from_secs(1);
+    while (focus_events.load(Ordering::Acquire) < 1 || store_events.load(Ordering::Acquire) < 1)
+        && Instant::now() < deadline
+    {
+        std::thread::sleep(StdDuration::from_millis(5));
+    }
+}
+
 #[test]
 fn greet_returns_a_rust_message() {
     assert_eq!(
@@ -174,6 +183,21 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
     let app = test_app();
     let handle = app.handle().clone();
     let task_id = "11111111-1111-4111-8111-111111111111".to_owned();
+    let received_intents = Arc::new(Mutex::new(Vec::<TasksWindowIntent>::new()));
+    let received_intents_clone = Arc::clone(&received_intents);
+    handle.listen_any(TASKS_WINDOW_INTENT_EVENT, move |event| {
+        if let Ok(intent) = serde_json::from_str::<TasksWindowIntent>(event.payload()) {
+            received_intents_clone
+                .lock()
+                .expect("intent listener should not be poisoned")
+                .push(intent);
+        }
+    });
+
+    tauri::async_runtime::block_on(toggle_focus(handle.clone()))
+        .expect("standalone focus should start");
+    let snapshot_before_opening =
+        tauri::async_runtime::block_on(get_snapshot(handle.clone())).expect("snapshot should load");
 
     tauri::async_runtime::block_on(open_tasks_window(
         handle.clone(),
@@ -187,6 +211,18 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
         Some(TasksWindowIntent::List),
     ))
     .expect("existing tasks window should be reused");
+    tauri::async_runtime::block_on(open_tasks_window(
+        handle.clone(),
+        Some(TasksWindowIntent::Add),
+    ))
+    .expect("existing tasks window should receive an add intent");
+    tauri::async_runtime::block_on(open_tasks_window(
+        handle.clone(),
+        Some(TasksWindowIntent::Task {
+            task_id: task_id.clone(),
+        }),
+    ))
+    .expect("existing tasks window should receive a task intent");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("settings window should open");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
@@ -194,8 +230,26 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
 
     assert_eq!(handle.webview_windows().len(), 2);
     assert_eq!(
+        received_intents
+            .lock()
+            .expect("intent listener should not be poisoned")
+            .clone(),
+        vec![
+            TasksWindowIntent::List,
+            TasksWindowIntent::Add,
+            TasksWindowIntent::Task {
+                task_id: task_id.clone(),
+            },
+        ]
+    );
+    let snapshot_after_opening =
+        tauri::async_runtime::block_on(get_snapshot(handle.clone())).expect("snapshot should load");
+    assert_eq!(snapshot_after_opening.focus, snapshot_before_opening.focus);
+    assert_eq!(snapshot_after_opening.tasks, snapshot_before_opening.tasks);
+
+    assert_eq!(
         tauri::async_runtime::block_on(open_tasks_window(
-            handle,
+            handle.clone(),
             Some(TasksWindowIntent::Task {
                 task_id: "invalid".to_owned(),
             }),
@@ -212,6 +266,7 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
         .code,
         crate::domain::AppErrorCode::InvalidUrl
     );
+    tauri::async_runtime::block_on(stop_focus(handle)).expect("standalone focus should stop");
 }
 
 #[test]
@@ -251,6 +306,7 @@ fn due_focus_is_completed_by_the_managed_scheduler() {
     assert_eq!(snapshot.focus.state, crate::domain::FocusState::Idle);
     assert_eq!(snapshot.sessions.len(), 1);
     assert!(snapshot.sessions[0].completed);
+    wait_for_focus_events(&focus_events, &store_events);
     assert_eq!(focus_events.load(Ordering::Acquire), 1);
     assert_eq!(store_events.load(Ordering::Acquire), 1);
 }

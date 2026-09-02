@@ -32,6 +32,15 @@ type TaskSurfaceActionOptions = {
   mutations: Pick<UseDesktopMutationsResult, "runMutation">
 }
 
+function requestSettingsWindow(
+  api: DesktopApi,
+  mutations: Pick<UseDesktopMutationsResult, "runMutation">,
+) {
+  void mutations.runMutation("openSettingsWindow", () =>
+    api.openSettingsWindow(),
+  )
+}
+
 export function createTaskSurfaceActions({
   activeTab,
   api,
@@ -136,6 +145,7 @@ export function createTaskSurfaceActions({
     backToList,
     deleteSelectedTask,
     openAdd,
+    openSettings: () => requestSettingsWindow(api, mutations),
     openTask,
     reorder,
     saveDraft,

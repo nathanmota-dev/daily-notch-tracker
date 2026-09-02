@@ -75,6 +75,38 @@ describe("Tasks surface", () => {
     window.history.replaceState({}, "", "/")
   })
 
+  it("renders the two-column shell without an ICS events section", async () => {
+    const snapshot = createSnapshot([])
+    render(<AppForTasks api={createMockDesktopApi({ snapshot }).api} />)
+
+    expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Calendar" })).toBeInTheDocument()
+    expect(screen.getByRole("heading", { name: "Day" })).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Day" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
+    expect(screen.getByRole("tab", { name: "Unscheduled" })).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="tasks-sidebar"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="tasks-content"]')).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="tasks-events"]')).not.toBeInTheDocument()
+  })
+
+  it("opens Settings through the desktop API", async () => {
+    const openSettingsWindow = vi.fn(async () => undefined)
+    const controller = createMockDesktopApi({
+      handlers: { openSettingsWindow },
+      snapshot: createSnapshot([]),
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Settings" }))
+
+    await waitFor(() => expect(openSettingsWindow).toHaveBeenCalledOnce())
+  })
+
   it("keeps Day and Unscheduled buckets independent", async () => {
     const snapshot = createSnapshot([
       createTask("day-task", "Day task"),
