@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
 use crate::domain::session::{activity_by_local_date, total_focused_seconds};
@@ -30,6 +30,9 @@ pub struct AppState {
     repository: Option<Repository>,
     confirmed_payload: PersistedPayload,
     recovery_diagnostic: Option<RecoveryDiagnostic>,
+    running_since: Option<DateTime<Utc>>,
+    accumulated_focus_ms: u64,
+    focus_token: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -40,6 +43,9 @@ struct MutableStateCheckpoint {
     settings: FocusSettings,
     focus: FocusSnapshot,
     confirmed_payload: PersistedPayload,
+    running_since: Option<DateTime<Utc>>,
+    accumulated_focus_ms: u64,
+    focus_token: u64,
 }
 
 impl Default for AppState {
@@ -119,6 +125,14 @@ impl AppState {
         total_focused_seconds(&self.sessions, task_id)
     }
 
+    pub(crate) fn focus_schedule(&self) -> Option<(DateTime<Utc>, u64)> {
+        if self.focus.state != crate::domain::FocusState::Running {
+            return None;
+        }
+
+        self.focus.end_at.map(|end_at| (end_at, self.focus_token))
+    }
+
     fn mutate<F>(&mut self, operation: F) -> DomainResult<AppSnapshot>
     where
         F: FnOnce(&mut Self) -> DomainResult<()>,
@@ -130,6 +144,9 @@ impl AppState {
             settings: self.settings.clone(),
             focus: self.focus.clone(),
             confirmed_payload: self.confirmed_payload.clone(),
+            running_since: self.running_since,
+            accumulated_focus_ms: self.accumulated_focus_ms,
+            focus_token: self.focus_token,
         };
 
         let result = (|| {
@@ -145,6 +162,9 @@ impl AppState {
             self.settings = checkpoint.settings;
             self.focus = checkpoint.focus;
             self.confirmed_payload = checkpoint.confirmed_payload;
+            self.running_since = checkpoint.running_since;
+            self.accumulated_focus_ms = checkpoint.accumulated_focus_ms;
+            self.focus_token = checkpoint.focus_token;
         }
 
         result

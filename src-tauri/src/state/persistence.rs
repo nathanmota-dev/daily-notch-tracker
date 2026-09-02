@@ -25,6 +25,9 @@ impl AppState {
             repository,
             confirmed_payload,
             recovery_diagnostic,
+            running_since: None,
+            accumulated_focus_ms: 0,
+            focus_token: 0,
         }
     }
 
