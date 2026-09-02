@@ -3,6 +3,7 @@ import { cn } from "../lib/utils"
 import { ProgressTray } from "./progress-tray"
 import { Panel } from "./panel"
 import { ActivityPanel } from "./activity-panel"
+import { getActivitySummary } from "./activity-model"
 import { TodoPanel } from "./todo-panel"
 import {
   getExpandedDashboardProgress,
@@ -46,6 +47,7 @@ export function ExpandedDashboard({
 }: ExpandedDashboardProps) {
   const countdown = useFocusCountdown(snapshot.focus, { now })
   const orderedTasks = selectTasksForDashboard(snapshot.tasks, countdown.now)
+  const activity = getActivitySummary(snapshot.sessions, countdown.now)
 
   return (
     <ProgressTray
@@ -77,7 +79,7 @@ export function ExpandedDashboard({
             onToggleTask={onToggleTask}
             tasks={orderedTasks}
           />
-          <ActivityPanel />
+          <ActivityPanel {...activity} today={countdown.now} />
         </div>
       </Panel>
     </ProgressTray>

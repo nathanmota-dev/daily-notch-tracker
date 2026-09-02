@@ -3,10 +3,11 @@ import { render, screen } from "@testing-library/react"
 import {
   ACTIVITY_HEATMAP_COLUMN_COUNT,
   ACTIVITY_HEATMAP_INTENSITIES,
+  formatActivityDateKey,
   getActivityHeatmapModel,
-  getMockActivityIntensity,
 } from "./activity-heatmap-model"
 import { ActivityHeatmap } from "./activity-heatmap"
+import { getActivityIntensity } from "./activity-model"
 
 function localDate(year: number, month: number, day: number) {
   return new Date(year, month, day, 12)
@@ -47,6 +48,18 @@ describe("getActivityHeatmapModel", () => {
     expect(model.cells).toHaveLength(rows * ACTIVITY_HEATMAP_COLUMN_COUNT)
   })
 
+  it("keeps February 29 in a leap year", () => {
+    const model = getActivityHeatmapModel(localDate(2024, 1, 29), {
+      "2024-02-29": 4,
+    })
+
+    expect(model.cells.find((cell) => cell.dayOfMonth === 29)).toMatchObject({
+      date: "2024-02-29",
+      intensity: 4,
+      state: "activity",
+    })
+  })
+
   it("stops at today while keeping future cells empty", () => {
     const model = getActivityHeatmapModel(localDate(2026, 7, 28))
     const activityCells = model.cells.filter(
@@ -72,30 +85,28 @@ describe("getActivityHeatmapModel", () => {
     expect(outsideCells.every((cell) => cell.date === null)).toBe(true)
   })
 
-  it("supports all five deterministic mock intensity levels", () => {
-    const levels = new Set(
-      Array.from({ length: 31 }, (_, index) =>
-        getMockActivityIntensity(index + 1),
-      ),
-    )
+  it("supports all five activity intensity levels", () => {
+    const levels = new Set([0, 1, 2, 3, 4].map(getActivityIntensity))
 
     expect([...levels]).toEqual([...ACTIVITY_HEATMAP_INTENSITIES])
   })
 
-  it("allows deterministic levels to be supplied by day", () => {
+  it("uses counts indexed by the complete date key", () => {
     const model = getActivityHeatmapModel(localDate(2026, 7, 5), {
-      1: 0,
-      2: 1,
-      3: 2,
-      4: 3,
-      5: 4,
+      [formatActivityDateKey(localDate(2026, 7, 1))]: 1,
+      [formatActivityDateKey(localDate(2026, 7, 2))]: 2,
+      [formatActivityDateKey(localDate(2026, 7, 3))]: 3,
+      [formatActivityDateKey(localDate(2026, 7, 4))]: 4,
+      [formatActivityDateKey(localDate(2026, 7, 5))]: 8,
+      [formatActivityDateKey(localDate(2025, 7, 1))]: 4,
+      [formatActivityDateKey(localDate(2026, 8, 1))]: 4,
     })
 
     expect(
       model.cells
         .filter((cell) => cell.state === "activity")
         .map((cell) => cell.intensity),
-    ).toEqual([0, 1, 2, 3, 4])
+    ).toEqual([1, 2, 3, 4, 4])
   })
 })
 
@@ -103,7 +114,13 @@ describe("ActivityHeatmap", () => {
   it("renders the monthly grid with accessible month metadata", () => {
     render(
       <ActivityHeatmap
-        levelsByDay={{ 1: 0, 2: 1, 3: 2, 4: 3, 5: 4 }}
+        countsByDate={{
+          "2026-08-01": 0,
+          "2026-08-02": 1,
+          "2026-08-03": 2,
+          "2026-08-04": 3,
+          "2026-08-05": 4,
+        }}
         today={localDate(2026, 7, 31)}
       />,
     )

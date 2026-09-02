@@ -55,11 +55,25 @@ describe("ExpandedDashboard", () => {
     expect(
       screen.getByRole("img", { name: /Activity heatmap for/ }),
     ).toBeInTheDocument()
-    expect(screen.getByText("5d")).toBeInTheDocument()
+    expect(
+      screen.getByText(fixture === "expanded-empty" ? "0d" : "3d"),
+    ).toBeInTheDocument()
     expect(screen.getByRole("progressbar", { name: "Focus timeline" })).toBeInTheDocument()
     expect(
       document.querySelectorAll('[data-slot="compact-task-row"]'),
     ).toHaveLength(taskCount)
+  })
+
+  it("derives the activity intensity from the fixture session history", () => {
+    renderFixture("expanded")
+
+    const todayKey = getLocalDateString(FIXTURE_NOW)
+    const todayCell = document.querySelector(`[data-date="${todayKey}"]`)
+
+    expect(todayCell).toHaveAttribute("data-intensity", "4")
+    expect(document.querySelector('[data-slot="streak-count"]')).toHaveTextContent(
+      "3d",
+    )
   })
 
   it("keeps the idle timeline visible and exposes the two-row scroll contract", () => {

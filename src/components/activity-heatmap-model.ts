@@ -1,3 +1,10 @@
+import { getLocalDateString } from "../lib/local-date"
+
+import {
+  getActivityIntensity,
+  type ActivityCountsByDate,
+} from "./activity-model"
+
 export const ACTIVITY_HEATMAP_COLUMN_COUNT = 7
 
 export const ACTIVITY_HEATMAP_INTENSITIES = [0, 1, 2, 3, 4] as const
@@ -6,10 +13,6 @@ export type ActivityIntensity =
   (typeof ACTIVITY_HEATMAP_INTENSITIES)[number]
 
 export type ActivityCellState = "activity" | "future" | "outside-month"
-
-export type ActivityLevelsByDay = Readonly<
-  Partial<Record<number, ActivityIntensity>>
->
 
 export type ActivityHeatmapCell = {
   column: number
@@ -28,42 +31,27 @@ export type ActivityHeatmapModel = {
   year: number
 }
 
-export const MOCK_ACTIVITY_LEVELS: readonly ActivityIntensity[] = [
-  0, 1, 0, 2, 1, 0, 3, 0, 1, 2, 3, 1, 0, 2, 4, 1, 0, 3, 2, 1, 0, 2, 3,
-  4, 1, 0, 2, 3, 1, 4, 2,
-]
-
 const monthLabelFormatter = new Intl.DateTimeFormat("en-US", {
   month: "long",
   year: "numeric",
 })
 
-function padDatePart(value: number) {
-  return value.toString().padStart(2, "0")
-}
-
 export function formatActivityDateKey(date: Date) {
-  return [
-    date.getFullYear().toString().padStart(4, "0"),
-    padDatePart(date.getMonth() + 1),
-    padDatePart(date.getDate()),
-  ].join("-")
-}
-
-export function getMockActivityIntensity(dayOfMonth: number) {
-  return MOCK_ACTIVITY_LEVELS[dayOfMonth - 1] ?? 0
+  return getLocalDateString(date)
 }
 
 export function getActivityHeatmapModel(
-  today: Date,
-  levelsByDay: ActivityLevelsByDay = {},
+  today: Date | number = Date.now(),
+  countsByDate: ActivityCountsByDate = {},
 ): ActivityHeatmapModel {
-  const year = today.getFullYear()
-  const month = today.getMonth()
+  const currentDate =
+    today instanceof Date ? new Date(today.getTime()) : new Date(today)
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
   const monthStart = new Date(year, month, 1)
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const leadingEmptyCells = (monthStart.getDay() + 6) % 7
-  const todayDay = Math.min(Math.max(today.getDate(), 1), daysInMonth)
+  const todayDay = Math.min(Math.max(currentDate.getDate(), 1), daysInMonth)
   const rowCount = Math.max(
     1,
     Math.ceil(
@@ -107,8 +95,7 @@ export function getActivityHeatmapModel(
         column,
         date: dateKey,
         dayOfMonth,
-        intensity:
-          levelsByDay[dayOfMonth] ?? getMockActivityIntensity(dayOfMonth),
+        intensity: getActivityIntensity(countsByDate[dateKey] ?? 0),
         row,
         state: "activity",
       }

@@ -246,6 +246,7 @@ describe("App", () => {
 
   it("accepts store changes emitted by Rust", async () => {
     const controller = createMockDesktopApi()
+    const now = Date.now()
 
     render(
       <App
@@ -261,7 +262,7 @@ describe("App", () => {
         "store-changed",
         createExpandedDashboardFixtureSnapshot(
           "expanded-one",
-          Date.now(),
+          now,
         ),
       )
     })
@@ -269,6 +270,10 @@ describe("App", () => {
     expect(
       await screen.findByText("Plan the next focused block"),
     ).toBeInTheDocument()
+    expect(screen.getByText("3d")).toBeInTheDocument()
+    expect(
+      document.querySelector(`[data-date="${getLocalDateString(now)}"]`),
+    ).toHaveAttribute("data-intensity", "4")
   })
 
   it("keeps a newer event when the initial snapshot resolves late", async () => {

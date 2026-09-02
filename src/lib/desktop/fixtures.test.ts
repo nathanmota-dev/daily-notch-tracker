@@ -109,4 +109,18 @@ describe("expanded dashboard fixtures", () => {
         .title.length,
     ).toBeGreaterThan(80)
   })
+
+  it("includes deterministic completed and aborted activity sessions", () => {
+    const snapshot = createExpandedDashboardFixtureSnapshot(
+      "expanded",
+      Date.parse("2026-08-31T12:00:00.000Z"),
+    )
+
+    expect(snapshot.sessions).toHaveLength(6)
+    expect(snapshot.sessions.some((session) => session.completed)).toBe(true)
+    expect(snapshot.sessions.some((session) => !session.completed)).toBe(true)
+    expect(
+      createExpandedDashboardFixtureSnapshot("expanded-empty").sessions,
+    ).toEqual([])
+  })
 })

@@ -1,4 +1,4 @@
-import type { AppSnapshot, Task } from "./contracts"
+import type { AppSnapshot, FocusSession, Task } from "./contracts"
 import { createEmptyAppSnapshot } from "./base-snapshot"
 import { getLocalDateString } from "../local-date"
 
@@ -51,6 +51,13 @@ type ExpandedTaskSpec = {
   sortOrder: number
 }
 
+type ExpandedSessionSpec = {
+  completed: boolean
+  focusedSeconds: number
+  id: string
+  minutesAgo: number
+}
+
 const BASE_TASK_SPECS: ExpandedTaskSpec[] = [
   {
     id: "expanded-task-1",
@@ -66,6 +73,45 @@ const BASE_TASK_SPECS: ExpandedTaskSpec[] = [
     estimateMinutes: 50,
     notes: "Keep the boundary between UI and desktop code clear.",
     sortOrder: 1,
+  },
+]
+
+const ACTIVITY_SESSION_SPECS: ExpandedSessionSpec[] = [
+  {
+    completed: true,
+    focusedSeconds: 1_500,
+    id: "expanded-session-today-first",
+    minutesAgo: 30,
+  },
+  {
+    completed: false,
+    focusedSeconds: 900,
+    id: "expanded-session-today-second",
+    minutesAgo: 90,
+  },
+  {
+    completed: true,
+    focusedSeconds: 600,
+    id: "expanded-session-today-third",
+    minutesAgo: 150,
+  },
+  {
+    completed: false,
+    focusedSeconds: 300,
+    id: "expanded-session-today-fourth",
+    minutesAgo: 210,
+  },
+  {
+    completed: true,
+    focusedSeconds: 1_200,
+    id: "expanded-session-yesterday",
+    minutesAgo: 24 * 60 + 30,
+  },
+  {
+    completed: true,
+    focusedSeconds: 1_800,
+    id: "expanded-session-two-days-ago",
+    minutesAgo: 48 * 60 + 30,
   },
 ]
 
@@ -156,6 +202,22 @@ function createExpandedTask(spec: ExpandedTaskSpec, now: number): Task {
   }
 }
 
+function createExpandedSession(
+  spec: ExpandedSessionSpec,
+  now: number,
+): FocusSession {
+  const startedAt = now - spec.minutesAgo * 60 * 1000
+
+  return {
+    id: spec.id,
+    taskId: null,
+    startedAt: fixtureTimestamp(startedAt),
+    endedAt: fixtureTimestamp(startedAt + spec.focusedSeconds * 1000),
+    focusedSeconds: spec.focusedSeconds,
+    completed: spec.completed,
+  }
+}
+
 export function createExpandedDashboardFixtureSnapshot(
   fixture: ExpandedDashboardFixture,
   now = Date.now(),
@@ -167,6 +229,9 @@ export function createExpandedDashboardFixtureSnapshot(
   if (fixture !== "expanded-empty") {
     snapshot.tasks = TASK_SPECS[fixture].map((spec) =>
       createExpandedTask(spec, safeNow),
+    )
+    snapshot.sessions = ACTIVITY_SESSION_SPECS.map((spec) =>
+      createExpandedSession(spec, safeNow),
     )
   }
 
