@@ -1,1 +1,6 @@
-//! Application services will live here as the focus engine is introduced.
+//! Application services used by the desktop runtime.
+
+#[path = "focus-scheduler.rs"]
+mod focus_scheduler;
+
+pub use focus_scheduler::FocusScheduler;

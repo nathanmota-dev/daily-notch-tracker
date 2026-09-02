@@ -4,7 +4,7 @@ use tauri::Manager;
 
 pub mod commands;
 pub mod domain;
-mod services;
+pub mod services;
 pub mod state;
 pub mod storage;
 
@@ -15,6 +15,7 @@ pub use domain::{
     IntegrationStatus, MoveTasksInput, ShortcutDiagnostic, ShortcutStatus, Task, TaskBucket,
     TasksWindowIntent, UpdateTaskInput, WindowPlacementSnapshot,
 };
+pub use services::FocusScheduler;
 pub use state::AppState;
 pub use storage::{PersistedPayload, RecoveryDiagnostic, Repository, RepositoryError};
 
@@ -26,6 +27,7 @@ pub fn run() {
             let state =
                 AppState::load(Repository::new(app_data_dir)).map_err(std::io::Error::other)?;
             app.manage(Mutex::new(state));
+            app.manage(FocusScheduler::new());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

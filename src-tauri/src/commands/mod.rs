@@ -1,5 +1,6 @@
 use std::sync::Mutex;
 
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use tauri::{
     AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
 };
@@ -8,6 +9,7 @@ use crate::domain::{
     parse_task_id, AppDiagnostics, AppError, AppSnapshot, CreateTaskInput, FocusSettingsPatch,
     MoveTasksInput, TasksWindowIntent, UpdateTaskInput,
 };
+use crate::services::FocusScheduler;
 use crate::state::AppState;
 
 const STORE_EVENTS: &[&str] = &["store-changed"];
@@ -187,13 +189,88 @@ where
     R: Runtime,
     F: FnOnce(&mut AppState) -> Result<AppSnapshot, AppError> + Send + 'static,
 {
-    let snapshot = with_state(&app, mutation).await?;
+    let scheduler_app = app.clone();
+    let (before, snapshot) = with_state(&app, move |state| {
+        let before = state.snapshot();
+        let snapshot = mutation(state)?;
+        let schedule = state.focus_schedule();
+        sync_focus_scheduler(&scheduler_app, schedule);
+        Ok((before, snapshot))
+    })
+    .await?;
 
     // A disappearing window must not turn a successful in-memory mutation into a failure.
     for &event_name in event_names {
         let _ = app.emit(event_name, &snapshot);
     }
+
+    if !event_names.contains(&"focus-changed") && before.focus != snapshot.focus {
+        let _ = app.emit("focus-changed", &snapshot);
+    }
+
+    if !event_names.contains(&"store-changed") && persisted_state_changed(&before, &snapshot) {
+        let _ = app.emit("store-changed", &snapshot);
+    }
+
     Ok(snapshot)
+}
+
+fn sync_focus_scheduler<R: Runtime>(app: &AppHandle<R>, schedule: Option<(DateTime<Utc>, u64)>) {
+    let Some(scheduler) = app.try_state::<FocusScheduler>() else {
+        return;
+    };
+
+    match schedule {
+        Some((end_at, token)) => {
+            let app = app.clone();
+            scheduler.schedule(end_at, move || complete_scheduled_focus(app, token));
+        }
+        None => scheduler.cancel(),
+    }
+}
+
+fn complete_scheduled_focus<R: Runtime>(app: AppHandle<R>, token: u64) {
+    let Some(state) = app.try_state::<Mutex<AppState>>() else {
+        return;
+    };
+
+    let result = match state.lock() {
+        Ok(mut state) => {
+            let result = state.complete_focus_if_due_at(token, Utc::now());
+            let schedule = state.focus_schedule();
+            match &result {
+                Ok(None) => sync_focus_scheduler(&app, schedule),
+                Err(_) if schedule.is_some() => schedule_focus_retry(&app, token),
+                Ok(Some(_)) | Err(_) => {}
+            }
+            result
+        }
+        Err(_) => Err(AppError::internal("The application state is unavailable.")),
+    };
+
+    let Ok(Some(snapshot)) = result else {
+        return;
+    };
+
+    let _ = app.emit("focus-changed", &snapshot);
+    let _ = app.emit("store-changed", &snapshot);
+}
+
+fn schedule_focus_retry<R: Runtime>(app: &AppHandle<R>, token: u64) {
+    let Some(scheduler) = app.try_state::<FocusScheduler>() else {
+        return;
+    };
+
+    let app = app.clone();
+    scheduler.schedule(Utc::now() + ChronoDuration::seconds(1), move || {
+        complete_scheduled_focus(app, token);
+    });
+}
+
+fn persisted_state_changed(before: &AppSnapshot, after: &AppSnapshot) -> bool {
+    before.tasks != after.tasks
+        || before.sessions != after.sessions
+        || before.settings != after.settings
 }
 
 fn validate_tasks_window_intent(intent: Option<&TasksWindowIntent>) -> Result<(), AppError> {

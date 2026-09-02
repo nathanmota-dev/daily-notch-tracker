@@ -1,15 +1,23 @@
-use std::sync::Mutex;
+use std::sync::{
+    atomic::{AtomicUsize, Ordering},
+    Arc, Mutex,
+};
+use std::time::{Duration as StdDuration, Instant};
 
 use super::*;
 use crate::domain::{
     CreateTaskInput, FocusSettingsPatch, MoveTasksInput, TaskBucket, TasksWindowIntent,
     UpdateTaskInput,
 };
+use crate::services::FocusScheduler;
 use crate::state::AppState;
+use chrono::{Duration, Utc};
+use tauri::Listener;
 
 fn test_app() -> tauri::App<tauri::test::MockRuntime> {
     tauri::test::mock_builder()
         .manage(Mutex::new(AppState::default()))
+        .manage(FocusScheduler::new())
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .expect("mock app should build")
 }
@@ -204,4 +212,45 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
         .code,
         crate::domain::AppErrorCode::InvalidUrl
     );
+}
+
+#[test]
+fn due_focus_is_completed_by_the_managed_scheduler() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let focus_events = Arc::new(AtomicUsize::new(0));
+    let store_events = Arc::new(AtomicUsize::new(0));
+    let focus_event_counter = Arc::clone(&focus_events);
+    let store_event_counter = Arc::clone(&store_events);
+    handle.listen_any("focus-changed", move |_| {
+        focus_event_counter.fetch_add(1, Ordering::Release);
+    });
+    handle.listen_any("store-changed", move |_| {
+        store_event_counter.fetch_add(1, Ordering::Release);
+    });
+    let schedule = tauri::async_runtime::block_on(with_state(&handle, |state| {
+        state.start_focus_at(None, Utc::now() - Duration::minutes(25))?;
+        state
+            .focus_schedule()
+            .ok_or_else(|| crate::domain::AppError::internal("focus should be schedulable"))
+    }))
+    .expect("a running focus should expose a scheduler deadline");
+
+    sync_focus_scheduler(&handle, Some(schedule));
+
+    let deadline = Instant::now() + StdDuration::from_secs(1);
+    let snapshot = loop {
+        let snapshot = tauri::async_runtime::block_on(get_snapshot(handle.clone()))
+            .expect("snapshot should load");
+        if snapshot.focus.state == crate::domain::FocusState::Idle || Instant::now() >= deadline {
+            break snapshot;
+        }
+        std::thread::sleep(StdDuration::from_millis(5));
+    };
+
+    assert_eq!(snapshot.focus.state, crate::domain::FocusState::Idle);
+    assert_eq!(snapshot.sessions.len(), 1);
+    assert!(snapshot.sessions[0].completed);
+    assert_eq!(focus_events.load(Ordering::Acquire), 1);
+    assert_eq!(store_events.load(Ordering::Acquire), 1);
 }
