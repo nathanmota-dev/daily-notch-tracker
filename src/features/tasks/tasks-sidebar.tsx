@@ -1,11 +1,14 @@
 import { SettingsIcon } from "../../icons"
 import { Button } from "../../components/ui/button"
+import type { TasksCalendarProps } from "./tasks-calendar"
+import { TasksCalendar } from "./tasks-calendar"
 
 export type TasksSidebarProps = {
   busy: boolean
   selectedDate: string
   onDateChange: (date: string) => void
   onOpenSettings: () => void
+  today?: TasksCalendarProps["today"]
 }
 
 export function TasksSidebar({
@@ -13,6 +16,7 @@ export function TasksSidebar({
   onDateChange,
   onOpenSettings,
   selectedDate,
+  today,
 }: TasksSidebarProps) {
   return (
     <aside
@@ -43,22 +47,15 @@ export function TasksSidebar({
         className="tasks-sidebar__calendar"
         data-slot="tasks-calendar"
       >
-        <div className="tasks-sidebar__section-heading">
-          <div>
-            <p className="tasks-sidebar__eyebrow">Planning</p>
-            <h2 id="tasks-calendar-heading">Calendar</h2>
-          </div>
-        </div>
-        <label className="tasks-sidebar__date-label">
-          <span>Selected day</span>
-          <input
-            aria-label="Selected day"
-            disabled={busy}
-            onChange={(event) => onDateChange(event.currentTarget.value)}
-            type="date"
-            value={selectedDate}
-          />
-        </label>
+        <h2 id="tasks-calendar-heading" className="sr-only">
+          Calendar
+        </h2>
+        <TasksCalendar
+          busy={busy}
+          onSelectDate={onDateChange}
+          selectedDate={selectedDate}
+          today={today}
+        />
       </section>
     </aside>
   )
