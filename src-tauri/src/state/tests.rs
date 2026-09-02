@@ -597,10 +597,17 @@ fn completing_the_active_task_clears_runtime_focus() {
     let task_id = add_active_task(&mut state);
 
     state
-        .update_task(update_input(task_id, "Active task", None, 25, true))
+        .update_task_at(
+            update_input(task_id, "Active task", None, 25, true),
+            timestamp(31, 10) + Duration::minutes(5),
+        )
         .expect("completing the task should succeed");
 
     assert_eq!(state.snapshot().focus, FocusSnapshot::default());
+    assert!(state.snapshot().tasks[0].is_done);
+    assert_eq!(state.snapshot().tasks[0].focused_seconds, 300);
+    assert_eq!(state.snapshot().sessions.len(), 1);
+    assert!(state.snapshot().sessions[0].completed);
 }
 
 #[test]
@@ -609,10 +616,18 @@ fn deleting_the_active_task_clears_runtime_focus() {
     let task_id = add_active_task(&mut state);
 
     state
-        .delete_task(&task_id.to_string())
+        .delete_task_at(
+            &task_id.to_string(),
+            timestamp(31, 10) + Duration::minutes(5),
+        )
         .expect("deleting the task should succeed");
 
     assert_eq!(state.snapshot().focus, FocusSnapshot::default());
+    assert!(state.snapshot().tasks.is_empty());
+    assert_eq!(state.snapshot().sessions.len(), 1);
+    assert_eq!(state.snapshot().sessions[0].task_id, None);
+    assert_eq!(state.snapshot().sessions[0].focused_seconds, 300);
+    assert!(!state.snapshot().sessions[0].completed);
 }
 
 #[test]
@@ -628,6 +643,24 @@ fn persistence_failure_restores_focus_when_completion_would_clear_it() {
 
     assert_eq!(error.code, AppErrorCode::Persistence);
     assert_eq!(state.snapshot(), before);
+}
+
+#[test]
+fn persistence_failure_restores_automatic_completion_and_runtime_accounting() {
+    let (_test_directory, mut state) = loaded_state();
+    let task_id = add_active_task(&mut state);
+    let before = state.snapshot();
+    let token = state.focus_token;
+    state.fail_next_persistence_write();
+
+    let error = state
+        .complete_focus_if_due_at(token, timestamp(31, 10) + Duration::minutes(25))
+        .expect_err("the simulated write should fail");
+
+    assert_eq!(error.code, AppErrorCode::Persistence);
+    assert_eq!(state.snapshot(), before);
+    assert_eq!(state.snapshot().tasks[0].id, task_id);
+    assert_eq!(state.snapshot().sessions.len(), 0);
 }
 
 #[test]

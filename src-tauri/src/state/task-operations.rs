@@ -9,7 +9,7 @@ use crate::domain::task::{
 };
 use crate::domain::{
     AppError, AppSnapshot, CreateTaskInput, DomainResult, FocusSession, FocusSettingsPatch,
-    FocusSnapshot, MoveTasksInput, Task, TaskBucket, UpdateTaskInput,
+    MoveTasksInput, Task, TaskBucket, UpdateTaskInput,
 };
 
 impl AppState {
@@ -42,6 +42,14 @@ impl AppState {
     }
 
     pub fn update_task(&mut self, input: UpdateTaskInput) -> DomainResult<AppSnapshot> {
+        self.update_task_at(input, Utc::now())
+    }
+
+    pub(crate) fn update_task_at(
+        &mut self,
+        input: UpdateTaskInput,
+        now: DateTime<Utc>,
+    ) -> DomainResult<AppSnapshot> {
         self.mutate(|state| {
             let task_id = parse_task_id(&input.id, "id")?;
             let task_index = state.find_task_index(task_id)?;
@@ -65,6 +73,12 @@ impl AppState {
                 None
             };
 
+            let completes_active_task =
+                input.is_done && state.focus.active_task_id == Some(task_id);
+            if completes_active_task {
+                state.finish_focus(now, true)?;
+            }
+
             let task = &mut state.tasks[task_index];
             task.title = fields.title;
             task.notes = fields.notes;
@@ -83,11 +97,7 @@ impl AppState {
             }
 
             if state.focus.active_task_id == Some(task_id) {
-                if input.is_done {
-                    state.focus = FocusSnapshot::default();
-                } else {
-                    state.focus.active_task_title = Some(state.tasks[task_index].title.clone());
-                }
+                state.focus.active_task_title = Some(state.tasks[task_index].title.clone());
             }
 
             Ok(())
@@ -95,22 +105,41 @@ impl AppState {
     }
 
     pub fn delete_task(&mut self, task_id: &str) -> DomainResult<AppSnapshot> {
+        self.delete_task_at(task_id, Utc::now())
+    }
+
+    pub(crate) fn delete_task_at(
+        &mut self,
+        task_id: &str,
+        now: DateTime<Utc>,
+    ) -> DomainResult<AppSnapshot> {
         self.mutate_task(task_id, |state, task_id, task_index, source_bucket| {
             state.tasks.remove(task_index);
             reindex_bucket(&mut state.tasks, source_bucket)?;
             if state.focus.active_task_id == Some(task_id) {
-                state.focus = FocusSnapshot::default();
+                state.finish_focus(now, false)?;
             }
             Ok(())
         })
     }
 
     pub fn toggle_task(&mut self, task_id: &str) -> DomainResult<AppSnapshot> {
+        self.toggle_task_at(task_id, Utc::now())
+    }
+
+    pub(crate) fn toggle_task_at(
+        &mut self,
+        task_id: &str,
+        now: DateTime<Utc>,
+    ) -> DomainResult<AppSnapshot> {
         self.mutate_task(task_id, |state, task_id, task_index, source_bucket| {
-            state.tasks[task_index].is_done = !state.tasks[task_index].is_done;
-            if state.tasks[task_index].is_done && state.focus.active_task_id == Some(task_id) {
-                state.focus = FocusSnapshot::default();
+            let completes_active_task =
+                !state.tasks[task_index].is_done && state.focus.active_task_id == Some(task_id);
+            if completes_active_task {
+                state.finish_focus(now, true)?;
             }
+
+            state.tasks[task_index].is_done = !state.tasks[task_index].is_done;
             reindex_bucket(&mut state.tasks, source_bucket)?;
             Ok(())
         })
@@ -140,26 +169,28 @@ impl AppState {
     }
 
     pub fn record_session(&mut self, session: FocusSession) -> DomainResult<AppSnapshot> {
-        self.mutate(|state| {
-            session.validate()?;
+        self.mutate(|state| state.insert_session(session))
+    }
 
-            if state.sessions.iter().any(|item| item.id == session.id) {
-                return Err(AppError::conflict(
-                    "A focus session with this id already exists.",
-                    "id",
-                ));
-            }
+    pub(super) fn insert_session(&mut self, session: FocusSession) -> DomainResult<()> {
+        session.validate()?;
 
-            if let Some(task_id) = session.task_id {
-                let task_index = state.find_task_index(task_id)?;
-                state.tasks[task_index].focused_seconds = state.tasks[task_index]
-                    .focused_seconds
-                    .saturating_add(session.focused_seconds);
-            }
+        if self.sessions.iter().any(|item| item.id == session.id) {
+            return Err(AppError::conflict(
+                "A focus session with this id already exists.",
+                "id",
+            ));
+        }
 
-            state.sessions.push(session);
-            Ok(())
-        })
+        if let Some(task_id) = session.task_id {
+            let task_index = self.find_task_index(task_id)?;
+            self.tasks[task_index].focused_seconds = self.tasks[task_index]
+                .focused_seconds
+                .saturating_add(session.focused_seconds);
+        }
+
+        self.sessions.push(session);
+        Ok(())
     }
 
     fn reorder_same_bucket(

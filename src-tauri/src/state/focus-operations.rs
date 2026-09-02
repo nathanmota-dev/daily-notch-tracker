@@ -4,10 +4,11 @@ use uuid::Uuid;
 use super::AppState;
 use crate::domain::task::parse_task_id;
 use crate::domain::{
-    clamp_minutes, AppError, AppSnapshot, DomainResult, FocusSnapshot, FocusState,
+    clamp_minutes, AppError, AppSnapshot, DomainResult, FocusSession, FocusSnapshot, FocusState,
 };
 
 const MILLIS_PER_MINUTE: u64 = 60_000;
+const MILLIS_PER_SECOND: u64 = 1_000;
 
 impl AppState {
     pub fn start_focus(&mut self, task_id: Option<String>) -> DomainResult<AppSnapshot> {
@@ -28,17 +29,7 @@ impl AppState {
     }
 
     pub fn stop_focus(&mut self) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
-
-        if self.focus.state == FocusState::Idle {
-            return Err(AppError::conflict_without_field(
-                "There is no active focus to stop.",
-            ));
-        }
-
-        self.focus = FocusSnapshot::default();
-        self.revision += 1;
-        Ok(self.snapshot())
+        self.stop_focus_at(Utc::now())
     }
 
     pub fn toggle_focus(&mut self) -> DomainResult<AppSnapshot> {
@@ -50,63 +41,93 @@ impl AppState {
         task_id: Option<Uuid>,
         started_at: DateTime<Utc>,
     ) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
+        self.mutate(|state| {
+            if state.focus.state != FocusState::Idle {
+                if state.focus.active_task_id == task_id {
+                    return Err(AppError::conflict_without_field(
+                        "A focus is already active for this task.",
+                    ));
+                }
 
-        if self.focus.state != FocusState::Idle {
-            return Err(AppError::conflict_without_field(
-                "A focus is already active.",
-            ));
-        }
+                state.finish_focus(started_at, false)?;
+            }
 
-        self.begin_focus(task_id, started_at)?;
-        self.revision += 1;
-        Ok(self.snapshot())
+            state.begin_focus(task_id, started_at)
+        })
     }
 
     pub(crate) fn pause_focus_at(&mut self, now: DateTime<Utc>) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
+        self.mutate(|state| {
+            if state.focus.state != FocusState::Running {
+                return Err(AppError::conflict_without_field(
+                    "Only a running focus can be paused.",
+                ));
+            }
 
-        if self.focus.state != FocusState::Running {
-            return Err(AppError::conflict_without_field(
-                "Only a running focus can be paused.",
-            ));
-        }
+            let end_at = state
+                .focus
+                .end_at
+                .ok_or_else(|| AppError::internal("The running focus is missing an end time."))?;
+            if state.running_since.is_none() {
+                return Err(AppError::internal(
+                    "The running focus is missing its start time.",
+                ));
+            }
 
-        let Some(end_at) = self.focus.end_at else {
-            return Err(AppError::internal(
-                "The running focus is missing an end time.",
-            ));
-        };
+            if now >= end_at {
+                state.finish_focus(now, true)?;
+                return Ok(());
+            }
 
-        let remaining_ms = end_at.signed_duration_since(now).num_milliseconds().max(0) as u64;
-        self.focus.state = FocusState::Paused;
-        self.focus.end_at = None;
-        self.focus.paused_remaining_ms = Some(remaining_ms);
-        self.revision += 1;
-        Ok(self.snapshot())
+            let accumulated_focus_ms = state.focused_millis_at(now)?;
+            let remaining_ms = state.focus.total_ms.saturating_sub(accumulated_focus_ms);
+
+            state.accumulated_focus_ms = accumulated_focus_ms;
+            state.running_since = None;
+            state.focus.state = FocusState::Paused;
+            state.focus.end_at = None;
+            state.focus.paused_remaining_ms = Some(remaining_ms);
+            state.bump_focus_token()
+        })
     }
 
     pub(crate) fn resume_focus_at(&mut self, now: DateTime<Utc>) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
+        self.mutate(|state| {
+            if state.focus.state != FocusState::Paused {
+                return Err(AppError::conflict_without_field(
+                    "Only a paused focus can be resumed.",
+                ));
+            }
 
-        if self.focus.state != FocusState::Paused {
-            return Err(AppError::conflict_without_field(
-                "Only a paused focus can be resumed.",
-            ));
-        }
+            let remaining_ms = state.focus.paused_remaining_ms.ok_or_else(|| {
+                AppError::internal("The paused focus is missing its remaining time.")
+            })?;
+            if remaining_ms == 0 {
+                return Err(AppError::internal(
+                    "The paused focus has no remaining time.",
+                ));
+            }
 
-        let Some(remaining_ms) = self.focus.paused_remaining_ms else {
-            return Err(AppError::internal(
-                "The paused focus is missing its remaining time.",
-            ));
-        };
+            let end_at = add_millis(now, remaining_ms)?;
+            state.focus.state = FocusState::Running;
+            state.focus.end_at = Some(end_at);
+            state.focus.paused_remaining_ms = None;
+            state.running_since = Some(now);
+            state.bump_focus_token()
+        })
+    }
 
-        let end_at = add_millis(now, remaining_ms)?;
-        self.focus.state = FocusState::Running;
-        self.focus.end_at = Some(end_at);
-        self.focus.paused_remaining_ms = None;
-        self.revision += 1;
-        Ok(self.snapshot())
+    pub(crate) fn stop_focus_at(&mut self, now: DateTime<Utc>) -> DomainResult<AppSnapshot> {
+        self.mutate(|state| {
+            if state.focus.state == FocusState::Idle {
+                return Err(AppError::conflict_without_field(
+                    "There is no active focus to stop.",
+                ));
+            }
+
+            let completed = state.focus_is_due(now);
+            state.finish_focus(now, completed)
+        })
     }
 
     pub(crate) fn toggle_focus_at(
@@ -114,21 +135,47 @@ impl AppState {
         today: NaiveDate,
         now: DateTime<Utc>,
     ) -> DomainResult<AppSnapshot> {
-        self.ensure_revision_available()?;
+        self.mutate(|state| {
+            if state.focus.state != FocusState::Idle {
+                let completed = state.focus_is_due(now);
+                state.finish_focus(now, completed)
+            } else {
+                let task_id = state
+                    .tasks_for_date(today)
+                    .into_iter()
+                    .find(|task| !task.is_done)
+                    .map(|task| task.id);
+                state.begin_focus(task_id, now)
+            }
+        })
+    }
 
-        if self.focus.state != FocusState::Idle {
-            self.focus = FocusSnapshot::default();
-        } else {
-            let task_id = self
-                .tasks_for_date(today)
-                .into_iter()
-                .find(|task| !task.is_done)
-                .map(|task| task.id);
-            self.begin_focus(task_id, now)?;
+    pub(crate) fn complete_focus_if_due_at(
+        &mut self,
+        token: u64,
+        now: DateTime<Utc>,
+    ) -> DomainResult<Option<AppSnapshot>> {
+        if self.focus_token != token || self.focus.state != FocusState::Running {
+            return Ok(None);
         }
 
-        self.revision += 1;
-        Ok(self.snapshot())
+        let end_at = self
+            .focus
+            .end_at
+            .ok_or_else(|| AppError::internal("The running focus is missing an end time."))?;
+        if now < end_at {
+            return Ok(None);
+        }
+
+        self.mutate(|state| state.finish_focus(now, true)).map(Some)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn complete_focus_at(
+        &mut self,
+        now: DateTime<Utc>,
+    ) -> DomainResult<Option<AppSnapshot>> {
+        self.complete_focus_if_due_at(self.focus_token, now)
     }
 
     fn begin_focus(
@@ -167,6 +214,70 @@ impl AppState {
             paused_remaining_ms: None,
             total_ms,
         };
+        self.running_since = Some(started_at);
+        self.accumulated_focus_ms = 0;
+        self.bump_focus_token()
+    }
+
+    pub(super) fn finish_focus(&mut self, now: DateTime<Utc>, completed: bool) -> DomainResult<()> {
+        let started_at = self
+            .focus
+            .started_at
+            .ok_or_else(|| AppError::internal("The active focus is missing a start time."))?;
+        let focused_ms = self.focused_millis_at(now)?;
+        let focused_seconds = focused_ms / MILLIS_PER_SECOND;
+        let ended_at = self
+            .focus
+            .end_at
+            .map_or(now, |end_at| std::cmp::min(now, end_at))
+            .max(started_at);
+        let task_id = self
+            .focus
+            .active_task_id
+            .filter(|task_id| self.tasks.iter().any(|task| task.id == *task_id));
+
+        if focused_seconds > 0 {
+            let session =
+                FocusSession::new(task_id, started_at, ended_at, focused_seconds, completed)?;
+            self.insert_session(session)?;
+        }
+
+        self.focus = FocusSnapshot::default();
+        self.running_since = None;
+        self.accumulated_focus_ms = 0;
+        self.bump_focus_token()
+    }
+
+    fn focused_millis_at(&self, now: DateTime<Utc>) -> DomainResult<u64> {
+        match self.focus.state {
+            FocusState::Idle => Ok(0),
+            FocusState::Paused => Ok(self.accumulated_focus_ms),
+            FocusState::Running => {
+                let running_since = self.running_since.ok_or_else(|| {
+                    AppError::internal("The running focus is missing its start time.")
+                })?;
+                let effective_end = self
+                    .focus
+                    .end_at
+                    .map_or(now, |end_at| std::cmp::min(now, end_at));
+                let segment_ms = elapsed_millis(running_since, effective_end);
+                self.accumulated_focus_ms
+                    .checked_add(segment_ms)
+                    .ok_or_else(|| AppError::internal("The focused time is out of range."))
+            }
+        }
+    }
+
+    fn focus_is_due(&self, now: DateTime<Utc>) -> bool {
+        self.focus.state == FocusState::Running
+            && self.focus.end_at.is_some_and(|end_at| now >= end_at)
+    }
+
+    fn bump_focus_token(&mut self) -> DomainResult<()> {
+        self.focus_token = self
+            .focus_token
+            .checked_add(1)
+            .ok_or_else(|| AppError::internal("The focus session token is exhausted."))?;
         Ok(())
     }
 }
@@ -184,6 +295,10 @@ fn add_millis(timestamp: DateTime<Utc>, milliseconds: u64) -> DomainResult<DateT
     timestamp
         .checked_add_signed(Duration::milliseconds(milliseconds))
         .ok_or_else(|| AppError::internal("The focus end time is out of range."))
+}
+
+fn elapsed_millis(start: DateTime<Utc>, end: DateTime<Utc>) -> u64 {
+    end.signed_duration_since(start).num_milliseconds().max(0) as u64
 }
 
 #[cfg(test)]
