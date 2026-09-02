@@ -29,6 +29,9 @@
   --collapsed-widget-height: 72px;
   --collapsed-widget-height-off: 52px;
   --collapsed-widget-minimal-width: 104px;
+  --collapsed-notch-width: 204px;
+  --collapsed-notch-height: 32px;
+  --collapsed-notch-radius: 10px;
   --expanded-dashboard-width: 620px;
   --expanded-dashboard-min-height: 190px;
   --expanded-dashboard-activity-width: 204px;
@@ -133,100 +136,6 @@ input {
   font: inherit;
 }
 
-/* The tasks sidebar is intentionally kept outside this Tailwind migration. */
-.tasks-sidebar,
-.tasks-sidebar__header,
-.tasks-sidebar__calendar,
-.tasks-sidebar__section-heading,
-.tasks-sidebar__date-label {
-  min-width: 0;
-}
-
-.tasks-sidebar {
-  display: flex;
-  min-height: 0;
-  flex-direction: column;
-  gap: 28px;
-  overflow-y: auto;
-  padding: 24px;
-}
-
-.tasks-sidebar {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
-  background: var(--panel);
-}
-
-.tasks-sidebar__header {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.tasks-sidebar__header h1 {
-  margin: 0;
-  color: var(--content);
-  font-size: clamp(1.75rem, 4vw, 2.35rem);
-  font-weight: 700;
-  letter-spacing: -0.045em;
-  line-height: 1.05;
-}
-
-.tasks-sidebar__eyebrow {
-  margin: 0 0 6px;
-  color: var(--muted);
-  font-size: 0.7rem;
-  font-weight: 650;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.tasks-sidebar__header button {
-  flex: 0 0 auto;
-}
-
-.tasks-sidebar__calendar {
-  display: grid;
-  gap: 20px;
-  border-top: 1px solid var(--border);
-  padding-top: 24px;
-}
-
-.tasks-sidebar__section-heading h2 {
-  margin: 0;
-  color: var(--content);
-  font-size: 1rem;
-  font-weight: 650;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-}
-
-.tasks-sidebar__date-label {
-  display: grid;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 0.78rem;
-  font-weight: 600;
-}
-
-.tasks-sidebar__date-label input {
-  min-height: 40px;
-  width: 100%;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--canvas);
-  color: var(--content);
-  font-size: 0.82rem;
-  outline: none;
-  padding: 0 10px;
-}
-
-.tasks-sidebar__date-label input:focus {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 2px rgb(96 165 250 / 0.28);
-}
-
 @keyframes progress-tray-rainbow {
   from {
     filter: drop-shadow(var(--progress-rgb-shadow)) hue-rotate(0deg);
@@ -234,12 +143,6 @@ input {
 
   to {
     filter: drop-shadow(var(--progress-rgb-shadow)) hue-rotate(360deg);
-  }
-}
-
-@media (max-width: 640px) {
-  .tasks-sidebar {
-    overflow: visible;
   }
 }
 

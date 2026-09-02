@@ -33,6 +33,7 @@ type TaskSurfaceActionOptions = {
   setPanel: Dispatch<SetStateAction<TasksPanel>>
   setSelectedTaskId: Dispatch<SetStateAction<string | null>>
   resetForAdd: (scheduledDate: string | null) => void
+  focusTask?: (taskId: string) => void
   mutations: Pick<UseDesktopMutationsResult, "runMutation">
 }
 
@@ -114,10 +115,61 @@ async function saveTaskDraft(
   )
 }
 
+async function saveDraftChanges(
+  panel: TasksPanel,
+  draft: TaskDraft,
+  api: DesktopApi,
+  mutations: Pick<UseDesktopMutationsResult, "runMutation">,
+  setDraftErrors: Dispatch<SetStateAction<TaskDraftErrors>>,
+  setPanel: Dispatch<SetStateAction<TasksPanel>>,
+) {
+  const validationErrors = validateTaskDraft(draft)
+  if (Object.keys(validationErrors).length > 0) {
+    setDraftErrors(validationErrors)
+    return null
+  }
+
+  const result = await saveTaskDraft(
+    panel,
+    draft,
+    api,
+    mutations,
+    setDraftErrors,
+  )
+
+  if (result) {
+    setPanel(panel === "create" ? "list" : "detail")
+    setDraftErrors({})
+  }
+
+  return result
+}
+
+function toggleFocusFallback(
+  api: DesktopApi,
+  mutations: Pick<UseDesktopMutationsResult, "runMutation">,
+  snapshot: AppSnapshot,
+  taskId: string,
+) {
+  const isActiveTask = snapshot.focus.activeTaskId === taskId
+  if (isActiveTask && snapshot.focus.state === "running") {
+    void mutations.runMutation("pauseFocus", () => api.pauseFocus())
+    return
+  }
+  if (isActiveTask && snapshot.focus.state === "paused") {
+    void mutations.runMutation("resumeFocus", () => api.resumeFocus())
+    return
+  }
+  void mutations.runMutation("startFocus", () =>
+    api.startFocus({ taskId, durationSeconds: null }),
+  )
+}
+
 export function createTaskSurfaceActions({
   activeTab,
   api,
   draft,
+  focusTask,
   mutations,
   panel,
   resetForAdd,
@@ -153,26 +205,14 @@ export function createTaskSurfaceActions({
   }
 
   async function saveDraft() {
-    const validationErrors = validateTaskDraft(draft)
-    if (Object.keys(validationErrors).length > 0) {
-      setDraftErrors(validationErrors)
-      return null
-    }
-
-    const result = await saveTaskDraft(
+    return saveDraftChanges(
       panel,
       draft,
       api,
       mutations,
       setDraftErrors,
+      setPanel,
     )
-
-    if (result) {
-      setPanel(panel === "create" ? "list" : "detail")
-      setDraftErrors({})
-    }
-
-    return result
   }
 
   async function deleteSelectedTask() {
@@ -189,21 +229,21 @@ export function createTaskSurfaceActions({
     return result
   }
 
+  function deleteTask(taskId: string) {
+    void mutations.runMutation("deleteTask", () => api.deleteTask(taskId))
+  }
+
   function toggleTask(taskId: string) {
     void mutations.runMutation("toggleTask", () => api.toggleTask(taskId))
   }
 
   function toggleFocus(taskId: string) {
-    const isActiveTask = snapshot.focus.activeTaskId === taskId
-    if (isActiveTask && snapshot.focus.state === "running") {
-      void mutations.runMutation("pauseFocus", () => api.pauseFocus())
+    if (focusTask) {
+      focusTask(taskId)
       return
     }
-    if (isActiveTask && snapshot.focus.state === "paused") {
-      void mutations.runMutation("resumeFocus", () => api.resumeFocus())
-      return
-    }
-    void mutations.runMutation("startFocus", () => api.startFocus(taskId))
+
+    toggleFocusFallback(api, mutations, snapshot, taskId)
   }
 
   function reorder(taskIds: string[]) {
@@ -215,6 +255,12 @@ export function createTaskSurfaceActions({
 
   return {
     backToList,
+    closeWindow: () => {
+      void mutations.runMutation("closeTasksWindow", () =>
+        api.closeTasksWindow(),
+      )
+    },
+    deleteTask,
     deleteSelectedTask,
     openAdd,
     openSettings: () => requestSettingsWindow(api, mutations),

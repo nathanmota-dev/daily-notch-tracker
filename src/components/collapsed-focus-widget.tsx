@@ -1,6 +1,7 @@
 import { ClockIcon, PauseIcon } from "../icons"
 import type { FocusSettings, FocusSnapshot } from "../lib/desktopApi"
 import { cn } from "../lib/utils"
+import { CollapsedNotch } from "./collapsed-notch"
 import { ProgressTray } from "./progress-tray"
 import {
   deriveCollapsedFocusPresentation,
@@ -27,14 +28,17 @@ export function CollapsedFocusWidget({
   if (!presentation.isVisible) {
     return (
       <div
-        aria-hidden="true"
-        className={cn("hidden", className)}
+        className={cn(
+          "flex h-[var(--collapsed-notch-height)] w-full items-start justify-center",
+          className,
+        )}
         data-mode="idle"
         data-slot="collapsed-focus-widget"
         data-state="idle"
         data-timeline="off"
-        hidden
-      />
+      >
+        <CollapsedNotch />
+      </div>
     )
   }
 

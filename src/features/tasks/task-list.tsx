@@ -1,6 +1,6 @@
 import type { DragEvent } from "react"
 
-import { PauseIcon, PlayIcon } from "../../icons"
+import { EditIcon, PauseIcon, PlayIcon, TrashIcon } from "../../icons"
 import type { FocusSnapshot, Task } from "../../lib/desktopApi"
 import { formatTaskDuration } from "./tasks-model"
 import { useTaskReorder } from "../../components/use-task-reorder"
@@ -15,6 +15,7 @@ export type TaskListProps = {
   busy: boolean
   onToggleTask: (taskId: string) => void
   onToggleFocus: (taskId: string) => void
+  onDeleteTask: (taskId: string) => void
   onOpenTask: (taskId: string) => void
   onReorder: (taskIds: string[]) => void
   onAddTask: () => void
@@ -39,11 +40,107 @@ function focusAction(task: Task, focus: FocusSnapshot) {
     : { label: `Pause focus for ${task.title}`, Icon: PauseIcon }
 }
 
+function TaskSummary({
+  busy,
+  onOpenTask,
+  task,
+}: Pick<TaskRowProps, "busy" | "onOpenTask" | "task">) {
+  return (
+    <button
+      aria-label={`Open details for ${task.title}`}
+      className="min-w-0 cursor-pointer border-0 bg-transparent py-1 text-left text-inherit outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      disabled={busy}
+      onClick={() => onOpenTask(task.id)}
+      type="button"
+    >
+      <span
+        className={cn(
+          "block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.95rem] font-[650]",
+          task.isDone && "text-muted line-through",
+        )}
+      >
+        {task.title}
+      </span>
+      <span
+        className={cn(
+          "mt-1 block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.75rem] text-muted",
+          task.isDone && "opacity-70",
+        )}
+      >
+        {task.notes || "No note"}
+      </span>
+      <span className="mt-1 flex flex-wrap gap-1 text-[0.63rem] text-muted">
+        <span className="rounded-pill bg-white/[0.08] px-1.5 py-0.5" data-slot="task-duration-chip">
+          {formatTaskDuration(task.estimateMinutes)}
+        </span>
+        {task.scheduledDate && (
+          <span className="rounded-pill bg-white/[0.08] px-1.5 py-0.5" data-slot="task-date-chip">
+            {task.scheduledDate}
+          </span>
+        )}
+      </span>
+    </button>
+  )
+}
+
+function TaskActions({
+  busy,
+  canFocus,
+  label,
+  onDeleteTask,
+  onOpenTask,
+  onToggleFocus,
+  task,
+  Icon,
+}: Pick<
+  TaskRowProps,
+  "busy" | "onDeleteTask" | "onOpenTask" | "onToggleFocus" | "task"
+> & { canFocus: boolean; label: string; Icon: typeof PlayIcon }) {
+  return (
+    <>
+      <IconButton
+        aria-label={`Edit ${task.title}`}
+        className="text-muted"
+        disabled={busy}
+        onClick={() => onOpenTask(task.id)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <EditIcon aria-hidden="true" />
+      </IconButton>
+      <IconButton
+        aria-label={label}
+        className="text-accent"
+        disabled={busy || !canFocus}
+        onClick={() => onToggleFocus(task.id)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <Icon aria-hidden="true" />
+      </IconButton>
+      <IconButton
+        aria-label={`Delete ${task.title}`}
+        className="text-muted hover:text-danger"
+        disabled={busy}
+        onClick={() => onDeleteTask(task.id)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <TrashIcon aria-hidden="true" />
+      </IconButton>
+    </>
+  )
+}
+
 function TaskRow({
   busy,
   focus,
   onDragOver,
   onDrop,
+  onDeleteTask,
   onOpenTask,
   onReorderEnd,
   onReorderStart,
@@ -56,7 +153,7 @@ function TaskRow({
 
   return (
     <article
-      className="grid min-h-16 grid-cols-[36px_20px_minmax(0,1fr)_36px] items-center gap-2 rounded-card border border-border bg-panel p-[8px_12px_8px_0] transition-[background-color,border-color] duration-150 hover:border-border-strong hover:bg-panel-hover"
+      className="grid min-h-16 grid-cols-[36px_20px_minmax(0,1fr)_repeat(3,32px)] items-center gap-1 rounded-card border border-border bg-panel p-[8px_8px_8px_0] transition-[background-color,border-color] duration-150 hover:border-border-strong hover:bg-panel-hover"
       data-completed={task.isDone ? "true" : "false"}
       data-slot="tasks-task-row"
       data-task-id={task.id}
@@ -84,45 +181,17 @@ function TaskRow({
           }
         }}
       />
-      <button
-        aria-label={`Open details for ${task.title}`}
-        className="min-w-0 cursor-pointer border-0 bg-transparent py-1 text-left text-inherit outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        disabled={busy}
-        onClick={() => onOpenTask(task.id)}
-        type="button"
-      >
-        <span
-          className={cn(
-            "block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.95rem] font-[650]",
-            task.isDone && "text-muted line-through",
-          )}
-        >
-          {task.title}
-        </span>
-        <span
-          className={cn(
-            "mt-1 block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.75rem] text-muted",
-            task.isDone && "opacity-70",
-          )}
-        >
-          <span>{task.notes || "No note"}</span>
-          <span aria-hidden="true" className="inline-block px-1.5">
-            ·
-          </span>
-          <span>{formatTaskDuration(task.estimateMinutes)}</span>
-        </span>
-      </button>
-      <IconButton
-        aria-label={label}
-        className="text-accent"
-        disabled={busy || !canFocus}
-        onClick={() => onToggleFocus(task.id)}
-        size="sm"
-        type="button"
-        variant="ghost"
-      >
-        <Icon aria-hidden="true" />
-      </IconButton>
+      <TaskSummary busy={busy} onOpenTask={onOpenTask} task={task} />
+      <TaskActions
+        Icon={Icon}
+        busy={busy}
+        canFocus={canFocus}
+        label={label}
+        onDeleteTask={onDeleteTask}
+        onOpenTask={onOpenTask}
+        onToggleFocus={onToggleFocus}
+        task={task}
+      />
     </article>
   )
 }
@@ -131,6 +200,7 @@ export function TaskList({
   busy,
   focus,
   onAddTask,
+  onDeleteTask,
   onOpenTask,
   onReorder,
   onToggleFocus,
@@ -170,6 +240,7 @@ export function TaskList({
           key={task.id}
           onDragOver={handleDragOver}
           onDrop={(event) => handleDrop(event, task.id)}
+          onDeleteTask={onDeleteTask}
           onOpenTask={onOpenTask}
           onReorderEnd={onReorderEnd}
           onReorderStart={onReorderStart}

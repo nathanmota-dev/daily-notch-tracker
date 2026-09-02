@@ -32,6 +32,7 @@ export type UseOverlayInteractionOptions = {
 
 export type OverlayInteraction = {
   presentationMode: OverlayPresentationMode
+  onFocus: () => void
   onPointerEnter: () => void
   onPointerLeave: () => void
   acquireHold: () => () => void
@@ -109,8 +110,7 @@ function useOverlayVisibilityEffect(
     }
 
     try {
-      const visibilityOperation =
-        focusState === "idle" ? adapter.hide() : adapter.show()
+      const visibilityOperation = adapter.show()
 
       void visibilityOperation.catch(() => undefined)
     } catch {
@@ -167,6 +167,12 @@ export function useOverlayInteraction({
     setPresentationMode("expanded")
   }, [clearCollapseTimer])
 
+  const onFocus = useCallback(() => {
+    pointerInsideRef.current = true
+    clearCollapseTimer()
+    setPresentationMode("expanded")
+  }, [clearCollapseTimer])
+
   const onPointerLeave = useCallback(() => {
     pointerInsideRef.current = false
 
@@ -208,11 +214,12 @@ export function useOverlayInteraction({
   return useMemo(
     () => ({
       acquireHold,
+      onFocus,
       onPointerEnter,
       onPointerLeave,
       presentationMode,
     }),
-    [acquireHold, onPointerEnter, onPointerLeave, presentationMode],
+    [acquireHold, onFocus, onPointerEnter, onPointerLeave, presentationMode],
   )
 }
 

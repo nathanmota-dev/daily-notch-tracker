@@ -58,7 +58,7 @@ describe("createTauriDesktopApi", () => {
     await api.deleteTask("task-1")
     await api.toggleTask("task-1")
     await api.moveTasks(moveInput)
-    await api.startFocus("task-1")
+    await api.startFocus({ taskId: "task-1", durationSeconds: 90 })
     await api.pauseFocus()
     await api.resumeFocus()
     await api.stopFocus()
@@ -67,6 +67,7 @@ describe("createTauriDesktopApi", () => {
     await api.getAppDiagnostics()
     await api.setAutostart(true)
     await api.openTasksWindow(tasksIntent)
+    await api.closeTasksWindow()
     await api.openSettingsWindow()
     await api.openExternalRelease("https://github.com/example/release")
 
@@ -77,7 +78,7 @@ describe("createTauriDesktopApi", () => {
       ["delete_task", { taskId: "task-1" }],
       ["toggle_task", { taskId: "task-1" }],
       ["move_tasks", { input: moveInput }],
-      ["start_focus", { taskId: "task-1" }],
+      ["start_focus", { taskId: "task-1", durationSeconds: 90 }],
       ["pause_focus", undefined],
       ["resume_focus", undefined],
       ["stop_focus", undefined],
@@ -86,6 +87,7 @@ describe("createTauriDesktopApi", () => {
       ["get_app_diagnostics", undefined],
       ["set_autostart", { enabled: true }],
       ["open_tasks_window", { intent: tasksIntent }],
+      ["close_tasks_window", undefined],
       ["open_settings_window", undefined],
       ["open_external_release", { url: "https://github.com/example/release" }],
     ])
@@ -171,7 +173,17 @@ describe("createMockDesktopApi", () => {
     const mutationResult = await api.addTask(createTaskInput)
 
     expect(secondSnapshot).toEqual(createEmptyAppSnapshot())
-    expect(mutationResult).toEqual(createEmptyAppSnapshot())
+    expect(mutationResult).toMatchObject({
+      revision: 1,
+      tasks: [
+        expect.objectContaining({
+          title: createTaskInput.title,
+          scheduledDate: createTaskInput.scheduledDate,
+          estimateMinutes: createTaskInput.estimateMinutes,
+        }),
+      ],
+    })
+    expect(await api.getSnapshot()).toEqual(mutationResult)
     expect(await api.getAppDiagnostics()).toEqual(createBrowserDiagnostics())
   })
 
@@ -194,6 +206,125 @@ describe("createMockDesktopApi", () => {
         message: "The mock updateTask operation failed.",
       }),
     )
+
+    const explicitFailure = new DesktopApiError({
+      operation: "openSettingsWindow",
+      code: "integration-unavailable",
+      message: "Settings are unavailable.",
+    })
+    const explicitFailureApi = createMockDesktopApi({
+      failures: { openSettingsWindow: explicitFailure },
+    }).api
+    await expect(explicitFailureApi.openSettingsWindow()).rejects.toBe(
+      explicitFailure,
+    )
+
+    const subscribeFailureApi = createMockDesktopApi({
+      failures: { subscribe: "integration-unavailable" },
+    }).api
+    await expect(
+      subscribeFailureApi.subscribe("store-changed", vi.fn()),
+    ).rejects.toMatchObject({ code: "integration-unavailable" })
+  })
+
+  it("mutates task buckets, settings, and browser window routes", async () => {
+    window.history.replaceState({}, "", "/")
+    const controller = createMockDesktopApi()
+    const { api } = controller
+
+    const first = await api.addTask({
+      title: " First task ",
+      notes: "A note",
+      scheduledDate: null,
+      estimateMinutes: 10,
+    })
+    const firstId = first.tasks[0]?.id
+    expect(firstId).toBeTruthy()
+
+    const second = await api.addTask({
+      title: "Second task",
+      notes: "",
+      scheduledDate: null,
+      estimateMinutes: 20,
+    })
+    const secondId = second.tasks[1]?.id
+    expect(secondId).toBeTruthy()
+
+    await api.moveTasks({
+      taskIds: [secondId!, firstId!],
+      source: { scheduledDate: null },
+      destination: { scheduledDate: null },
+    })
+    expect(controller.getSnapshot().tasks.map((task) => task.sortOrder)).toEqual([1, 0])
+
+    await api.moveTasks({
+      taskIds: [firstId!],
+      source: { scheduledDate: null },
+      destination: { scheduledDate: "2026-09-03" },
+    })
+    await api.updateTask({
+      id: firstId!,
+      title: "Updated task",
+      notes: "Updated note",
+      scheduledDate: "2026-09-04",
+      estimateMinutes: 15,
+      isDone: false,
+    })
+    await api.toggleTask(firstId!)
+    await api.toggleTask(firstId!)
+    await api.updateSettings({ focusMinutes: 45 })
+    await api.setAutostart(true)
+
+    expect(controller.getSnapshot()).toMatchObject({
+      settings: { focusMinutes: 45, launchAtLogin: true },
+      tasks: expect.arrayContaining([
+        expect.objectContaining({ id: firstId, title: "Updated task", isDone: false }),
+      ]),
+    })
+
+    await api.openTasksWindow({ kind: "add" })
+    expect(window.location.search).toContain("surface=tasks")
+    expect(window.location.search).toContain("intent=add")
+    await api.closeTasksWindow()
+    expect(window.location.search).toContain("surface=overlay")
+    await api.deleteTask(secondId!)
+    expect(controller.getSnapshot().tasks).toHaveLength(1)
+
+    window.history.replaceState({}, "", "/")
+  })
+
+  it("uses system operation handlers in the browser mock", async () => {
+    const diagnostics = createBrowserDiagnostics()
+    const getSnapshot = vi.fn(async () => createSnapshot(7))
+    const getAppDiagnostics = vi.fn(async () => diagnostics)
+    const openTasksWindow = vi.fn(async () => undefined)
+    const closeTasksWindow = vi.fn(async () => undefined)
+    const openSettingsWindow = vi.fn(async () => undefined)
+    const openExternalRelease = vi.fn(async () => undefined)
+    const controller = createMockDesktopApi({
+      handlers: {
+        closeTasksWindow,
+        getAppDiagnostics,
+        getSnapshot,
+        openExternalRelease,
+        openSettingsWindow,
+        openTasksWindow,
+      },
+    })
+
+    await expect(controller.api.getSnapshot()).resolves.toEqual(createSnapshot(7))
+    await expect(controller.api.getAppDiagnostics()).resolves.toEqual(diagnostics)
+    await controller.api.openTasksWindow({ kind: "list" })
+    await controller.api.closeTasksWindow()
+    await controller.api.openSettingsWindow()
+    await controller.api.openExternalRelease("https://example.com/release")
+
+    expect(getSnapshot).toHaveBeenCalledOnce()
+    expect(getAppDiagnostics).toHaveBeenCalledOnce()
+    expect(openTasksWindow).toHaveBeenCalledWith({ kind: "list" })
+    expect(closeTasksWindow).toHaveBeenCalledOnce()
+    expect(openSettingsWindow).toHaveBeenCalledOnce()
+    expect(openExternalRelease).toHaveBeenCalledWith("https://example.com/release")
   })
 
   it("emits cloned event payloads and unsubscribes idempotently", async () => {

@@ -8,6 +8,7 @@ import {
   FiChevronsDown,
   FiChevronsUp,
   FiClock,
+  FiEdit2,
   FiList,
   FiMaximize2,
   FiMinus,
@@ -16,6 +17,7 @@ import {
   FiPlay,
   FiPlus,
   FiSettings,
+  FiTrash2,
   FiX,
 } from "react-icons/fi"
 
@@ -40,6 +42,8 @@ export const icons = {
   chevronsDown: FiChevronsDown,
   list: FiList,
   expand: FiMaximize2,
+  edit: FiEdit2,
+  trash: FiTrash2,
 } satisfies Record<string, AppIcon>
 
 export const {
@@ -60,4 +64,6 @@ export const {
   chevronsDown: ChevronsDownIcon,
   list: ListIcon,
   expand: ExpandIcon,
+  edit: EditIcon,
+  trash: TrashIcon,
 } = icons

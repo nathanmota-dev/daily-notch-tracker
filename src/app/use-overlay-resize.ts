@@ -8,6 +8,7 @@ import {
 
 import { createOverlayResizeRuntime } from "./overlay-resize-runtime"
 import { isTauriRuntime } from "../lib/desktop/tauri"
+import type { FocusState } from "../lib/desktopApi"
 import {
   createTauriOverlayWindowAdapter,
   type OverlayPresentationMode,
@@ -15,6 +16,7 @@ import {
 } from "../lib/desktop/overlay-window"
 
 type UseOverlayResizeOptions = {
+  focusState?: FocusState
   presentationMode: OverlayPresentationMode
   minimalMode?: boolean
   showTimeline?: boolean
@@ -52,6 +54,7 @@ export function useOverlayWindowAdapter(
 
 export function useOverlayResize({
   adapter,
+  focusState = "running",
   minimalMode = false,
   presentationMode,
   showTimeline = true,
@@ -84,6 +87,7 @@ export function useOverlayResize({
     const runtime = createOverlayResizeRuntime({
       container,
       visual,
+      focusState,
       presentationMode,
       minimalMode,
       showTimeline,
@@ -94,7 +98,7 @@ export function useOverlayResize({
     runtime.start()
 
     return () => runtime.destroy()
-  }, [minimalMode, presentationMode, resolvedAdapter, showTimeline])
+  }, [focusState, minimalMode, presentationMode, resolvedAdapter, showTimeline])
 
   return { isResizing, surfaceRef }
 }

@@ -258,7 +258,7 @@ test.describe("DailyNotch surface router", () => {
     ).toHaveCount(0)
 
     const sidebarBox = await sidebar.boundingBox()
-    expect(sidebarBox?.width).toBe(320)
+    expect(sidebarBox?.width).toBe(220)
   })
 
   test("renders and navigates the monthly Tasks calendar", async ({ page }) => {
@@ -293,6 +293,51 @@ test.describe("DailyNotch surface router", () => {
 
     await page.getByRole("button", { name: "Today" }).click()
     await expect(grid).toHaveAttribute("data-month", month!)
+  })
+
+  test("completes the browser notch-to-task focus flow", async ({ page }) => {
+    await page.goto("/")
+    await leaveOverlay(page)
+
+    await expect(
+      page.getByRole("button", { name: "Open focus dashboard" }),
+    ).toBeVisible()
+    await page.getByRole("button", { name: "Open focus dashboard" }).click()
+    await expect(page.locator('[data-surface="overlay"]')).toHaveAttribute(
+      "data-presentation-mode",
+      "expanded",
+    )
+
+    await page.getByRole("button", { name: "Add a task" }).click()
+    await expect(page.locator('[data-surface="tasks"]')).toBeVisible()
+    await expect(page.getByRole("heading", { name: "New task" })).toBeVisible()
+
+    await page.getByLabel("Title").fill("Browser flow task")
+    await page.getByRole("button", { name: "Add task" }).click()
+    await expect(page.getByText("Browser flow task")).toBeVisible()
+
+    await page
+      .getByRole("button", { name: "Start focus for Browser flow task" })
+      .click()
+    await expect(
+      page.getByRole("dialog", { name: "Focus session for Browser flow task" }),
+    ).toBeVisible()
+    await page.getByLabel("Focus minutes").fill("1")
+    await page.getByLabel("Focus seconds").fill("30")
+    await page
+      .getByRole("dialog", { name: "Focus session for Browser flow task" })
+      .getByRole("button", { name: "Start focus" })
+      .click()
+    await expect(
+      page.getByRole("button", { name: "Pause focus for Browser flow task" }),
+    ).toBeVisible()
+
+    await page.getByRole("button", { name: "Close Tasks" }).click()
+    await expect(page.locator('[data-surface="overlay"]')).toBeVisible()
+    await leaveOverlay(page)
+    await expect(
+      page.locator('[data-slot="collapsed-focus-widget"]'),
+    ).toHaveAttribute("data-state", "running")
   })
 
   for (const { label, heading } of normalSurfaces) {

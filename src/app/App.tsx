@@ -74,6 +74,7 @@ export function AppShell({
   const isExpanded = effectivePresentationMode === "expanded"
   const { isResizing, surfaceRef } = useOverlayResize({
     adapter: overlayWindow,
+    focusState: snapshot.focus.state,
     minimalMode: snapshot.settings.minimalMode,
     presentationMode: effectivePresentationMode,
     showTimeline: snapshot.settings.showTimeline,
@@ -90,6 +91,7 @@ export function AppShell({
         data-presentation-mode={effectivePresentationMode}
         data-resizing={isResizing ? "true" : "false"}
         data-surface="overlay"
+        onFocus={interaction.onFocus}
         onPointerEnter={interaction.onPointerEnter}
         onPointerLeave={interaction.onPointerLeave}
       >

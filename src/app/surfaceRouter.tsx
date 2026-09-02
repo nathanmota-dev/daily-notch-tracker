@@ -7,7 +7,7 @@ import {
 } from "../lib/desktopApi"
 import type { ExpandedDashboardCallbacks } from "../components/expanded-dashboard"
 import { App, type PresentationMode } from "./App"
-import { getRuntimeSurfaceLabel } from "./surfaceResolver"
+import { useRuntimeSurface } from "./use-runtime-surface"
 
 type SurfaceComponentProps = {
   api: DesktopApi
@@ -57,7 +57,8 @@ export function SurfaceRouter({
   surface,
   ...callbacks
 }: SurfaceRouterProps) {
-  const resolvedSurface = surface ?? getRuntimeSurfaceLabel()
+  const runtimeSurface = useRuntimeSurface()
+  const resolvedSurface = surface ?? runtimeSurface
   const Surface = surfaceComponents[resolvedSurface]
 
   return (

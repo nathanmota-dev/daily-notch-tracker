@@ -514,7 +514,16 @@ describe("Tasks surface", () => {
     await screen.findByRole("heading", { name: "Tasks" })
     const user = userEvent.setup()
     await user.click(screen.getByRole("button", { name: "Start focus for Focus task" }))
-    await waitFor(() => expect(startFocus).toHaveBeenCalledWith(task.id))
+    expect(screen.getByRole("dialog", { name: "Focus session for Focus task" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Focus minutes")).toHaveValue("25")
+    expect(screen.getByLabelText("Focus seconds")).toHaveValue("00")
+    await user.click(screen.getByRole("button", { name: "Start focus" }))
+    await waitFor(() =>
+      expect(startFocus).toHaveBeenCalledWith({
+        taskId: task.id,
+        durationSeconds: 1_500,
+      }),
+    )
     await user.click(screen.getByRole("button", { name: "Pause focus for Focus task" }))
     await waitFor(() => expect(pauseFocus).toHaveBeenCalledOnce())
     await user.click(screen.getByRole("button", { name: "Resume focus for Focus task" }))
@@ -673,7 +682,13 @@ describe("Tasks surface", () => {
       screen.getByRole("button", { name: "Start focus for Detail focus task" }),
     )
 
-    await waitFor(() => expect(startFocus).toHaveBeenCalledWith(task.id))
+    await user.click(screen.getByRole("button", { name: "Start focus" }))
+    await waitFor(() =>
+      expect(startFocus).toHaveBeenCalledWith({
+        taskId: task.id,
+        durationSeconds: 1_500,
+      }),
+    )
   })
 
   it("completes the active task through the list action", async () => {

@@ -12,6 +12,7 @@ export type {
 } from "./overlay-position"
 
 export const OVERLAY_WINDOW_SIZES = {
+  idle: { width: 204, height: 32 },
   collapsed: { width: 360, height: 72 },
   minimal: { width: 104, height: 72 },
   timelineOff: { width: 360, height: 52 },
@@ -59,6 +60,7 @@ export interface OverlayWindowAdapter {
 }
 
 type OverlayTargetOptions = {
+  focusState?: "idle" | "running" | "paused"
   minimalMode?: boolean
   showTimeline?: boolean
   measuredVisualHeight?: number
@@ -78,9 +80,17 @@ function safeScaleFactor(scaleFactor: number) {
 }
 
 export function getCollapsedOverlayLogicalSize({
+  focusState = "running",
   minimalMode = false,
   showTimeline = true,
-}: Pick<OverlayTargetOptions, "minimalMode" | "showTimeline"> = {}) {
+}: Pick<
+  OverlayTargetOptions,
+  "focusState" | "minimalMode" | "showTimeline"
+> = {}) {
+  if (focusState === "idle") {
+    return { ...OVERLAY_WINDOW_SIZES.idle }
+  }
+
   const width = minimalMode
     ? OVERLAY_WINDOW_SIZES.minimal.width
     : OVERLAY_WINDOW_SIZES.collapsed.width
