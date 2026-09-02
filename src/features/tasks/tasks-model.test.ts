@@ -1,9 +1,12 @@
 import {
+  countTaskCharacters,
   createEmptyTaskDraft,
-  normalizeTaskDuration,
+  isValidTaskDuration,
+  parseTaskDuration,
   selectTasksForTasksSurface,
   sortTasksForTasksSurface,
   taskBucketForTab,
+  taskDurationToDraftValue,
   toCreateTaskInput,
   validateTaskDraft,
 } from "./tasks-model"
@@ -71,19 +74,50 @@ describe("tasks model", () => {
     })
   })
 
-  it("clamps duration at the domain limits when creating an input", () => {
-    expect(normalizeTaskDuration("0")).toBe(1)
-    expect(normalizeTaskDuration("999")).toBe(180)
+  it("validates inclusive duration limits before creating an input", () => {
+    expect(parseTaskDuration("1")).toBe(1)
+    expect(parseTaskDuration("180")).toBe(180)
+    expect(parseTaskDuration("0")).toBeNull()
+    expect(parseTaskDuration("181")).toBeNull()
+    expect(isValidTaskDuration("25.5")).toBe(false)
     expect(
       toCreateTaskInput({
         ...createEmptyTaskDraft(),
-        title: "Clamped",
-        estimateMinutes: "999",
+        title: "Valid duration",
+        estimateMinutes: "180",
       }),
     ).toMatchObject({
-      title: "Clamped",
+      title: "Valid duration",
       scheduledDate: null,
       estimateMinutes: 180,
+    })
+  })
+
+  it("counts Unicode characters and keeps duration drafts textual", () => {
+    expect(countTaskCharacters("🙂é")).toBe(2)
+    expect(taskDurationToDraftValue(25)).toBe("25")
+    expect(taskDurationToDraftValue("25.5")).toBe("25.5")
+  })
+
+  it("reports duration range errors without changing the draft value", () => {
+    expect(
+      validateTaskDraft({
+        ...createEmptyTaskDraft(),
+        title: "Task",
+        estimateMinutes: "181",
+      }),
+    ).toEqual({
+      estimateMinutes: "Duration must be between 1 and 180 minutes.",
+    })
+
+    expect(
+      validateTaskDraft({
+        ...createEmptyTaskDraft(),
+        title: "Task",
+        estimateMinutes: "0",
+      }),
+    ).toEqual({
+      estimateMinutes: "Duration must be between 1 and 180 minutes.",
     })
   })
 

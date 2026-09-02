@@ -7,6 +7,7 @@ import {
 } from "../lib/desktopApi"
 
 export type SnapshotMutation = () => Promise<AppSnapshot | void>
+export type SnapshotMutationErrorHandler = (error: DesktopApiError) => void
 
 export type UseDesktopMutationsOptions = {
   applySnapshot: (snapshot: AppSnapshot) => void
@@ -19,6 +20,7 @@ export type UseDesktopMutationsResult = {
   runMutation: (
     operation: string,
     mutation: SnapshotMutation,
+    onError?: SnapshotMutationErrorHandler,
   ) => Promise<AppSnapshot | void | null>
 }
 
@@ -41,7 +43,11 @@ export function useDesktopMutations({
   const busyRef = useRef(false)
 
   const runMutation = useCallback(
-    async (operation: string, mutation: SnapshotMutation) => {
+    async (
+      operation: string,
+      mutation: SnapshotMutation,
+      onError?: SnapshotMutationErrorHandler,
+    ) => {
       if (busyRef.current) {
         return null
       }
@@ -60,6 +66,7 @@ export function useDesktopMutations({
         const mutationError = normalizeDesktopApiError(value, operation)
         await reconcileSnapshot(refreshSnapshot)
         setError(mutationError)
+        onError?.(mutationError)
         return null
       } finally {
         busyRef.current = false

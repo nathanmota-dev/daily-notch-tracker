@@ -11,6 +11,7 @@ export const TASK_NOTES_MAX_CHARS = 500
 export const TASK_MIN_DURATION_MINUTES = 1
 export const TASK_MAX_DURATION_MINUTES = 180
 export const TASK_DEFAULT_DURATION_MINUTES = 25
+export const TASK_DURATION_PRESETS = [15, 25, 50] as const
 
 export type TasksTab = "day" | "unscheduled"
 
@@ -31,6 +32,14 @@ export type TaskDraftField =
 
 export type TaskDraftErrors = Partial<Record<TaskDraftField, string>>
 
+export function countTaskCharacters(value: string) {
+  return Array.from(value).length
+}
+
+export function taskDurationToDraftValue(value: string | number) {
+  return String(value)
+}
+
 export function createEmptyTaskDraft(
   scheduledDate: IsoDateString | null = null,
 ): TaskDraft {
@@ -50,17 +59,13 @@ export function createTaskDraft(task: Task): TaskDraft {
     title: task.title,
     notes: task.notes,
     scheduledDate: task.scheduledDate ?? "",
-    estimateMinutes: String(task.estimateMinutes),
+    estimateMinutes: taskDurationToDraftValue(task.estimateMinutes),
     isDone: task.isDone,
   }
 }
 
 function isLeapYear(year: number) {
   return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
-}
-
-function characterCount(value: string) {
-  return Array.from(value).length
 }
 
 export function isValidTaskDate(value: string) {
@@ -77,16 +82,44 @@ export function isValidTaskDate(value: string) {
   return month >= 1 && month <= 12 && day >= 1 && day <= daysInMonth[month - 1]
 }
 
-export function normalizeTaskDuration(value: string | number) {
-  const numericValue = typeof value === "number" ? value : Number(value)
-  if (!Number.isFinite(numericValue)) {
-    return TASK_DEFAULT_DURATION_MINUTES
+export function parseTaskDuration(value: string | number) {
+  const text = String(value).trim()
+  if (!/^\d+$/.test(text)) {
+    return null
   }
 
-  return Math.min(
-    TASK_MAX_DURATION_MINUTES,
-    Math.max(TASK_MIN_DURATION_MINUTES, Math.round(numericValue)),
-  )
+  const numericValue = Number(text)
+  if (
+    !Number.isSafeInteger(numericValue) ||
+    numericValue < TASK_MIN_DURATION_MINUTES ||
+    numericValue > TASK_MAX_DURATION_MINUTES
+  ) {
+    return null
+  }
+
+  return numericValue
+}
+
+export function isValidTaskDuration(value: string | number) {
+  return parseTaskDuration(value) !== null
+}
+
+export function taskDurationError(value: string) {
+  const text = value.trim()
+  const numericValue = Number(text)
+
+  if (text === "" || !/^\d+$/.test(text) || !Number.isInteger(numericValue)) {
+    return "Enter a whole number of minutes."
+  }
+
+  if (
+    numericValue < TASK_MIN_DURATION_MINUTES ||
+    numericValue > TASK_MAX_DURATION_MINUTES
+  ) {
+    return `Duration must be between ${TASK_MIN_DURATION_MINUTES} and ${TASK_MAX_DURATION_MINUTES} minutes.`
+  }
+
+  return undefined
 }
 
 export function validateTaskDraft(draft: TaskDraft): TaskDraftErrors {
@@ -95,11 +128,11 @@ export function validateTaskDraft(draft: TaskDraft): TaskDraftErrors {
 
   if (title.length === 0) {
     errors.title = "Title is required."
-  } else if (characterCount(title) > TASK_TITLE_MAX_CHARS) {
+  } else if (countTaskCharacters(title) > TASK_TITLE_MAX_CHARS) {
     errors.title = `Title must be ${TASK_TITLE_MAX_CHARS} characters or fewer.`
   }
 
-  if (characterCount(draft.notes) > TASK_NOTES_MAX_CHARS) {
+  if (countTaskCharacters(draft.notes) > TASK_NOTES_MAX_CHARS) {
     errors.notes = `Notes must be ${TASK_NOTES_MAX_CHARS} characters or fewer.`
   }
 
@@ -107,24 +140,25 @@ export function validateTaskDraft(draft: TaskDraft): TaskDraftErrors {
     errors.scheduledDate = "Enter a valid date."
   }
 
-  const duration = Number(draft.estimateMinutes)
-  if (
-    draft.estimateMinutes.trim() === "" ||
-    !Number.isFinite(duration) ||
-    !Number.isInteger(duration)
-  ) {
-    errors.estimateMinutes = "Enter a whole number of minutes."
+  const durationError = taskDurationError(draft.estimateMinutes)
+  if (durationError) {
+    errors.estimateMinutes = durationError
   }
 
   return errors
 }
 
 export function toCreateTaskInput(draft: TaskDraft): CreateTaskInput {
+  const estimateMinutes = parseTaskDuration(draft.estimateMinutes)
+  if (estimateMinutes === null) {
+    throw new Error("A valid task duration is required.")
+  }
+
   return {
     title: draft.title,
     notes: draft.notes,
     scheduledDate: draft.scheduledDate || null,
-    estimateMinutes: normalizeTaskDuration(draft.estimateMinutes),
+    estimateMinutes,
   }
 }
 
@@ -133,12 +167,17 @@ export function toUpdateTaskInput(draft: TaskDraft): UpdateTaskInput {
     throw new Error("An id is required to update a task.")
   }
 
+  const estimateMinutes = parseTaskDuration(draft.estimateMinutes)
+  if (estimateMinutes === null) {
+    throw new Error("A valid task duration is required.")
+  }
+
   return {
     id: draft.id,
     title: draft.title,
     notes: draft.notes,
     scheduledDate: draft.scheduledDate || null,
-    estimateMinutes: normalizeTaskDuration(draft.estimateMinutes),
+    estimateMinutes,
     isDone: draft.isDone,
   }
 }

@@ -6,6 +6,7 @@ import type {
 } from "../../lib/desktopApi"
 import {
   createEmptyTaskDraft,
+  taskDurationToDraftValue,
   type TaskDraft,
   type TaskDraftErrors,
   type TasksTab,
@@ -98,7 +99,7 @@ export function useTaskDraftController({
             title: selectedTaskTitle ?? "",
             notes: selectedTaskNotes ?? "",
             scheduledDate: selectedTaskDate ?? "",
-            estimateMinutes: String(selectedTaskDuration ?? 25),
+            estimateMinutes: taskDurationToDraftValue(selectedTaskDuration ?? 25),
             isDone: selectedTaskIsDone ?? false,
           }
         : null,

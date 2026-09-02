@@ -4,9 +4,18 @@ import type {
   RefObject,
 } from "react"
 
-import { Checkbox } from "../../components/ui/checkbox"
+import { FocusTimePicker } from "../../components/focus-time-picker"
 import { Button } from "../../components/ui/button"
-import type { TaskDraft, TaskDraftErrors, TaskDraftField } from "./tasks-model"
+import { Checkbox } from "../../components/ui/checkbox"
+import {
+  countTaskCharacters,
+  TASK_DURATION_PRESETS,
+  TASK_NOTES_MAX_CHARS,
+  TASK_TITLE_MAX_CHARS,
+  type TaskDraft,
+  type TaskDraftErrors,
+  type TaskDraftField,
+} from "./tasks-model"
 
 export type TaskFormProps = {
   mode: "create" | "edit"
@@ -54,6 +63,32 @@ function LabeledField({ error, id, label }: FieldProps) {
   )
 }
 
+function CharacterCounter({
+  count,
+  id,
+  label,
+  limit,
+  slot,
+}: {
+  count: number
+  id: string
+  label: string
+  limit: number
+  slot: string
+}) {
+  return (
+    <p
+      aria-live="polite"
+      className="text-right text-caption text-muted"
+      data-slot={slot}
+      id={id}
+    >
+      <span className="sr-only">{label}: </span>
+      {count} / {limit}
+    </p>
+  )
+}
+
 function TaskTextFields({
   draft,
   errors,
@@ -75,11 +110,20 @@ function TaskTextFields({
           aria-invalid={Boolean(errors.title)}
           className={fieldClassName(errors.title)}
           id="task-title"
+          autoFocus
           onChange={handleChange("title")}
+          maxLength={TASK_TITLE_MAX_CHARS}
           ref={titleRef}
           required
           type="text"
           value={draft.title}
+        />
+        <CharacterCounter
+          count={countTaskCharacters(draft.title)}
+          id="task-title-count"
+          label="Title character count"
+          limit={TASK_TITLE_MAX_CHARS}
+          slot="task-title-counter"
         />
         <FieldError error={errors.title} id="task-title-error" />
       </div>
@@ -92,8 +136,16 @@ function TaskTextFields({
           className={`${fieldClassName(errors.notes)} tasks-form__textarea`}
           id="task-notes"
           onChange={handleChange("notes")}
+          maxLength={TASK_NOTES_MAX_CHARS}
           rows={5}
           value={draft.notes}
+        />
+        <CharacterCounter
+          count={countTaskCharacters(draft.notes)}
+          id="task-notes-count"
+          label="Notes character count"
+          limit={TASK_NOTES_MAX_CHARS}
+          slot="task-notes-counter"
         />
         <FieldError error={errors.notes} id="task-notes-error" />
       </div>
@@ -109,27 +161,13 @@ function TaskScheduleFields({
   return (
     <div className="tasks-form__grid">
       <div className="tasks-form__field">
-        <LabeledField
+        <FocusTimePicker
           error={errors.estimateMinutes}
           id="task-duration"
           label="Duration (minutes)"
-        />
-        <input
-          aria-describedby={
-            errors.estimateMinutes ? "task-duration-error" : undefined
-          }
-          aria-invalid={Boolean(errors.estimateMinutes)}
-          className={fieldClassName(errors.estimateMinutes)}
-          id="task-duration"
-          min={1}
-          max={180}
-          onChange={(event) => onChange("estimateMinutes", event.currentTarget.value)}
-          type="number"
+          onValueChange={(value) => onChange("estimateMinutes", value)}
+          presets={TASK_DURATION_PRESETS}
           value={draft.estimateMinutes}
-        />
-        <FieldError
-          error={errors.estimateMinutes}
-          id="task-duration-error"
         />
       </div>
 
@@ -176,7 +214,7 @@ export function TaskForm({
   }
 
   return (
-    <form className="tasks-form" onSubmit={handleSubmit}>
+    <form className="tasks-form" noValidate onSubmit={handleSubmit}>
       <div className="tasks-form__heading">
         <div>
           <p className="tasks-form__eyebrow">Task details</p>
@@ -239,7 +277,13 @@ export function TaskForm({
           Cancel
         </Button>
         <Button disabled={busy} type="submit">
-          {busy ? "Saving…" : "Save task"}
+          {busy
+            ? mode === "create"
+              ? "Adding…"
+              : "Saving…"
+            : mode === "create"
+              ? "Add task"
+              : "Save task"}
         </Button>
       </footer>
     </form>

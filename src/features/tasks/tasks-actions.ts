@@ -1,6 +1,10 @@
 import type { Dispatch, SetStateAction } from "react"
 
-import type { AppSnapshot, DesktopApi } from "../../lib/desktopApi"
+import type {
+  AppSnapshot,
+  DesktopApi,
+  DesktopApiError,
+} from "../../lib/desktopApi"
 import type {
   UseDesktopMutationsResult,
 } from "../../app/use-desktop-mutations"
@@ -38,6 +42,75 @@ function requestSettingsWindow(
 ) {
   void mutations.runMutation("openSettingsWindow", () =>
     api.openSettingsWindow(),
+  )
+}
+
+function taskFieldForValidationError(error: DesktopApiError) {
+  if (error.code !== "validation") {
+    return null
+  }
+
+  switch (error.field) {
+    case "title":
+    case "notes":
+    case "scheduledDate":
+    case "estimateMinutes":
+      return error.field
+    default:
+      return null
+  }
+}
+
+function safeTaskFieldError(field: TaskDraftField) {
+  switch (field) {
+    case "title":
+      return "Enter a valid title."
+    case "notes":
+      return "Notes are too long."
+    case "scheduledDate":
+      return "Enter a valid date."
+    case "estimateMinutes":
+      return "Enter a whole number of minutes between 1 and 180."
+  }
+}
+
+function applyTaskMutationError(
+  error: DesktopApiError,
+  setDraftErrors: Dispatch<SetStateAction<TaskDraftErrors>>,
+) {
+  const field = taskFieldForValidationError(error)
+  if (!field) {
+    return
+  }
+
+  setDraftErrors((currentErrors) => ({
+    ...currentErrors,
+    [field]: safeTaskFieldError(field),
+  }))
+}
+
+async function saveTaskDraft(
+  panel: TasksPanel,
+  draft: TaskDraft,
+  api: DesktopApi,
+  mutations: Pick<UseDesktopMutationsResult, "runMutation">,
+  setDraftErrors: Dispatch<SetStateAction<TaskDraftErrors>>,
+) {
+  const onError = (error: DesktopApiError) =>
+    applyTaskMutationError(error, setDraftErrors)
+
+  if (panel === "create") {
+    return mutations.runMutation(
+      "addTask",
+      () => api.addTask(toCreateTaskInput(draft)),
+      onError,
+    )
+  }
+
+  return mutations.runMutation(
+    "updateTask",
+    () => api.updateTask(toUpdateTaskInput(draft)),
+    onError,
   )
 }
 
@@ -86,14 +159,13 @@ export function createTaskSurfaceActions({
       return null
     }
 
-    const result =
-      panel === "create"
-        ? await mutations.runMutation("addTask", () =>
-            api.addTask(toCreateTaskInput(draft)),
-          )
-        : await mutations.runMutation("updateTask", () =>
-            api.updateTask(toUpdateTaskInput(draft)),
-          )
+    const result = await saveTaskDraft(
+      panel,
+      draft,
+      api,
+      mutations,
+      setDraftErrors,
+    )
 
     if (result) {
       setPanel(panel === "create" ? "list" : "detail")

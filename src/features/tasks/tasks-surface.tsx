@@ -74,6 +74,7 @@ function TasksContentHeader({
   totalCount,
   onAdd,
   onTabChange,
+  showAdd,
 }: {
   activeTab: TasksTab
   busy: boolean
@@ -81,6 +82,7 @@ function TasksContentHeader({
   totalCount: number
   onAdd: () => void
   onTabChange: (tab: TasksTab) => void
+  showAdd: boolean
 }) {
   return (
     <header
@@ -98,14 +100,16 @@ function TasksContentHeader({
           {totalCount} {totalCount === 1 ? "tarefa" : "tarefas"}
         </p>
       </div>
-      <Button
-        aria-label="Add task"
-        disabled={busy}
-        onClick={onAdd}
-        type="button"
-      >
-        Add a task
-      </Button>
+      {showAdd && (
+        <Button
+          aria-label="Add task"
+          disabled={busy}
+          onClick={onAdd}
+          type="button"
+        >
+          Add a task
+        </Button>
+      )}
       <div
         aria-label="Task lists"
         className="tasks-surface__tabs"
@@ -222,6 +226,7 @@ function TasksSurfaceContent({
           date={selectedDate}
           onAdd={actions.openAdd}
           onTabChange={setActiveTab}
+          showAdd={routing.panel === "list"}
           totalCount={snapshot.tasks.length}
         />
         {(routing.panel === "create" || routing.panel === "detail") && (

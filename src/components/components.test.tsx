@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { useState } from "react"
 import { vi } from "vitest"
@@ -20,7 +20,7 @@ function FocusTimePickerHarness({
   initialValue = 25,
   ...props
 }: Partial<FocusTimePickerProps> & { initialValue?: number }) {
-  const [value, setValue] = useState(initialValue)
+  const [value, setValue] = useState(String(initialValue))
 
   return (
     <FocusTimePicker
@@ -221,7 +221,7 @@ describe("FocusTimePicker", () => {
       <FocusTimePicker
         id="focus-time"
         presets={[15, 25, 50]}
-        value={1}
+        value="1"
         onValueChange={onValueChange}
       />,
     )
@@ -237,7 +237,7 @@ describe("FocusTimePicker", () => {
       <FocusTimePicker
         id="focus-time"
         presets={[15, 25, 50]}
-        value={180}
+        value="180"
         onValueChange={onValueChange}
       />,
     )
@@ -267,8 +267,7 @@ describe("FocusTimePicker", () => {
     ).toBeDisabled()
   })
 
-  it("notifies callers when the value is changed from the field", async () => {
-    const user = userEvent.setup()
+  it("notifies callers when the value is changed from the field", () => {
     const onValueChange = vi.fn()
 
     render(
@@ -276,15 +275,14 @@ describe("FocusTimePicker", () => {
         id="focus-time"
         label="Duração"
         presets={[]}
-        value={25}
+        value="25"
         onValueChange={onValueChange}
       />,
     )
 
     const input = screen.getByRole("spinbutton", { name: "Duração" })
-    await user.clear(input)
-    await user.type(input, "30")
+    fireEvent.change(input, { target: { value: "30" } })
 
-    expect(onValueChange).toHaveBeenLastCalledWith(30)
+    expect(onValueChange).toHaveBeenLastCalledWith("30")
   })
 })
