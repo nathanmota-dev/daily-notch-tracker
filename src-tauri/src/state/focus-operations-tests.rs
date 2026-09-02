@@ -392,12 +392,12 @@ fn starting_the_same_active_task_is_rejected_without_a_second_session() {
 }
 
 #[test]
-fn focus_duration_uses_the_clamped_minimum_and_maximum() {
+fn focus_duration_accepts_the_inclusive_minimum_and_maximum() {
     let minimum_id = Uuid::new_v4();
     let maximum_id = Uuid::new_v4();
     let mut state = AppState::default();
     state
-        .add_task_at(task_input("Minimum", 0, None), minimum_id, timestamp())
+        .add_task_at(task_input("Minimum", 1, None), minimum_id, timestamp())
         .expect("minimum task should be added");
     state
         .start_focus_at(Some(minimum_id), timestamp())
@@ -408,7 +408,7 @@ fn focus_duration_uses_the_clamped_minimum_and_maximum() {
         .expect("minimum focus should stop");
 
     state
-        .add_task_at(task_input("Maximum", 999, None), maximum_id, timestamp())
+        .add_task_at(task_input("Maximum", 180, None), maximum_id, timestamp())
         .expect("maximum task should be added");
     state
         .start_focus_at(Some(maximum_id), timestamp())

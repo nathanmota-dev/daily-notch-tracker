@@ -30,6 +30,7 @@ export function TasksContentHeader({
   totalCount,
   onAdd,
   onTabChange,
+  showAdd,
 }: {
   activeTab: TasksTab
   busy: boolean
@@ -37,6 +38,7 @@ export function TasksContentHeader({
   totalCount: number
   onAdd: () => void
   onTabChange: (tab: TasksTab) => void
+  showAdd: boolean
 }) {
   return (
     <header
@@ -61,15 +63,17 @@ export function TasksContentHeader({
           {totalCount} {totalCount === 1 ? "tarefa" : "tarefas"}
         </p>
       </div>
-      <Button
-        aria-label="Add task"
-        className="max-[640px]:justify-self-start"
-        disabled={busy}
-        onClick={onAdd}
-        type="button"
-      >
-        Add a task
-      </Button>
+      {showAdd && (
+        <Button
+          aria-label="Add task"
+          className="max-[640px]:justify-self-start"
+          disabled={busy}
+          onClick={onAdd}
+          type="button"
+        >
+          Add a task
+        </Button>
+      )}
       <div
         aria-label="Task lists"
         className="col-span-full flex flex-wrap items-end gap-1.5 border-b border-border pt-2 max-[640px]:col-start-1"

@@ -146,6 +146,7 @@ function TasksSurfaceContent({
           date={selectedDate}
           onAdd={actions.openAdd}
           onTabChange={setActiveTab}
+          showAdd={routing.panel === "list"}
           totalCount={snapshot.tasks.length}
         />
         {(routing.panel === "create" || routing.panel === "detail") && (

@@ -221,10 +221,46 @@ describe("Tasks surface", () => {
     await user.type(screen.getByLabelText("Notes"), "A note")
     await user.clear(screen.getByLabelText("Duration (minutes)"))
     await user.type(screen.getByLabelText("Duration (minutes)"), "40")
-    await user.click(screen.getByRole("button", { name: "Save task" }))
+    await user.click(screen.getByRole("button", { name: "Add task" }))
 
     await waitFor(() => expect(addTask).toHaveBeenCalledOnce())
     expect(await screen.findByText("Created task")).toBeInTheDocument()
+  })
+
+  it("creates an unscheduled task from the Unscheduled bucket", async () => {
+    const snapshot = createSnapshot([])
+    const createdTask = createTask("unscheduled-created", "Unscheduled task", {
+      scheduledDate: null,
+    })
+    const addTask = vi.fn(async (input: CreateTaskInput) => {
+      expect(input).toEqual({
+        title: "Unscheduled task",
+        notes: "",
+        scheduledDate: null,
+        estimateMinutes: 25,
+      })
+      return createSnapshot([createdTask], { revision: 2 })
+    })
+    const controller = createMockDesktopApi({
+      handlers: { addTask },
+      snapshot,
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+
+    await user.click(screen.getByRole("tab", { name: "Unscheduled" }))
+    await user.click(screen.getByRole("button", { name: "Add task" }))
+    await user.type(screen.getByLabelText("Title"), "Unscheduled task")
+    await user.click(screen.getByRole("button", { name: "Add task" }))
+
+    await waitFor(() => expect(addTask).toHaveBeenCalledOnce())
+    expect(await screen.findByText("Unscheduled task")).toBeInTheDocument()
+    expect(screen.getByRole("tab", { name: "Unscheduled" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    )
   })
 
   it("edits, completes, and deletes a task", async () => {
@@ -277,6 +313,174 @@ describe("Tasks surface", () => {
     await user.click(screen.getByRole("button", { name: "Delete task" }))
     await waitFor(() => expect(deleteTask).toHaveBeenCalledWith(initialTask.id))
     expect(await screen.findByRole("button", { name: "Add your first task" })).toBeInTheDocument()
+  })
+
+  it("edits every task field and keeps the detail open after saving", async () => {
+    const initialTask = createTask("all-fields-task", "Original task", {
+      notes: "Original note",
+    })
+    const editedDate = nearbyDate()
+    const snapshot = createSnapshot([initialTask])
+    const updatedTask = {
+      ...initialTask,
+      title: "Updated task",
+      notes: "Updated note",
+      scheduledDate: editedDate,
+      estimateMinutes: 50,
+      isDone: true,
+    }
+    const updateTask = vi.fn(async (input: UpdateTaskInput) => {
+      expect(input).toEqual({
+        id: initialTask.id,
+        title: "Updated task",
+        notes: "Updated note",
+        scheduledDate: editedDate,
+        estimateMinutes: 50,
+        isDone: true,
+      })
+      return createSnapshot([updatedTask], { revision: 2 })
+    })
+    const controller = createMockDesktopApi({
+      handlers: { updateTask },
+      snapshot,
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+    await user.click(
+      screen.getByRole("button", { name: "Open details for Original task" }),
+    )
+
+    await user.clear(screen.getByLabelText("Title"))
+    await user.type(screen.getByLabelText("Title"), "Updated task")
+    await user.clear(screen.getByLabelText("Notes"))
+    await user.type(screen.getByLabelText("Notes"), "Updated note")
+    fireEvent.change(screen.getByLabelText("Date"), {
+      target: { value: editedDate },
+    })
+    await user.click(screen.getByRole("button", { name: "50 min" }))
+    await user.click(
+      screen.getByRole("checkbox", { name: /Mark task as complete/ }),
+    )
+    await user.click(screen.getByRole("button", { name: "Save task" }))
+
+    await waitFor(() => expect(updateTask).toHaveBeenCalledOnce())
+    expect(screen.getByRole("heading", { name: "Edit task" })).toBeInTheDocument()
+    expect(screen.getByLabelText("Title")).toHaveValue("Updated task")
+    expect(screen.getByLabelText("Notes")).toHaveValue("Updated note")
+    expect(screen.getByLabelText("Date")).toHaveValue(editedDate)
+    expect(screen.getByRole("spinbutton", { name: "Duration (minutes)" })).toHaveValue(50)
+    expect(
+      screen.getByRole("checkbox", { name: /Mark task as complete/ }),
+    ).toBeChecked()
+  })
+
+  it("discards edits on Cancel without persisting them", async () => {
+    const task = createTask("cancel-task", "Original task")
+    const updateTask = vi.fn(async () => createSnapshot([task], { revision: 2 }))
+    const controller = createMockDesktopApi({
+      handlers: { updateTask },
+      snapshot: createSnapshot([task]),
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+    await user.click(
+      screen.getByRole("button", { name: "Open details for Original task" }),
+    )
+    await user.clear(screen.getByLabelText("Title"))
+    await user.type(screen.getByLabelText("Title"), "Discarded task")
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+
+    expect(updateTask).not.toHaveBeenCalled()
+    expect(await screen.findByText("Original task")).toBeInTheDocument()
+    expect(screen.queryByText("Discarded task")).not.toBeInTheDocument()
+  })
+
+  it("keeps an invalid duration visible and does not call the API", async () => {
+    const snapshot = createSnapshot([])
+    const addTask = vi.fn(async () => createSnapshot([]))
+    const applySnapshot = vi.fn()
+    const refreshSnapshot = vi.fn(async () => snapshot)
+    const controller = createMockDesktopApi({
+      handlers: { addTask },
+      snapshot,
+    })
+
+    render(
+      <TasksSurface
+        api={controller.api}
+        applySnapshot={applySnapshot}
+        refreshSnapshot={refreshSnapshot}
+        snapshot={snapshot}
+      />,
+    )
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "Add task" }))
+    await user.type(screen.getByLabelText("Title"), "Invalid duration task")
+    const duration = screen.getByRole("spinbutton", {
+      name: "Duration (minutes)",
+    })
+    await user.clear(duration)
+    await user.type(duration, "181")
+    await user.click(screen.getByRole("button", { name: "Add task" }))
+
+    expect(addTask).not.toHaveBeenCalled()
+    expect(refreshSnapshot).not.toHaveBeenCalled()
+    expect(duration).toHaveValue(181)
+    expect(screen.getByRole("heading", { name: "New task" })).toBeInTheDocument()
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Duration must be between 1 and 180 minutes.",
+    )
+  })
+
+  it("keeps the draft after a validation rollback and hides the backend message", async () => {
+    const task = createTask("rollback-task", "Rollback task")
+    const snapshot = createSnapshot([task])
+    const updateTask = vi.fn(async () => {
+      throw new DesktopApiError({
+        operation: "updateTask",
+        code: "validation",
+        field: "estimateMinutes",
+        message: "Private backend validation details.",
+      })
+    })
+    const applySnapshot = vi.fn()
+    const refreshSnapshot = vi.fn(async () => snapshot)
+    const controller = createMockDesktopApi({
+      handlers: { updateTask },
+      snapshot,
+    })
+
+    render(
+      <TasksSurface
+        api={controller.api}
+        applySnapshot={applySnapshot}
+        refreshSnapshot={refreshSnapshot}
+        snapshot={snapshot}
+      />,
+    )
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+    await user.click(
+      screen.getByRole("button", { name: "Open details for Rollback task" }),
+    )
+    const duration = screen.getByRole("spinbutton", {
+      name: "Duration (minutes)",
+    })
+    await user.clear(duration)
+    await user.type(duration, "30")
+    await user.click(screen.getByRole("button", { name: "Save task" }))
+
+    await waitFor(() => expect(updateTask).toHaveBeenCalledOnce())
+    await waitFor(() => expect(refreshSnapshot).toHaveBeenCalledOnce())
+    expect(screen.getByRole("heading", { name: "Edit task" })).toBeInTheDocument()
+    expect(duration).toHaveValue(30)
+    expect(screen.getByText("Enter a whole number of minutes between 1 and 180.")).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent("Private backend validation details")
   })
 
   it("uses start, pause, and resume focus actions", async () => {
@@ -391,9 +595,9 @@ describe("Tasks surface", () => {
     const user = userEvent.setup()
     await user.click(screen.getByRole("button", { name: "Add task" }))
     await user.type(screen.getByLabelText("Title"), "Failed task")
-    const saveButton = screen.getByRole("button", { name: "Save task" })
-    fireEvent.click(saveButton)
-    fireEvent.click(saveButton)
+    const addButton = screen.getByRole("button", { name: "Add task" })
+    fireEvent.click(addButton)
+    fireEvent.click(addButton)
 
     const alert = await screen.findByRole("alert")
     await waitFor(() => expect(addTask).toHaveBeenCalledOnce())
@@ -425,6 +629,119 @@ describe("Tasks surface", () => {
       controller.emit("tasks-window-intent", { kind: "list" })
     })
     expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument()
+  })
+
+  it("opens the exact task requested by a task intent", async () => {
+    const requestedTask = createTask("task-1", "Requested task")
+    const similarlyNamedIdTask = createTask("task-10", "Different task")
+    renderStandaloneTasks(
+      createSnapshot([requestedTask, similarlyNamedIdTask]),
+      { search: `?intent=task&taskId=${requestedTask.id}` },
+    )
+
+    expect(await screen.findByRole("heading", { name: "Edit task" })).toBeInTheDocument()
+    await waitFor(() =>
+      expect(screen.getByLabelText("Title")).toHaveValue("Requested task"),
+    )
+    expect(screen.queryByDisplayValue("Different task")).not.toBeInTheDocument()
+  })
+
+  it("starts focus for the persisted task from its detail view", async () => {
+    const task = createTask("detail-focus-task", "Detail focus task")
+    const runningSnapshot = createSnapshot([task], {
+      revision: 2,
+      focus: {
+        ...createSnapshot([task]).focus,
+        state: "running",
+        activeTaskId: task.id,
+        activeTaskTitle: task.title,
+      },
+    })
+    const startFocus = vi.fn(async () => runningSnapshot)
+    const controller = createMockDesktopApi({
+      handlers: { startFocus },
+      snapshot: createSnapshot([task]),
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+    await user.click(
+      screen.getByRole("button", { name: "Open details for Detail focus task" }),
+    )
+    await user.click(
+      screen.getByRole("button", { name: "Start focus for Detail focus task" }),
+    )
+
+    await waitFor(() => expect(startFocus).toHaveBeenCalledWith(task.id))
+  })
+
+  it("completes the active task through the list action", async () => {
+    const task = createTask("active-complete-task", "Active complete task")
+    const initialSnapshot = createSnapshot([task], {
+      focus: {
+        ...createSnapshot([task]).focus,
+        state: "running",
+        activeTaskId: task.id,
+        activeTaskTitle: task.title,
+      },
+    })
+    const completedSnapshot = createSnapshot(
+      [{ ...task, isDone: true }],
+      { revision: 2 },
+    )
+    const toggleTask = vi.fn(async (taskId: string) => {
+      expect(taskId).toBe(task.id)
+      return completedSnapshot
+    })
+    const controller = createMockDesktopApi({
+      handlers: { toggleTask },
+      snapshot: initialSnapshot,
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    await userEvent.setup().click(
+      screen.getByRole("checkbox", { name: "Mark Active complete task as complete" }),
+    )
+
+    await waitFor(() => expect(toggleTask).toHaveBeenCalledOnce())
+    expect(
+      await screen.findByRole("checkbox", {
+        name: "Mark Active complete task as incomplete",
+      }),
+    ).toBeChecked()
+  })
+
+  it("deletes the active task from its detail view", async () => {
+    const task = createTask("active-delete-task", "Active delete task")
+    const initialSnapshot = createSnapshot([task], {
+      focus: {
+        ...createSnapshot([task]).focus,
+        state: "running",
+        activeTaskId: task.id,
+        activeTaskTitle: task.title,
+      },
+    })
+    const deleteTask = vi.fn(async (taskId: string) => {
+      expect(taskId).toBe(task.id)
+      return createSnapshot([], { revision: 2 })
+    })
+    const controller = createMockDesktopApi({
+      handlers: { deleteTask },
+      snapshot: initialSnapshot,
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const user = userEvent.setup()
+    await user.click(
+      screen.getByRole("button", { name: "Open details for Active delete task" }),
+    )
+    await user.click(screen.getByRole("button", { name: "Delete task" }))
+
+    await waitFor(() => expect(deleteTask).toHaveBeenCalledOnce())
+    expect(await screen.findByRole("button", { name: "Add your first task" })).toBeInTheDocument()
   })
 })
 

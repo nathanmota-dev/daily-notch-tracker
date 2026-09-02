@@ -1,18 +1,19 @@
-import { useEffect, useId, useState, type ChangeEvent } from "react"
+import { useId, type ChangeEvent } from "react"
 
-import { IconButton } from "./icon-button"
-import { Button } from "./ui/button"
 import { MinusIcon, PlusIcon } from "../icons"
 import { cn } from "../lib/utils"
+import { IconButton } from "./icon-button"
+import { Button } from "./ui/button"
 
 export const DEFAULT_FOCUS_TIME_MIN = 1
 export const DEFAULT_FOCUS_TIME_MAX = 180
 export const DEFAULT_FOCUS_TIME_STEP = 1
 
 export type FocusTimePickerProps = {
-  value: number
-  onValueChange: (value: number) => void
+  value: string
+  onValueChange: (value: string) => void
   presets: readonly number[]
+  error?: string
   min?: number
   max?: number
   step?: number
@@ -25,84 +26,64 @@ export type FocusTimePickerProps = {
 function clampValue(value: number, min: number, max: number, step: number) {
   const safeValue = Number.isFinite(value) ? value : min
   const boundedValue = Math.min(max, Math.max(min, safeValue))
-  const steppedValue =
-    min + Math.round((boundedValue - min) / step) * step
+  const steppedValue = min + Math.round((boundedValue - min) / step) * step
 
   return Math.min(max, Math.max(min, steppedValue))
 }
 
-function isValidValue(value: number, min: number, max: number, step: number) {
-  if (!Number.isFinite(value) || value < min || value > max) {
+function parseNumericValue(value: string) {
+  const text = value.trim()
+  if (text === "") {
+    return null
+  }
+
+  const numericValue = Number(text)
+  return Number.isFinite(numericValue) ? numericValue : null
+}
+
+function isValidValue(value: string, min: number, max: number, step: number) {
+  const text = value.trim()
+  const numericValue = parseNumericValue(value)
+  if (
+    !/^\d+$/.test(text) ||
+    numericValue === null ||
+    !Number.isInteger(numericValue) ||
+    numericValue < min ||
+    numericValue > max
+  ) {
     return false
   }
 
-  const remainder = Math.abs((value - min) % step)
+  const remainder = Math.abs((numericValue - min) % step)
   return remainder < Number.EPSILON || Math.abs(remainder - step) < Number.EPSILON
 }
 
 function emitFocusTimeValue(
   nextValue: number,
-  onValueChange: (value: number) => void,
+  onValueChange: (value: string) => void,
   min: number,
   max: number,
   step: number,
 ) {
-  onValueChange(clampValue(nextValue, min, max, step))
+  onValueChange(String(clampValue(nextValue, min, max, step)))
 }
 
 function handleFocusInputChange(
   event: ChangeEvent<HTMLInputElement>,
-  setInputValue: (value: string) => void,
-  emitValue: (value: number) => void,
+  onValueChange: (value: string) => void,
 ) {
-  const nextInputValue = event.currentTarget.value
-  setInputValue(nextInputValue)
-
-  if (nextInputValue.trim() === "") {
-    return
-  }
-
-  const nextValue = Number(nextInputValue)
-
-  if (Number.isFinite(nextValue)) {
-    emitValue(nextValue)
-  }
-}
-
-function handleFocusInputBlur(
-  inputValue: string,
-  value: number,
-  valueIsValid: boolean,
-  currentValue: number,
-  min: number,
-  max: number,
-  step: number,
-  setInputValue: (value: string) => void,
-  emitValue: (value: number) => void,
-) {
-  const parsedValue = Number(inputValue)
-
-  if (inputValue.trim() === "" || !Number.isFinite(parsedValue)) {
-    const fallbackValue = valueIsValid
-      ? value
-      : clampValue(currentValue, min, max, step)
-    setInputValue(String(fallbackValue))
-    emitValue(fallbackValue)
-    return
-  }
-
-  const normalizedValue = clampValue(parsedValue, min, max, step)
-  setInputValue(String(normalizedValue))
-  emitValue(normalizedValue)
+  onValueChange(event.currentTarget.value)
 }
 
 function handleFocusStep(
   direction: -1 | 1,
-  currentValue: number,
+  inputValue: string,
+  min: number,
   step: number,
   emitValue: (value: number) => void,
 ) {
-  emitValue(currentValue + direction * step)
+  const numericValue = parseNumericValue(inputValue) ?? min
+  emitValue(numericValue + direction * step)
 }
 
 type FocusTimePickerControlsProps = {
@@ -116,7 +97,6 @@ type FocusTimePickerControlsProps = {
   max: number
   min: number
   step: number
-  onInputBlur: () => void
   onInputChange: (event: ChangeEvent<HTMLInputElement>) => void
   onStep: (direction: -1 | 1) => void
 }
@@ -132,7 +112,6 @@ function FocusTimePickerControls({
   max,
   min,
   step,
-  onInputBlur,
   onInputChange,
   onStep,
 }: FocusTimePickerControlsProps) {
@@ -165,7 +144,6 @@ function FocusTimePickerControls({
           inputMode="numeric"
           max={max}
           min={min}
-          onBlur={onInputBlur}
           onChange={onInputChange}
           step={step}
           type="number"
@@ -190,7 +168,7 @@ function FocusTimePickerControls({
 
 type FocusTimePickerPresetsProps = {
   presets: readonly number[]
-  value: number
+  value: string
   disabled: boolean
   onSelect: (preset: number) => void
 }
@@ -205,10 +183,12 @@ function FocusTimePickerPresets({
     return null
   }
 
+  const numericValue = parseNumericValue(value)
+
   return (
     <div aria-label="Presets de tempo" className="flex flex-wrap gap-2" role="group">
       {presets.map((preset) => {
-        const isSelected = value === preset
+        const isSelected = numericValue === preset
 
         return (
           <Button
@@ -232,6 +212,7 @@ function FocusTimePicker({
   value,
   onValueChange,
   presets,
+  error,
   min = DEFAULT_FOCUS_TIME_MIN,
   max = DEFAULT_FOCUS_TIME_MAX,
   step = DEFAULT_FOCUS_TIME_STEP,
@@ -243,33 +224,19 @@ function FocusTimePicker({
   const generatedId = useId().replaceAll(":", "")
   const inputId = id ?? `focus-time-${generatedId}`
   const errorId = `${inputId}-error`
-  const [inputValue, setInputValue] = useState(String(value))
   const valueIsValid = isValidValue(value, min, max, step)
-  const currentValue = Number.isFinite(value) ? value : min
-  const isInvalid = !valueIsValid
-
-  useEffect(() => {
-    setInputValue(String(value))
-  }, [value])
+  const currentValue = parseNumericValue(value) ?? min
+  const visibleError =
+    error ??
+    (!valueIsValid ? `Escolha um tempo entre ${min} e ${max} minutos.` : undefined)
+  const isInvalid = Boolean(visibleError)
 
   const emitValue = (nextValue: number) =>
     emitFocusTimeValue(nextValue, onValueChange, min, max, step)
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) =>
-    handleFocusInputChange(event, setInputValue, emitValue)
-  const handleInputBlur = () =>
-    handleFocusInputBlur(
-      inputValue,
-      value,
-      valueIsValid,
-      currentValue,
-      min,
-      max,
-      step,
-      setInputValue,
-      emitValue,
-    )
+    handleFocusInputChange(event, onValueChange)
   const handleStep = (direction: -1 | 1) =>
-    handleFocusStep(direction, currentValue, step, emitValue)
+    handleFocusStep(direction, value, min, step, emitValue)
 
   const decreaseDisabled = disabled || currentValue <= min
   const increaseDisabled = disabled || currentValue >= max
@@ -286,11 +253,10 @@ function FocusTimePicker({
         errorId={errorId}
         increaseDisabled={increaseDisabled}
         inputId={inputId}
-        inputValue={inputValue}
+        inputValue={value}
         isInvalid={isInvalid}
         max={max}
         min={min}
-        onInputBlur={handleInputBlur}
         onInputChange={handleInputChange}
         onStep={handleStep}
         step={step}
@@ -303,9 +269,9 @@ function FocusTimePicker({
         value={value}
       />
 
-      {isInvalid && (
+      {visibleError && (
         <p className="text-caption text-danger" id={errorId} role="alert">
-          Escolha um tempo entre {min} e {max} minutos.
+          {visibleError}
         </p>
       )}
     </div>
