@@ -1,29 +1,29 @@
 import { SettingsIcon } from "../../icons"
 import { Button } from "../../components/ui/button"
-
-export type TasksSidebarProps = {
-  busy: boolean
-  selectedDate: string
-  onDateChange: (date: string) => void
-  onOpenSettings: () => void
-}
+import { TasksCalendar } from "./tasks-calendar"
+import type { TasksSidebarProps } from "./tasks-sidebar-types"
 
 export function TasksSidebar({
   busy,
   onDateChange,
   onOpenSettings,
   selectedDate,
+  today,
 }: TasksSidebarProps) {
   return (
     <aside
       aria-label="Tasks sidebar"
-      className="tasks-sidebar"
+      className="flex min-h-0 min-w-0 flex-col gap-7 overflow-y-auto rounded-panel border border-border bg-panel p-6"
       data-slot="tasks-sidebar"
     >
-      <header className="tasks-sidebar__header">
+      <header className="flex items-start justify-between gap-4">
         <div>
-          <p className="tasks-sidebar__eyebrow">DailyNotch Linux</p>
-          <h1>Tasks</h1>
+          <p className="m-0 mb-1.5 text-[0.7rem] font-[650] uppercase tracking-[0.16em] text-muted">
+            DailyNotch Linux
+          </p>
+          <h1 className="m-0 text-[clamp(1.75rem,4vw,2.35rem)] font-bold leading-[1.05] tracking-[-0.045em] text-content">
+            Tasks
+          </h1>
         </div>
         <Button
           aria-label="Settings"
@@ -40,25 +40,18 @@ export function TasksSidebar({
 
       <section
         aria-labelledby="tasks-calendar-heading"
-        className="tasks-sidebar__calendar"
+        className="grid gap-5 border-t border-border pt-6"
         data-slot="tasks-calendar"
       >
-        <div className="tasks-sidebar__section-heading">
-          <div>
-            <p className="tasks-sidebar__eyebrow">Planning</p>
-            <h2 id="tasks-calendar-heading">Calendar</h2>
-          </div>
-        </div>
-        <label className="tasks-sidebar__date-label">
-          <span>Selected day</span>
-          <input
-            aria-label="Selected day"
-            disabled={busy}
-            onChange={(event) => onDateChange(event.currentTarget.value)}
-            type="date"
-            value={selectedDate}
-          />
-        </label>
+        <h2 id="tasks-calendar-heading" className="sr-only">
+          Calendar
+        </h2>
+        <TasksCalendar
+          busy={busy}
+          onSelectDate={onDateChange}
+          selectedDate={selectedDate}
+          today={today}
+        />
       </section>
     </aside>
   )

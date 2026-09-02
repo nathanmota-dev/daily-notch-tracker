@@ -261,6 +261,40 @@ test.describe("DailyNotch surface router", () => {
     expect(sidebarBox?.width).toBe(320)
   })
 
+  test("renders and navigates the monthly Tasks calendar", async ({ page }) => {
+    await page.goto("/?surface=tasks")
+
+    const calendar = page.locator('[data-slot="tasks-calendar-widget"]')
+    const grid = calendar.locator('[role="group"]')
+    await expect(calendar).toBeVisible()
+    await expect(
+      calendar.locator('[data-slot="tasks-calendar-weekdays"] span'),
+    ).toHaveCount(7)
+    const dateButtonCount = await calendar.locator("button[data-date]").count()
+    expect(dateButtonCount).toBeGreaterThanOrEqual(28)
+    expect(dateButtonCount).toBeLessThanOrEqual(31)
+
+    const month = await grid.getAttribute("data-month")
+    const rowCount = Number(await grid.getAttribute("data-row-count"))
+    expect(rowCount).toBeGreaterThanOrEqual(4)
+    expect(rowCount).toBeLessThanOrEqual(6)
+    expect(
+      await calendar.locator('button[data-selected="true"]').count(),
+    ).toBe(1)
+
+    const [year, monthNumber] = month!.split("-").map(Number)
+    const firstDayColumn = Number(
+      await calendar.locator('[data-day="1"]').getAttribute("data-column"),
+    )
+    expect(firstDayColumn).toBe((new Date(year, monthNumber - 1, 1).getDay() + 6) % 7)
+
+    await page.getByRole("button", { name: "Previous month" }).click()
+    await expect(grid).not.toHaveAttribute("data-month", month!)
+
+    await page.getByRole("button", { name: "Today" }).click()
+    await expect(grid).toHaveAttribute("data-month", month!)
+  })
+
   for (const { label, heading } of normalSurfaces) {
     test(`renders the ${label} surface from the browser query`, async ({
       page,

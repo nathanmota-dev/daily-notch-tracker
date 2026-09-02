@@ -8,6 +8,9 @@ Built with React, Vite, TypeScript, Tailwind CSS, Vitest, Tauri 2 e Rust.
 
 When creating files, always use lowercase kebab-case filenames.
 
+If you need to create types or interfaces, create a separate file and import them into the component so they can be reused by other components.
+
+Use Tailwind CSS for component styling instead of adding custom selectors to `src/styles/index.css`.
 
 
 ## Implementation Workflow

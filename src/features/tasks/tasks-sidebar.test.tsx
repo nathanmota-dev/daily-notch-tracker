@@ -11,6 +11,7 @@ describe("Tasks sidebar", () => {
         onDateChange={vi.fn()}
         onOpenSettings={vi.fn()}
         selectedDate="2026-09-02"
+        today={new Date(2026, 8, 2, 12)}
       />,
     )
 
@@ -19,7 +20,12 @@ describe("Tasks sidebar", () => {
     expect(
       document.querySelector('[data-slot="tasks-calendar"]'),
     ).toBeInTheDocument()
-    expect(screen.getByLabelText("Selected day")).toHaveValue("2026-09-02")
+    expect(
+      document.querySelector('[data-slot="tasks-calendar-widget"]'),
+    ).toBeInTheDocument()
+    expect(
+      document.querySelector('[data-date="2026-09-02"][data-selected="true"]'),
+    ).toBeInTheDocument()
   })
 
   it("forwards Settings and selected-day actions", () => {
@@ -32,13 +38,12 @@ describe("Tasks sidebar", () => {
         onDateChange={onDateChange}
         onOpenSettings={onOpenSettings}
         selectedDate="2026-09-02"
+        today={new Date(2026, 8, 2, 12)}
       />,
     )
 
     fireEvent.click(screen.getByRole("button", { name: "Settings" }))
-    fireEvent.change(screen.getByLabelText("Selected day"), {
-      target: { value: "2026-09-03" },
-    })
+    fireEvent.click(screen.getByRole("button", { name: "September 3, 2026" }))
 
     expect(onOpenSettings).toHaveBeenCalledOnce()
     expect(onDateChange).toHaveBeenCalledWith("2026-09-03")

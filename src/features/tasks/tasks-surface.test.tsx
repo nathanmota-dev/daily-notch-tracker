@@ -17,6 +17,13 @@ import { TasksSurface } from "./tasks-surface"
 
 const today = getLocalDateString()
 
+function nearbyDate() {
+  const date = new Date()
+  date.setHours(12, 0, 0, 0)
+  date.setDate(date.getDate() === 1 ? 2 : date.getDate() - 1)
+  return getLocalDateString(date)
+}
+
 function createTask(
   id: string,
   title: string,
@@ -108,10 +115,11 @@ describe("Tasks surface", () => {
   })
 
   it("keeps Day and Unscheduled buckets independent", async () => {
+    const otherDay = nearbyDate()
     const snapshot = createSnapshot([
       createTask("day-task", "Day task"),
       createTask("other-day-task", "Other day task", {
-        scheduledDate: "2099-01-01",
+        scheduledDate: otherDay,
       }),
       createTask("unscheduled-task", "Unscheduled task", {
         scheduledDate: null,
@@ -131,11 +139,55 @@ describe("Tasks surface", () => {
     expect(screen.queryByText("Day task")).not.toBeInTheDocument()
 
     await userEvent.setup().click(screen.getByRole("tab", { name: "Day" }))
-    fireEvent.change(screen.getByLabelText("Selected day"), {
-      target: { value: "2099-01-01" },
-    })
+    const otherDayButton = document.querySelector(
+      `[data-slot="tasks-calendar-widget"] button[data-date="${otherDay}"]`,
+    )
+    expect(otherDayButton).toBeInTheDocument()
+    fireEvent.click(otherDayButton!)
     expect(await screen.findByText("Other day task")).toBeInTheDocument()
     expect(screen.queryByText("Day task")).not.toBeInTheDocument()
+  })
+
+  it("preserves the selected day and bucket order after a newer snapshot", async () => {
+    const firstTask = createTask("first-task", "First task", { sortOrder: 1 })
+    const secondTask = createTask("second-task", "Second task", { sortOrder: 0 })
+    const snapshot = createSnapshot([
+      firstTask,
+      secondTask,
+      createTask("unscheduled-task", "Unscheduled task", {
+        scheduledDate: null,
+      }),
+    ])
+    const controller = createMockDesktopApi({ snapshot })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+
+    const updatedSnapshot = createSnapshot(
+      [
+        { ...firstTask, title: "Updated first task" },
+        { ...secondTask, title: "Updated second task" },
+        createTask("new-unscheduled-task", "New unscheduled task", {
+          scheduledDate: null,
+        }),
+      ],
+      { revision: 2 },
+    )
+
+    act(() => controller.emit("store-changed", updatedSnapshot))
+
+    await waitFor(() =>
+      expect(
+        Array.from(document.querySelectorAll('[data-slot="tasks-task-row"]')).map(
+          (row) => row.getAttribute("data-task-id"),
+        ),
+      ).toEqual([secondTask.id, firstTask.id]),
+    )
+    expect(document.querySelector('[data-slot="tasks-day-header"]')).toHaveAttribute(
+      "data-date",
+      today,
+    )
+    expect(screen.queryByText("New unscheduled task")).not.toBeInTheDocument()
   })
 
   it("creates a task from the focused form", async () => {
