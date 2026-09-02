@@ -267,7 +267,9 @@ test.describe("DailyNotch surface router", () => {
     const calendar = page.locator('[data-slot="tasks-calendar-widget"]')
     const grid = calendar.locator('[role="group"]')
     await expect(calendar).toBeVisible()
-    await expect(calendar.locator(".tasks-calendar__weekdays span")).toHaveCount(7)
+    await expect(
+      calendar.locator('[data-slot="tasks-calendar-weekdays"] span'),
+    ).toHaveCount(7)
     const dateButtonCount = await calendar.locator("button[data-date]").count()
     expect(dateButtonCount).toBeGreaterThanOrEqual(28)
     expect(dateButtonCount).toBeLessThanOrEqual(31)

@@ -1,24 +1,23 @@
 import { useEffect, useState } from "react"
 
-import { ChevronLeftIcon, ChevronRightIcon } from "../../icons"
 import { Button } from "../../components/ui/button"
+import { ChevronLeftIcon, ChevronRightIcon } from "../../icons"
 import type { IsoDateString } from "../../lib/desktopApi"
 import { getLocalDateString } from "../../lib/local-date"
+import { cn } from "../../lib/utils"
 import {
   formatTasksCalendarDate,
   getTasksCalendarModel,
   getTasksCalendarMonthForDate,
   shiftTasksCalendarMonth,
   TASK_CALENDAR_WEEKDAYS,
-  type TasksCalendarModel,
 } from "./tasks-calendar-model"
-
-export type TasksCalendarProps = {
-  busy: boolean
-  onSelectDate: (date: IsoDateString) => void
-  selectedDate: IsoDateString
-  today?: Date | number
-}
+import type {
+  TasksCalendarDayProps,
+  TasksCalendarGridProps,
+  TasksCalendarHeaderProps,
+  TasksCalendarProps,
+} from "./tasks-calendar-types"
 
 function sameMonth(left: Date, right: Date) {
   return (
@@ -42,20 +41,19 @@ function CalendarDay({
   isSelected,
   isToday,
   onSelectDate,
-}: {
-  busy: boolean
-  dayOfMonth: number
-  date: IsoDateString
-  isSelected: boolean
-  isToday: boolean
-  onSelectDate: (date: IsoDateString) => void
-}) {
+}: TasksCalendarDayProps) {
   return (
     <button
       aria-current={isToday ? "date" : undefined}
       aria-label={formatTasksCalendarDate(date)}
       aria-pressed={isSelected}
-      className="tasks-calendar__day"
+      className={cn(
+        "group relative grid size-full min-h-[30px] cursor-pointer place-items-center rounded-control border border-transparent bg-transparent p-0 text-[0.78rem] text-content outline-none transition-[background-color,border-color,color,box-shadow] duration-150 hover:bg-panel-hover focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:pointer-events-none disabled:opacity-50",
+        isToday && "border-accent text-accent",
+        isSelected && "bg-accent text-canvas",
+        isSelected && isToday &&
+          "shadow-[inset_0_0_0_2px_var(--canvas)]",
+      )}
       data-date={date}
       data-selected={isSelected ? "true" : "false"}
       data-today={isToday ? "true" : "false"}
@@ -65,7 +63,13 @@ function CalendarDay({
     >
       <span>{dayOfMonth}</span>
       {isToday && (
-        <span aria-hidden="true" className="tasks-calendar__today-marker" />
+        <span
+          aria-hidden="true"
+          className={cn(
+            "absolute bottom-1 size-1 rounded-full",
+            isSelected ? "bg-canvas" : "bg-accent",
+          )}
+        />
       )}
     </button>
   )
@@ -76,21 +80,21 @@ function CalendarHeader({
   monthLabel,
   onNextMonth,
   onPreviousMonth,
-}: {
-  busy: boolean
-  monthLabel: string
-  onNextMonth: () => void
-  onPreviousMonth: () => void
-}) {
+}: TasksCalendarHeaderProps) {
   return (
-    <header className="tasks-calendar__header">
+    <header className="flex items-center justify-between gap-3">
       <div>
-        <p className="tasks-sidebar__eyebrow">Planning</p>
-        <h3 aria-live="polite" className="tasks-calendar__month-title">
+        <p className="m-0 mb-1.5 text-[0.7rem] font-[650] uppercase tracking-[0.16em] text-muted">
+          Planning
+        </p>
+        <h3
+          aria-live="polite"
+          className="m-0 text-base font-[650] leading-[1.2] tracking-[-0.01em] text-content"
+        >
           {monthLabel}
         </h3>
       </div>
-      <div className="tasks-calendar__navigation">
+      <div className="flex gap-0.5">
         <Button
           aria-label="Previous month"
           disabled={busy}
@@ -120,22 +124,18 @@ function CalendarGrid({
   busy,
   model,
   onSelectDate,
-}: {
-  busy: boolean
-  model: TasksCalendarModel
-  onSelectDate: (date: IsoDateString) => void
-}) {
+}: TasksCalendarGridProps) {
   return (
     <div
       aria-label={`Calendar for ${model.monthLabel}`}
-      className="tasks-calendar__grid"
+      className="grid grid-cols-7 gap-1"
       data-month={`${model.year}-${String(model.month + 1).padStart(2, "0")}`}
       data-row-count={model.rowCount}
       role="group"
     >
       {model.cells.map((cell, index) => (
         <div
-          className="tasks-calendar__cell"
+          className="aspect-square min-w-0"
           data-cell-state={cell.state}
           data-column={cell.column}
           data-date={cell.date ?? undefined}
@@ -153,7 +153,10 @@ function CalendarGrid({
               onSelectDate={onSelectDate}
             />
           ) : (
-            <span aria-hidden="true" className="tasks-calendar__outside" />
+            <span
+              aria-hidden="true"
+              className="grid size-full min-h-[30px] place-items-center rounded-control"
+            />
           )}
         </div>
       ))}
@@ -195,7 +198,7 @@ export function TasksCalendar({
   return (
     <section
       aria-label="Monthly task calendar"
-      className="tasks-calendar"
+      className="grid gap-3.5"
       data-slot="tasks-calendar-widget"
     >
       <CalendarHeader
@@ -209,7 +212,11 @@ export function TasksCalendar({
         }
       />
 
-      <div aria-hidden="true" className="tasks-calendar__weekdays">
+      <div
+        aria-hidden="true"
+        className="grid grid-cols-7 gap-1 text-center text-[0.63rem] font-[650] uppercase tracking-[0.04em] text-muted"
+        data-slot="tasks-calendar-weekdays"
+      >
         {TASK_CALENDAR_WEEKDAYS.map((weekday) => (
           <span key={weekday}>{weekday}</span>
         ))}
@@ -218,7 +225,7 @@ export function TasksCalendar({
       <CalendarGrid busy={busy} model={model} onSelectDate={onSelectDate} />
 
       <Button
-        className="tasks-calendar__today-button"
+        className="justify-self-start"
         disabled={busy}
         onClick={selectToday}
         size="sm"

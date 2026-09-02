@@ -28,7 +28,7 @@ describe("TasksCalendar", () => {
 
     expect(calendar).toHaveAttribute("data-month", "2026-09")
     expect(calendar).toHaveAttribute("data-row-count", "5")
-    expect(calendar.querySelectorAll(".tasks-calendar__day")).toHaveLength(30)
+    expect(calendar.querySelectorAll("button[data-date]")).toHaveLength(30)
     expect(selectedDay).toHaveAttribute("aria-pressed", "true")
     expect(selectedDay).toHaveAttribute("aria-current", "date")
     expect(selectedDay).toHaveAttribute("data-selected", "true")
