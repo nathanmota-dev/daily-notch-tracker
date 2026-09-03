@@ -1,6 +1,7 @@
-use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
 use crate::domain::AppError;
+use crate::services::show_and_focus_window;
 
 pub(super) fn open_window<R: Runtime>(
     app: &AppHandle<R>,
@@ -22,37 +23,6 @@ pub(super) fn open_window<R: Runtime>(
     };
 
     show_and_focus_window(&window)?;
-    Ok(())
-}
-
-pub(super) fn show_and_focus_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), AppError> {
-    window
-        .show()
-        .map_err(|_| AppError::integration_unavailable("The desktop window could not be shown."))?;
-    window.set_focus().map_err(|_| {
-        AppError::integration_unavailable("The desktop window could not receive focus.")
-    })?;
-    Ok(())
-}
-
-pub(super) fn close_reusable_window<R: Runtime>(
-    app: &AppHandle<R>,
-    label: &str,
-    error_message: &str,
-) -> Result<(), AppError> {
-    let Some(window) = app.get_webview_window(label) else {
-        return Ok(());
-    };
-
-    window
-        .hide()
-        .map_err(|_| AppError::integration_unavailable(error_message))?;
-
-    if let Some(overlay_window) = app.get_webview_window("overlay") {
-        let _ = overlay_window.show();
-        let _ = overlay_window.set_focus();
-    }
-
     Ok(())
 }
 
