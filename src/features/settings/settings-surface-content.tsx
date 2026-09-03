@@ -1,4 +1,5 @@
 import { CloseIcon, SettingsIcon } from "../../icons"
+import { BackButton } from "../../components/back-button"
 import { IconButton } from "../../components/icon-button"
 import { Panel } from "../../components/panel"
 import { Button } from "../../components/ui/button"
@@ -18,21 +19,30 @@ function SettingsHeader({ mutationBusy, onClose }: SettingsHeaderProps) {
       className="flex items-start justify-between gap-4"
       data-slot="settings-window-header"
     >
-      <div className="flex min-w-0 items-start gap-3">
-        <SettingsIcon
-          aria-hidden="true"
-          className="mt-1 size-5 shrink-0 text-accent"
+      <div className="flex min-w-0 items-start gap-2">
+        <BackButton
+          ariaLabel="Back to tasks"
+          className="mt-0.5"
+          disabled={mutationBusy}
+          onClick={onClose}
+          title="Back to tasks"
         />
-        <div className="min-w-0">
-          <p className="m-0 text-caption font-medium uppercase tracking-[0.2em] text-muted">
-            DailyNotch Linux
-          </p>
-          <h1 className="m-0 mt-1 text-[clamp(1.75rem,5vw,2.35rem)] font-bold leading-[1.05] tracking-[-0.045em] text-content">
-            Settings
-          </h1>
-          <p className="mt-2 max-w-xl text-body text-muted">
-            Tune focus behavior and inspect the desktop integrations.
-          </p>
+        <div className="flex min-w-0 items-start gap-3">
+          <SettingsIcon
+            aria-hidden="true"
+            className="mt-1 size-5 shrink-0 text-accent"
+          />
+          <div className="min-w-0">
+            <p className="m-0 text-caption font-medium uppercase tracking-[0.2em] text-muted">
+              DailyNotch Linux
+            </p>
+            <h1 className="m-0 mt-1 text-[clamp(1.75rem,5vw,2.35rem)] font-bold leading-[1.05] tracking-[-0.045em] text-content">
+              Settings
+            </h1>
+            <p className="mt-2 max-w-xl text-body text-muted">
+              Tune focus behavior and inspect the desktop integrations.
+            </p>
+          </div>
         </div>
       </div>
       <IconButton

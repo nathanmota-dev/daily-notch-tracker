@@ -269,4 +269,16 @@ describe("Settings surface", () => {
     await waitFor(() => expect(closeSettingsWindow).toHaveBeenCalledOnce())
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument()
   })
+
+  it("returns to Tasks from the back button", async () => {
+    const closeSettingsWindow = vi.fn(async () => undefined)
+    renderSettings({ handlers: { closeSettingsWindow } })
+    await screen.findByText("0.1.0-test")
+
+    await userEvent.setup().click(
+      screen.getByRole("button", { name: "Back to tasks" }),
+    )
+
+    await waitFor(() => expect(closeSettingsWindow).toHaveBeenCalledOnce())
+  })
 })
