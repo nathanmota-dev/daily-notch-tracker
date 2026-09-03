@@ -26,6 +26,25 @@ const expandedFixtures = [
 
 const OVERLAY_COLLAPSE_DELAY_MS = 400
 
+const expandedTasks = {
+  first: {
+    id: "expanded-task-1",
+    title: "Plan the next focused block",
+    notes: "Set the top priority for today.",
+    duration: "25 min",
+  },
+  second: {
+    id: "expanded-task-2",
+    title: "Review the desktop contract",
+    notes: "Keep the boundary between UI and desktop code clear.",
+    duration: "50 min",
+  },
+  completed: {
+    id: "expanded-task-3",
+    title: "Ship the completed dashboard draft",
+  },
+} as const
+
 async function leaveOverlay(page: Page) {
   await page.locator('[data-surface="overlay"]').evaluate((overlay) => {
     overlay.dispatchEvent(
@@ -44,6 +63,38 @@ async function loadCollapsedFixture(
 ) {
   await page.goto(`/?surface=overlay&fixture=${name}`)
   await leaveOverlay(page)
+}
+
+async function loadTasksFixture(
+  page: Page,
+  fixture?: string,
+  intent?: "list" | "add" | "task",
+  taskId?: string,
+) {
+  const params = new URLSearchParams({ surface: "tasks" })
+  if (fixture) {
+    params.set("fixture", fixture)
+  }
+  if (intent) {
+    params.set("intent", intent)
+  }
+  if (taskId) {
+    params.set("taskId", taskId)
+  }
+
+  await page.goto(`/?${params.toString()}`)
+}
+
+function taskRow(page: Page, taskId: string) {
+  return page.locator(
+    `[data-slot="tasks-task-row"][data-task-id="${taskId}"]`,
+  )
+}
+
+async function taskRowIds(page: Page) {
+  return page.locator('[data-slot="tasks-task-row"]').evaluateAll((rows) =>
+    rows.map((row) => row.getAttribute("data-task-id")),
+  )
 }
 
 test.describe("DailyNotch surface router", () => {
@@ -293,6 +344,418 @@ test.describe("DailyNotch surface router", () => {
 
     await page.getByRole("button", { name: "Today" }).click()
     await expect(grid).toHaveAttribute("data-month", month!)
+  })
+
+  test("renders daily task metadata and row actions", async ({ page }) => {
+    await loadTasksFixture(page, "expanded", "list")
+
+    await expect(page.locator('[data-slot="tasks-task-row"]')).toHaveCount(2)
+    await expect(page.getByText("2 open tasks", { exact: true })).toBeVisible()
+    await expect(
+      page.locator('[data-slot="tasks-day-title"]'),
+    ).toContainText("2 tasks")
+
+    for (const task of [expandedTasks.first, expandedTasks.second]) {
+      const row = taskRow(page, task.id)
+
+      await expect(row).toBeVisible()
+      await expect(row).toContainText(task.title)
+      await expect(row).toContainText(task.notes)
+      await expect(
+        row.locator('[data-slot="task-duration-chip"]'),
+      ).toHaveText(task.duration)
+      await expect(
+        row.locator('[data-slot="task-date-chip"]'),
+      ).toHaveText(/^\d{4}-\d{2}-\d{2}$/)
+      await expect(
+        row.getByRole("button", { name: `Open details for ${task.title}` }),
+      ).toBeVisible()
+      await expect(
+        row.getByRole("button", { name: `Edit ${task.title}` }),
+      ).toBeVisible()
+      await expect(
+        row.getByRole("button", { name: `Start focus for ${task.title}` }),
+      ).toBeEnabled()
+      await expect(
+        row.getByRole("button", { name: `Delete ${task.title}` }),
+      ).toBeVisible()
+    }
+  })
+
+  test("creates an unscheduled task without leaking it into Day", async ({
+    page,
+  }) => {
+    await loadTasksFixture(page, "expanded", "list")
+
+    const unscheduledTab = page.getByRole("tab", { name: "Unscheduled" })
+    await unscheduledTab.click()
+    await expect(unscheduledTab).toHaveAttribute("aria-selected", "true")
+    await expect(page.locator('[data-slot="tasks-task-row"]')).toHaveCount(0)
+    await expect(
+      page.getByRole("button", { name: "Add your first task" }),
+    ).toBeVisible()
+
+    await page.getByRole("button", { name: "Add your first task" }).click()
+    await expect(page.locator('[data-slot="inline-task-form"]')).toBeVisible()
+    await expect(page.locator("#inline-task-title")).toBeFocused()
+    await page.locator("#inline-task-title").fill("Unscheduled browser task")
+    await page.locator("#inline-task-notes").fill("Keep this task undated.")
+    await page.locator("#inline-task-duration").fill("15")
+    await page.getByRole("button", { name: "Add task" }).click()
+
+    const createdTask = taskRow(page, "mock-task-1")
+    await expect(createdTask).toBeVisible()
+    await expect(createdTask).toContainText("Unscheduled browser task")
+    await expect(
+      createdTask.locator('[data-slot="task-date-chip"]'),
+    ).toHaveCount(0)
+
+    const dayTab = page.getByRole("tab", { name: "Day" })
+    await dayTab.click()
+    await expect(dayTab).toHaveAttribute("aria-selected", "true")
+    await expect(page.locator('[data-slot="tasks-task-row"]')).toHaveCount(2)
+    await expect(taskRow(page, "mock-task-1")).toHaveCount(0)
+
+    await unscheduledTab.click()
+    await expect(taskRow(page, "mock-task-1")).toBeVisible()
+  })
+
+  test("creates a scheduled task from the inline add intent", async ({
+    page,
+  }) => {
+    await loadTasksFixture(page, "expanded", "add")
+
+    const form = page.locator('[data-slot="inline-task-form"]')
+    await expect(form).toBeVisible()
+    await expect(page.locator("#inline-task-title")).toBeFocused()
+
+    const today = await taskRow(page, expandedTasks.first.id)
+      .locator('[data-slot="task-date-chip"]')
+      .textContent()
+    expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+
+    await page.locator("#inline-task-title").fill("Scheduled browser task")
+    await page.locator("#inline-task-notes").fill("Created from the add intent.")
+    await page.locator("#inline-task-duration").fill("50")
+    await page.locator("#inline-task-date").fill(today!.trim())
+    await form.getByRole("button", { name: "Add task" }).click()
+
+    await expect(form).toHaveCount(0)
+    const createdTask = taskRow(page, "mock-task-1")
+    await expect(createdTask).toBeVisible()
+    await expect(createdTask).toContainText("Scheduled browser task")
+    await expect(createdTask).toContainText("Created from the add intent.")
+    await expect(
+      createdTask.locator('[data-slot="task-duration-chip"]'),
+    ).toHaveText("50 min")
+    await expect(
+      createdTask.locator('[data-slot="task-date-chip"]'),
+    ).toHaveText(today!.trim())
+    await expect(page.getByText("3 open tasks", { exact: true })).toBeVisible()
+  })
+
+  test("cancels the inline add form without creating a task", async ({
+    page,
+  }) => {
+    await loadTasksFixture(page, "expanded", "add")
+
+    const form = page.locator('[data-slot="inline-task-form"]')
+    await page.locator("#inline-task-title").fill("Cancelled browser task")
+    await form.getByRole("button", { name: "Cancel" }).click()
+
+    await expect(form).toHaveCount(0)
+    await expect(page.locator('[data-slot="tasks-task-row"]')).toHaveCount(2)
+    await expect(page.getByText("Cancelled browser task")).toHaveCount(0)
+    await expect(page.getByText("2 open tasks", { exact: true })).toBeVisible()
+  })
+
+  test("opens the empty-state CTA into the inline task form", async ({
+    page,
+  }) => {
+    await loadTasksFixture(page)
+
+    await expect(
+      page.locator('[data-slot="tasks-day-title"]'),
+    ).toContainText("0 tasks")
+    const emptyState = page.getByRole("button", { name: "Add your first task" })
+    await expect(emptyState).toBeVisible()
+    await emptyState.click()
+
+    await expect(page.locator('[data-slot="inline-task-form"]')).toBeVisible()
+    await expect(page.locator("#inline-task-title")).toBeFocused()
+    await expect(page.getByRole("button", { name: "Add task" })).toBeVisible()
+  })
+
+  test("opens the exact task requested by the task intent", async ({ page }) => {
+    await loadTasksFixture(page, "expanded", "task", expandedTasks.first.id)
+
+    await expect(page.getByRole("heading", { name: "Edit task" })).toBeVisible()
+    await expect(page.getByLabel("Title")).toHaveValue(expandedTasks.first.title)
+    await expect(page.getByLabel("Notes")).toHaveValue(expandedTasks.first.notes)
+    await expect(
+      page.getByRole("spinbutton", { name: "Duration (minutes)" }),
+    ).toHaveValue("25")
+    await expect(page.getByLabel("Date")).toHaveValue(/^\d{4}-\d{2}-\d{2}$/)
+    await expect(
+      page.getByRole("checkbox", { name: "Mark task as complete" }),
+    ).not.toBeChecked()
+    await expect(
+      page.getByRole("button", {
+        name: `Start focus for ${expandedTasks.first.title}`,
+      }),
+    ).toBeEnabled()
+  })
+
+  test("falls back to the list for a similar but invalid task id", async ({
+    page,
+  }) => {
+    await loadTasksFixture(page, "expanded", "task", "expanded-task-10")
+
+    await expect(page.getByRole("heading", { name: "Day" })).toBeVisible()
+    await expect(page.locator('[data-slot="tasks-task-row"]')).toHaveCount(2)
+    await expect(page.getByRole("heading", { name: "Edit task" })).toHaveCount(0)
+  })
+
+  test("edits every task field and verifies the saved task in its new bucket", async ({
+    page,
+  }) => {
+    await loadTasksFixture(page, "expanded", "task", expandedTasks.first.id)
+
+    await page.getByLabel("Title").fill("Edited browser task")
+    await page.getByLabel("Notes").fill("Updated from the browser detail view.")
+    await page
+      .getByRole("spinbutton", { name: "Duration (minutes)" })
+      .fill("50")
+    await page.getByLabel("Date").fill("")
+    await page.getByRole("checkbox", { name: "Mark task as complete" }).click()
+    await page.getByRole("button", { name: "Save task" }).click()
+
+    await expect(page.getByLabel("Title")).toHaveValue("Edited browser task")
+    await expect(page.getByLabel("Notes")).toHaveValue(
+      "Updated from the browser detail view.",
+    )
+    await expect(
+      page.getByRole("spinbutton", { name: "Duration (minutes)" }),
+    ).toHaveValue("50")
+    await expect(page.getByLabel("Date")).toHaveValue("")
+    await expect(
+      page.getByRole("checkbox", { name: "Mark task as complete" }),
+    ).toBeChecked()
+
+    await page.getByRole("button", { name: "Back to list" }).click()
+    await expect(taskRow(page, expandedTasks.first.id)).toHaveCount(0)
+    await expect(taskRow(page, expandedTasks.second.id)).toBeVisible()
+
+    await page.getByRole("tab", { name: "Unscheduled" }).click()
+    const editedTask = taskRow(page, expandedTasks.first.id)
+    await expect(editedTask).toBeVisible()
+    await expect(editedTask).toContainText("Edited browser task")
+    await expect(editedTask).toContainText(
+      "Updated from the browser detail view.",
+    )
+    await expect(
+      editedTask.locator('[data-slot="task-duration-chip"]'),
+    ).toHaveText("50 min")
+    await expect(
+      editedTask.locator('[data-slot="task-date-chip"]'),
+    ).toHaveCount(0)
+    await expect(
+      editedTask.getByRole("checkbox", {
+        name: "Mark Edited browser task as incomplete",
+      }),
+    ).toBeChecked()
+    await expect(
+      editedTask.getByRole("button", {
+        name: "Start focus for Edited browser task",
+      }),
+    ).toBeDisabled()
+  })
+
+  test("deletes the only task and returns to the empty state", async ({
+    page,
+  }) => {
+    await loadTasksFixture(page, "expanded-one", "task", expandedTasks.first.id)
+
+    await page.getByRole("button", { name: "Delete task" }).click()
+
+    await expect(page.getByRole("heading", { name: "Edit task" })).toHaveCount(0)
+    await expect(page.locator('[data-slot="tasks-task-row"]')).toHaveCount(0)
+    await expect(
+      page.getByRole("button", { name: "Add your first task" }),
+    ).toBeVisible()
+    await expect(
+      page.locator('[data-slot="tasks-day-title"]'),
+    ).toContainText("0 tasks")
+  })
+
+  test("toggles completion and keeps focus disabled for completed tasks", async ({
+    page,
+  }) => {
+    await loadTasksFixture(page, "expanded-completed", "list")
+
+    const rows = page.locator('[data-slot="tasks-task-row"]')
+    await expect(rows).toHaveCount(3)
+    await expect(rows.nth(0)).toHaveAttribute("data-completed", "false")
+    await expect(rows.nth(1)).toHaveAttribute("data-completed", "false")
+    await expect(rows.nth(2)).toHaveAttribute("data-completed", "true")
+    await expect(
+      taskRow(page, expandedTasks.completed.id).getByRole("button", {
+        name: `Start focus for ${expandedTasks.completed.title}`,
+      }),
+    ).toBeDisabled()
+    await expect(page.getByText("2 open tasks", { exact: true })).toBeVisible()
+
+    await taskRow(page, expandedTasks.first.id)
+      .getByRole("checkbox", {
+        name: `Mark ${expandedTasks.first.title} as complete`,
+      })
+      .click()
+
+    await expect(taskRow(page, expandedTasks.first.id)).toHaveAttribute(
+      "data-completed",
+      "true",
+    )
+    await expect(taskRow(page, expandedTasks.second.id)).toHaveAttribute(
+      "data-completed",
+      "false",
+    )
+    await expect(rows.nth(0)).toHaveAttribute(
+      "data-task-id",
+      expandedTasks.second.id,
+    )
+    await expect(page.getByText("1 open task", { exact: true })).toBeVisible()
+  })
+
+  test("reorders task rows through the drag handle", async ({ page }) => {
+    await loadTasksFixture(page, "expanded", "list")
+
+    const firstRow = taskRow(page, expandedTasks.first.id)
+    const secondRow = taskRow(page, expandedTasks.second.id)
+    await expect(await taskRowIds(page)).toEqual([
+      expandedTasks.first.id,
+      expandedTasks.second.id,
+    ])
+
+    await firstRow
+      .getByRole("button", { name: `Reorder ${expandedTasks.first.title}` })
+      .dragTo(secondRow)
+
+    await expect.poll(() => taskRowIds(page)).toEqual([
+      expandedTasks.second.id,
+      expandedTasks.first.id,
+    ])
+
+    await page.getByRole("tab", { name: "Unscheduled" }).click()
+    await page.getByRole("tab", { name: "Day" }).click()
+    await expect.poll(() => taskRowIds(page)).toEqual([
+      expandedTasks.second.id,
+      expandedTasks.first.id,
+    ])
+  })
+
+  test("starts, pauses, and resumes a custom focus session", async ({
+    page,
+  }) => {
+    await loadTasksFixture(page, "expanded", "list")
+
+    const focusButton = taskRow(page, expandedTasks.first.id).getByRole(
+      "button",
+      { name: `Start focus for ${expandedTasks.first.title}` },
+    )
+    await focusButton.click()
+
+    const dialog = page.getByRole("dialog", {
+      name: `Focus session for ${expandedTasks.first.title}`,
+    })
+    await expect(dialog).toBeVisible()
+    await expect(page.getByLabel("Focus minutes")).toHaveValue("25")
+    await expect(page.getByLabel("Focus seconds")).toHaveValue("00")
+
+    await page.getByLabel("Focus minutes").fill("1")
+    await page.getByLabel("Focus seconds").fill("30")
+    await dialog.getByRole("button", { name: "Start focus" }).click()
+
+    await expect(dialog).toHaveCount(0)
+    const pauseButton = page.getByRole("button", {
+      name: `Pause focus for ${expandedTasks.first.title}`,
+    })
+    await expect(pauseButton).toBeVisible()
+
+    await pauseButton.click()
+    const resumeButton = page.getByRole("button", {
+      name: `Resume focus for ${expandedTasks.first.title}`,
+    })
+    await expect(resumeButton).toBeVisible()
+
+    await resumeButton.click()
+    await expect(
+      page.getByRole("button", {
+        name: `Pause focus for ${expandedTasks.first.title}`,
+      }),
+    ).toBeVisible()
+  })
+
+  test("rejects a zero-length focus session and closes it with Escape", async ({
+    page,
+  }) => {
+    await loadTasksFixture(page, "expanded", "list")
+
+    await taskRow(page, expandedTasks.first.id)
+      .getByRole("button", {
+        name: `Start focus for ${expandedTasks.first.title}`,
+      })
+      .click()
+    const dialog = page.getByRole("dialog", {
+      name: `Focus session for ${expandedTasks.first.title}`,
+    })
+    await page.getByLabel("Focus minutes").fill("0")
+    await page.getByLabel("Focus seconds").fill("00")
+
+    await expect(dialog.getByRole("alert")).toHaveText(
+      "Choose a focus duration between 00:01 and 180:00.",
+    )
+    await expect(
+      dialog.getByRole("button", { name: "Start focus" }),
+    ).toBeDisabled()
+
+    await page.keyboard.press("Escape")
+    await expect(dialog).toHaveCount(0)
+  })
+
+  test("opens Tasks from the expanded overlay and returns to the overlay", async ({
+    page,
+  }) => {
+    await page.goto("/?surface=overlay&fixture=expanded")
+
+    await page.getByRole("button", { name: "Open Tasks" }).click()
+    await expect(page.locator('[data-surface="tasks"]')).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Day" })).toBeVisible()
+
+    await page.getByRole("button", { name: "Close Tasks" }).click()
+    await expect(page.locator('[data-surface="overlay"]')).toBeVisible()
+    await expect(
+      page.locator('[data-slot="expanded-dashboard"]'),
+    ).toBeVisible()
+  })
+
+  test("opens task details from the expanded overlay and returns to it", async ({
+    page,
+  }) => {
+    await page.goto("/?surface=overlay&fixture=expanded")
+
+    await page
+      .getByRole("button", {
+        name: `Open details for ${expandedTasks.first.title}`,
+      })
+      .click()
+    await expect(page.locator('[data-surface="tasks"]')).toBeVisible()
+    await expect(page.getByRole("heading", { name: "Edit task" })).toBeVisible()
+
+    await page.getByRole("button", { name: "Close Tasks" }).click()
+    await expect(page.locator('[data-surface="overlay"]')).toBeVisible()
+    await expect(
+      page.locator('[data-slot="expanded-dashboard"]'),
+    ).toBeVisible()
   })
 
   test("completes the browser notch-to-task focus flow", async ({ page }) => {
