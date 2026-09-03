@@ -110,6 +110,8 @@ export function createTauriDesktopApi(
       execute("closeTasksWindow", "close_tasks_window", undefined),
     openSettingsWindow: () =>
       execute("openSettingsWindow", "open_settings_window", undefined),
+    closeSettingsWindow: () =>
+      execute("closeSettingsWindow", "close_settings_window", undefined),
     openExternalRelease: (url) =>
       execute("openExternalRelease", "open_external_release", { url }),
     subscribe,

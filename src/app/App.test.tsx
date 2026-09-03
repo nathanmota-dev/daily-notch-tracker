@@ -317,6 +317,7 @@ describe("App", () => {
 
       const updatedSnapshot = createEmptyAppSnapshot()
       updatedSnapshot.revision = 1
+      updatedSnapshot.settings.focusMinutes = 50
       updatedSnapshot.tasks = [
         {
           id: "task-1",
@@ -340,7 +341,11 @@ describe("App", () => {
           ).toHaveTextContent("1 open"),
         )
       } else {
-        expect(await screen.findByText("1 tarefa")).toBeInTheDocument()
+        expect(
+          await screen.findByRole("spinbutton", {
+            name: "Focus duration (minutes)",
+          }),
+        ).toHaveValue(50)
       }
     },
   )

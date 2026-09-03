@@ -98,6 +98,66 @@ mod tests {
     }
 
     #[test]
+    fn focus_minutes_clamp_includes_both_supported_boundaries() {
+        let mut settings = FocusSettings::default();
+
+        settings.apply_patch(FocusSettingsPatch {
+            focus_minutes: Some(1),
+            ..FocusSettingsPatch::default()
+        });
+        assert_eq!(settings.focus_minutes, 1);
+
+        settings.apply_patch(FocusSettingsPatch {
+            focus_minutes: Some(180),
+            ..FocusSettingsPatch::default()
+        });
+        assert_eq!(settings.focus_minutes, 180);
+    }
+
+    #[test]
+    fn focus_minutes_clamp_handles_values_below_and_above_the_range() {
+        let mut settings = FocusSettings::default();
+
+        settings.apply_patch(FocusSettingsPatch {
+            focus_minutes: Some(-25),
+            ..FocusSettingsPatch::default()
+        });
+        assert_eq!(settings.focus_minutes, 1);
+
+        settings.apply_patch(FocusSettingsPatch {
+            focus_minutes: Some(181),
+            ..FocusSettingsPatch::default()
+        });
+        assert_eq!(settings.focus_minutes, 180);
+    }
+
+    #[test]
+    fn partial_patch_persists_all_supported_preferences_without_changing_autostart() {
+        let mut settings = FocusSettings::default();
+        settings.apply_patch(FocusSettingsPatch {
+            notifications_enabled: Some(false),
+            play_sound: Some(false),
+            show_timeline: Some(false),
+            rainbow_timeline: Some(true),
+            minimal_mode: Some(true),
+            ..FocusSettingsPatch::default()
+        });
+
+        assert_eq!(
+            settings,
+            FocusSettings {
+                focus_minutes: 25,
+                notifications_enabled: false,
+                play_sound: false,
+                show_timeline: false,
+                rainbow_timeline: true,
+                minimal_mode: true,
+                launch_at_login: false,
+            }
+        );
+    }
+
+    #[test]
     fn settings_serialization_uses_camel_case_fields() {
         let json =
             serde_json::to_value(FocusSettings::default()).expect("settings should serialize");

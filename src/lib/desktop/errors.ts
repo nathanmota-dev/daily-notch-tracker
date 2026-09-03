@@ -114,6 +114,11 @@ export const desktopOperationErrorCodes = {
     "command-unavailable",
     "internal",
   ],
+  closeSettingsWindow: [
+    "integration-unavailable",
+    "command-unavailable",
+    "internal",
+  ],
   openExternalRelease: [
     "invalid-url",
     "integration-unavailable",

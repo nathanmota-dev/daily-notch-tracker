@@ -11,6 +11,7 @@ import {
   deleteMockTask,
   moveMockTasks,
   navigateBrowserToOverlay,
+  navigateBrowserToSettings,
   navigateBrowserToTasks,
   pauseMockFocus,
   resumeMockFocus,
@@ -187,6 +188,7 @@ function createMockSystemOperations(
   | "openTasksWindow"
   | "closeTasksWindow"
   | "openSettingsWindow"
+  | "closeSettingsWindow"
   | "openExternalRelease"
 > {
   const handlers = context.options.handlers
@@ -218,7 +220,19 @@ function createMockSystemOperations(
       }),
     openSettingsWindow: () =>
       runMockOperation(context, "openSettingsWindow", async () => {
-        await handlers?.openSettingsWindow?.()
+        if (handlers?.openSettingsWindow) {
+          await handlers.openSettingsWindow()
+          return
+        }
+        navigateBrowserToSettings()
+      }),
+    closeSettingsWindow: () =>
+      runMockOperation(context, "closeSettingsWindow", async () => {
+        if (handlers?.closeSettingsWindow) {
+          await handlers.closeSettingsWindow()
+          return
+        }
+        navigateBrowserToOverlay()
       }),
     openExternalRelease: (url) =>
       runMockOperation(context, "openExternalRelease", async () => {

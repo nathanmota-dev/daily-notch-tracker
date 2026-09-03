@@ -69,6 +69,7 @@ describe("createTauriDesktopApi", () => {
     await api.openTasksWindow(tasksIntent)
     await api.closeTasksWindow()
     await api.openSettingsWindow()
+    await api.closeSettingsWindow()
     await api.openExternalRelease("https://github.com/example/release")
 
     expect(invoke.mock.calls).toEqual([
@@ -89,6 +90,7 @@ describe("createTauriDesktopApi", () => {
       ["open_tasks_window", { intent: tasksIntent }],
       ["close_tasks_window", undefined],
       ["open_settings_window", undefined],
+      ["close_settings_window", undefined],
       ["open_external_release", { url: "https://github.com/example/release" }],
     ])
   })
@@ -273,10 +275,12 @@ describe("createMockDesktopApi", () => {
     await api.toggleTask(firstId!)
     await api.toggleTask(firstId!)
     await api.updateSettings({ focusMinutes: 45 })
-    await api.setAutostart(true)
+    await expect(api.setAutostart(true)).rejects.toMatchObject({
+      code: "integration-unavailable",
+    })
 
     expect(controller.getSnapshot()).toMatchObject({
-      settings: { focusMinutes: 45, launchAtLogin: true },
+      settings: { focusMinutes: 45, launchAtLogin: false },
       tasks: expect.arrayContaining([
         expect.objectContaining({ id: firstId, title: "Updated task", isDone: false }),
       ]),
@@ -286,6 +290,10 @@ describe("createMockDesktopApi", () => {
     expect(window.location.search).toContain("surface=tasks")
     expect(window.location.search).toContain("intent=add")
     await api.closeTasksWindow()
+    expect(window.location.search).toContain("surface=overlay")
+    await api.openSettingsWindow()
+    expect(window.location.search).toContain("surface=settings")
+    await api.closeSettingsWindow()
     expect(window.location.search).toContain("surface=overlay")
     await api.deleteTask(secondId!)
     expect(controller.getSnapshot().tasks).toHaveLength(1)
@@ -300,10 +308,12 @@ describe("createMockDesktopApi", () => {
     const openTasksWindow = vi.fn(async () => undefined)
     const closeTasksWindow = vi.fn(async () => undefined)
     const openSettingsWindow = vi.fn(async () => undefined)
+    const closeSettingsWindow = vi.fn(async () => undefined)
     const openExternalRelease = vi.fn(async () => undefined)
     const controller = createMockDesktopApi({
       handlers: {
         closeTasksWindow,
+        closeSettingsWindow,
         getAppDiagnostics,
         getSnapshot,
         openExternalRelease,
@@ -317,6 +327,7 @@ describe("createMockDesktopApi", () => {
     await controller.api.openTasksWindow({ kind: "list" })
     await controller.api.closeTasksWindow()
     await controller.api.openSettingsWindow()
+    await controller.api.closeSettingsWindow()
     await controller.api.openExternalRelease("https://example.com/release")
 
     expect(getSnapshot).toHaveBeenCalledOnce()
@@ -324,6 +335,7 @@ describe("createMockDesktopApi", () => {
     expect(openTasksWindow).toHaveBeenCalledWith({ kind: "list" })
     expect(closeTasksWindow).toHaveBeenCalledOnce()
     expect(openSettingsWindow).toHaveBeenCalledOnce()
+    expect(closeSettingsWindow).toHaveBeenCalledOnce()
     expect(openExternalRelease).toHaveBeenCalledWith("https://example.com/release")
   })
 

@@ -196,6 +196,10 @@ export type DesktopCommandMap = {
     args: undefined
     result: void
   }
+  close_settings_window: {
+    args: undefined
+    result: void
+  }
   open_external_release: {
     args: { url: string }
     result: void

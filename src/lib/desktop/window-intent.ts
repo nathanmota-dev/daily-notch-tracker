@@ -18,3 +18,7 @@ export function tasksSurfaceSearch(intent: TasksWindowIntent) {
 export function overlaySurfaceSearch() {
   return "?surface=overlay"
 }
+
+export function settingsSurfaceSearch() {
+  return "?surface=settings"
+}

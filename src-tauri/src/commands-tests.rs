@@ -233,6 +233,12 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
         .expect("settings window should open");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("existing settings window should be reused");
+    tauri::async_runtime::block_on(close_settings_window(handle.clone()))
+        .expect("settings window should close without being destroyed");
+    tauri::async_runtime::block_on(close_settings_window(handle.clone()))
+        .expect("closing an already hidden settings window should be idempotent");
+    tauri::async_runtime::block_on(open_settings_window(handle.clone()))
+        .expect("hidden settings window should be reused");
 
     assert_eq!(handle.webview_windows().len(), 2);
     assert_eq!(

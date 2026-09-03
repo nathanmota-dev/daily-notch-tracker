@@ -36,6 +36,7 @@ export interface DesktopApi {
   openTasksWindow(intent?: TasksWindowIntent): Promise<void>
   closeTasksWindow(): Promise<void>
   openSettingsWindow(): Promise<void>
+  closeSettingsWindow(): Promise<void>
   openExternalRelease(url: string): Promise<void>
   subscribe<EventName extends DesktopEventName>(
     eventName: EventName,

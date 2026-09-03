@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   overlaySurfaceSearch,
   serializeTasksWindowIntent,
+  settingsSurfaceSearch,
   tasksSurfaceSearch,
 } from "./window-intent"
 
@@ -17,5 +18,6 @@ describe("browser window intents", () => {
       "?surface=tasks&intent=add",
     )
     expect(overlaySurfaceSearch()).toBe("?surface=overlay")
+    expect(settingsSurfaceSearch()).toBe("?surface=settings")
   })
 })

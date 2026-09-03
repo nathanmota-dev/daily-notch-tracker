@@ -1,5 +1,6 @@
 import type { AppSnapshot, StartFocusInput } from "./contracts"
 import { createEmptyAppSnapshot } from "./base-snapshot"
+import { DesktopApiError } from "./errors"
 import { getLocalDateString } from "../local-date"
 import {
   cloneSnapshot,
@@ -204,9 +205,15 @@ export function updateMockSettings(
   return commitSnapshot(state, snapshot)
 }
 
-export function setMockAutostart(state: MockState, enabled: boolean) {
-  const snapshot = cloneSnapshot(state.snapshot)
-  snapshot.settings.launchAtLogin = enabled
-  snapshot.revision = nextRevision(state)
-  return commitSnapshot(state, snapshot)
+export function setMockAutostart(
+  _state: MockState,
+  _enabled: boolean,
+): never {
+  void _state
+  void _enabled
+  throw new DesktopApiError({
+    operation: "setAutostart",
+    code: "integration-unavailable",
+    message: "Autostart requires the desktop runtime.",
+  })
 }

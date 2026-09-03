@@ -303,7 +303,7 @@ test.describe("DailyNotch surface router", () => {
     await expect(content).toBeVisible()
     await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible()
     await expect(page.getByRole("heading", { name: "Day" })).toBeVisible()
-    await expect(page.getByRole("button", { name: "Settings" })).toHaveCount(0)
+    await expect(page.getByRole("button", { name: "Settings" })).toBeVisible()
     await expect(
       page.locator('[data-slot="tasks-events"]'),
     ).toHaveCount(0)
@@ -871,7 +871,30 @@ test.describe("DailyNotch surface router", () => {
 
       await expect(page.locator(`[data-surface="${label}"]`)).toBeVisible()
       await expect(page.getByRole("heading", { name: heading })).toBeVisible()
-      await expect(page.getByText("Nenhuma tarefa ainda.")).toBeVisible()
+      if (label === "tasks") {
+        await expect(page.getByText("0 tasks")).toBeVisible()
+      } else {
+        await expect(page.getByRole("heading", { name: "Timer" })).toBeVisible()
+        await expect(page.getByRole("heading", { name: "Diagnostics" })).toBeVisible()
+      }
     })
   }
+
+  test("opens Settings from Tasks, saves a preference, and returns to the overlay", async ({
+    page,
+  }) => {
+    await page.goto("/?surface=tasks")
+    await page.getByRole("button", { name: "Settings" }).click()
+
+    await expect(page.locator('[data-surface="settings"]')).toBeVisible()
+    const duration = page.getByRole("spinbutton", {
+      name: "Focus duration (minutes)",
+    })
+    await expect(duration).toHaveValue("25")
+    await page.getByRole("switch", { name: "Show timeline" }).click()
+    await expect(page.getByRole("switch", { name: "Show timeline" })).not.toBeChecked()
+
+    await page.getByRole("button", { name: "Close Settings" }).click()
+    await expect(page.locator('[data-surface="overlay"]')).toBeVisible()
+  })
 })

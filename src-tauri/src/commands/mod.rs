@@ -17,7 +17,9 @@ mod window_placement;
 use window_placement::calculate_tasks_window_position;
 #[path = "window-commands.rs"]
 mod window_commands;
-use window_commands::{is_allowed_release_url, open_window, show_and_focus_window};
+use window_commands::{
+    close_reusable_window, is_allowed_release_url, open_window, show_and_focus_window,
+};
 
 const STORE_EVENTS: &[&str] = &["store-changed"];
 const SETTINGS_EVENTS: &[&str] = &["store-changed", "settings-changed"];
@@ -154,20 +156,12 @@ pub async fn open_tasks_window<R: Runtime>(
 
 #[tauri::command]
 pub async fn close_tasks_window<R: Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
-    let Some(tasks_window) = app.get_webview_window("tasks") else {
-        return Ok(());
-    };
+    close_reusable_window(&app, "tasks", "The Tasks window could not be hidden.")
+}
 
-    tasks_window
-        .hide()
-        .map_err(|_| AppError::integration_unavailable("The Tasks window could not be hidden."))?;
-
-    if let Some(overlay_window) = app.get_webview_window("overlay") {
-        let _ = overlay_window.show();
-        let _ = overlay_window.set_focus();
-    }
-
-    Ok(())
+#[tauri::command]
+pub async fn close_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
+    close_reusable_window(&app, "settings", "The Settings window could not be hidden.")
 }
 
 #[tauri::command]

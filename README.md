@@ -167,9 +167,14 @@ acompanha as mudanças de apresentação, e o drag-and-drop do resumo já reorde
 o bucket do dia.
 A janela completa `Tasks` e a janela `Settings` são abertas sob demanda por
 comandos Rust, reutilizando a janela existente pelo label e trazendo-a para
-frente sem criar duplicatas. `Settings` continua sendo a superfície reservada
-para configurações futuras; `Tasks` já é a superfície funcional descrita
-abaixo.
+frente sem criar duplicatas. `Settings` permite ajustar a duração padrão de
+foco, alertas, timeline, RGB e modo mínimo; alterações são persistidas pelo
+Rust e refletidas nas outras superfícies sem reiniciar o app. A seção de
+diagnostics mostra somente a versão, o caminho do arquivo local e o estado
+resumido de atalhos e autostart. Quando uma integração ainda não está
+disponível, o controle fica desabilitado e a mensagem pode ser novamente
+carregada; o estado salvo de preferência não é tratado como confirmação de
+autostart efetivo. `Tasks` é a superfície funcional descrita abaixo.
 
 A janela `Tasks` é criada sob demanda com tamanho inicial de 800 x 550 px,
 permite redimensionamento e respeita o tamanho mínimo de 760 x 480 px. Ela é

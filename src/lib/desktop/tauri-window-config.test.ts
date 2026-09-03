@@ -1,5 +1,6 @@
 import tauriConfig from "../../../src-tauri/tauri.conf.json"
 import defaultCapability from "../../../src-tauri/capabilities/default.json"
+import settingsCapability from "../../../src-tauri/capabilities/settings.json"
 import tasksCapability from "../../../src-tauri/capabilities/tasks.json"
 
 const [overlayWindow] = tauriConfig.app.windows
@@ -47,5 +48,13 @@ describe("Tauri overlay window configuration", () => {
     )
     expect(tasksCapability.windows).toEqual(["tasks"])
     expect(tasksCapability.permissions).toEqual(["core:default"])
+  })
+
+  it("keeps Settings isolated with only the default capability", () => {
+    expect(tauriConfig.app.windows.some((window) => window.label === "settings")).toBe(
+      false,
+    )
+    expect(settingsCapability.windows).toEqual(["settings"])
+    expect(settingsCapability.permissions).toEqual(["core:default"])
   })
 })

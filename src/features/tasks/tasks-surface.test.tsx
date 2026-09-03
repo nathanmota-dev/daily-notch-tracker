@@ -105,8 +105,23 @@ describe("Tasks surface", () => {
     render(<AppForTasks api={controller.api} />)
     await screen.findByRole("heading", { name: "Tasks" })
 
-    expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Settings" })).toBeInTheDocument()
     expect(document.querySelector('[data-slot="tasks-window-header"]')).toBeInTheDocument()
+  })
+
+  it("opens Settings from the Tasks window header", async () => {
+    const openSettingsWindow = vi.fn(async () => undefined)
+    const controller = createMockDesktopApi({
+      handlers: { openSettingsWindow },
+      snapshot: createSnapshot([]),
+    })
+
+    render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Settings" }))
+
+    await waitFor(() => expect(openSettingsWindow).toHaveBeenCalledOnce())
   })
 
   it("keeps Day and Unscheduled buckets independent", async () => {
