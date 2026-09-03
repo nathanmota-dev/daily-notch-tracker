@@ -25,7 +25,7 @@ function FocusTimePickerHarness({
   return (
     <FocusTimePicker
       id="focus-time"
-      presets={[15, 25, 50]}
+      presets={[15, 25, 30, 50]}
       value={value}
       onValueChange={setValue}
       {...props}
@@ -206,6 +206,9 @@ describe("FocusTimePicker", () => {
     )
     expect(input).toHaveValue(26)
 
+    await user.click(screen.getByRole("button", { name: "30 min" }))
+    expect(input).toHaveValue(30)
+
     await user.click(screen.getByRole("button", { name: "50 min" }))
     expect(input).toHaveValue(50)
 
@@ -220,7 +223,7 @@ describe("FocusTimePicker", () => {
     const { rerender } = render(
       <FocusTimePicker
         id="focus-time"
-        presets={[15, 25, 50]}
+        presets={[15, 25, 30, 50]}
         value="1"
         onValueChange={onValueChange}
       />,
@@ -236,7 +239,7 @@ describe("FocusTimePicker", () => {
     rerender(
       <FocusTimePicker
         id="focus-time"
-        presets={[15, 25, 50]}
+        presets={[15, 25, 30, 50]}
         value="180"
         onValueChange={onValueChange}
       />,

@@ -1,5 +1,3 @@
-import type { DragEvent } from "react"
-
 import {
   CalendarIcon,
   ClockIcon,
@@ -11,11 +9,13 @@ import {
 import type { FocusSnapshot, Task } from "../../lib/desktopApi"
 import { getLocalDateString } from "../../lib/local-date"
 import { formatTaskDuration } from "./tasks-model"
-import { useTaskReorder } from "../../components/use-task-reorder"
+import { TaskReorder } from "../../components/task-reorder"
+import { useSortableTask } from "../../components/use-sortable-task"
 import { Checkbox } from "../../components/ui/checkbox"
 import { DragHandle } from "../../components/drag-handle"
 import { IconButton } from "../../components/icon-button"
 import { cn } from "../../lib/utils"
+import { stopTaskReorder } from "../../components/task-reorder-events"
 
 export type TaskListProps = {
   tasks: readonly Task[]
@@ -31,10 +31,6 @@ export type TaskListProps = {
 
 type TaskRowProps = Omit<TaskListProps, "onAddTask" | "tasks" | "onReorder"> & {
   task: Task
-  onReorderStart: (taskId: string) => void
-  onReorderEnd: () => void
-  onDragOver: (event: DragEvent<HTMLElement>) => void
-  onDrop: (event: DragEvent<HTMLElement>) => void
 }
 
 function focusAction(task: Task, focus: FocusSnapshot) {
@@ -59,6 +55,7 @@ function TaskSummary({
       className="min-w-0 cursor-pointer border-0 bg-transparent py-0 text-left text-inherit outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       disabled={busy}
       onClick={() => onOpenTask(task.id)}
+      onKeyDown={(event) => event.stopPropagation()}
       type="button"
     >
       <span
@@ -126,6 +123,8 @@ function TaskActions({
         className="size-8 rounded-full bg-accent p-0 text-canvas hover:bg-accent/85"
         disabled={busy || !canFocus}
         onClick={() => onToggleFocus(task.id)}
+        onKeyDown={stopTaskReorder}
+        onPointerDown={stopTaskReorder}
         size="sm"
         type="button"
         variant="ghost"
@@ -137,6 +136,8 @@ function TaskActions({
         className="size-8 rounded-full bg-panel-hover p-0 text-muted hover:bg-white/[0.12] hover:text-content"
         disabled={busy}
         onClick={() => onOpenTask(task.id)}
+        onKeyDown={stopTaskReorder}
+        onPointerDown={stopTaskReorder}
         size="sm"
         type="button"
         variant="ghost"
@@ -148,6 +149,8 @@ function TaskActions({
         className="size-8 rounded-full bg-panel-hover p-0 text-muted hover:bg-danger/15 hover:text-danger"
         disabled={busy}
         onClick={() => onDeleteTask(task.id)}
+        onKeyDown={stopTaskReorder}
+        onPointerDown={stopTaskReorder}
         size="sm"
         type="button"
         variant="ghost"
@@ -161,34 +164,40 @@ function TaskActions({
 function TaskRow({
   busy,
   focus,
-  onDragOver,
-  onDrop,
   onDeleteTask,
   onOpenTask,
-  onReorderEnd,
-  onReorderStart,
   onToggleFocus,
   onToggleTask,
   task,
 }: TaskRowProps) {
+  const sortable = useSortableTask(task.id, busy)
   const { Icon, label } = focusAction(task, focus)
   const canFocus = !task.isDone
 
   return (
     <article
-      className="group relative grid min-h-[55px] min-w-0 grid-cols-[20px_minmax(0,1fr)_auto_repeat(3,32px)] items-center gap-3 rounded-[11px] border border-transparent bg-panel px-3 py-2 transition-[background-color,border-color] duration-150 hover:border-border-strong hover:bg-panel-hover"
+      {...sortable.attributes}
+      className={cn(
+        "group relative grid min-h-[55px] min-w-0 cursor-grab grid-cols-[20px_minmax(0,1fr)_auto_repeat(3,32px)] items-center gap-4 rounded-[11px] border border-transparent bg-panel pr-3 py-2 pl-10 transition-[background-color,border-color,box-shadow,opacity] duration-150 hover:border-border-strong hover:bg-panel-hover active:cursor-grabbing",
+        sortable.isDragging &&
+          "z-10 border-accent/60 bg-accent/10 opacity-90 shadow-accent-glow",
+        sortable.isOver &&
+          !sortable.isDragging &&
+          "border-accent/60 bg-accent/10",
+      )}
       data-completed={task.isDone ? "true" : "false"}
+      data-dragging={sortable.isDragging ? "true" : "false"}
+      data-over={sortable.isOver ? "true" : "false"}
       data-slot="tasks-task-row"
       data-task-id={task.id}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+      ref={sortable.setNodeAndActivatorRef}
+      style={sortable.style}
+      aria-label={`Reorder ${task.title}`}
+      {...sortable.listeners}
     >
       <DragHandle
-        className="absolute left-0 top-1/2 z-10 size-5 -translate-y-1/2 opacity-[0.001] transition-opacity group-hover:opacity-100 focus-within:opacity-100"
-        disabled={busy}
-        onReorderEnd={onReorderEnd}
-        onReorderStart={onReorderStart}
-        taskId={task.id}
+        className="absolute left-2 top-1/2 z-10 size-5 -translate-y-1/2 opacity-[0.001] transition-opacity group-hover:opacity-100"
+        interactive={false}
         taskTitle={task.title}
       />
       <Checkbox
@@ -200,6 +209,8 @@ function TaskRow({
         className="size-5 rounded-full"
         checked={task.isDone}
         disabled={busy}
+        onKeyDown={stopTaskReorder}
+        onPointerDown={stopTaskReorder}
         onCheckedChange={(checked) => {
           if (typeof checked === "boolean") {
             onToggleTask(task.id)
@@ -234,12 +245,6 @@ export function TaskList({
   tasks,
 }: TaskListProps) {
   const taskIds = tasks.map((task) => task.id)
-  const {
-    handleDragOver,
-    handleDrop,
-    onReorderEnd,
-    onReorderStart,
-  } = useTaskReorder({ disabled: busy, onReorder, taskIds })
 
   if (tasks.length === 0) {
     return (
@@ -258,23 +263,21 @@ export function TaskList({
   }
 
   return (
-    <div className="grid gap-2" data-slot="tasks-task-list">
-      {tasks.map((task) => (
-        <TaskRow
-          busy={busy}
-          focus={focus}
-          key={task.id}
-          onDragOver={handleDragOver}
-          onDrop={(event) => handleDrop(event, task.id)}
-          onDeleteTask={onDeleteTask}
-          onOpenTask={onOpenTask}
-          onReorderEnd={onReorderEnd}
-          onReorderStart={onReorderStart}
-          onToggleFocus={onToggleFocus}
-          onToggleTask={onToggleTask}
-          task={task}
-        />
-      ))}
-    </div>
+    <TaskReorder disabled={busy} onReorder={onReorder} taskIds={taskIds}>
+      <div className="grid gap-2" data-slot="tasks-task-list">
+        {tasks.map((task) => (
+          <TaskRow
+            busy={busy}
+            focus={focus}
+            key={task.id}
+            onDeleteTask={onDeleteTask}
+            onOpenTask={onOpenTask}
+            onToggleFocus={onToggleFocus}
+            onToggleTask={onToggleTask}
+            task={task}
+          />
+        ))}
+      </div>
+    </TaskReorder>
   )
 }

@@ -5,7 +5,7 @@ import { ScrollArea } from "./ui/scroll-area"
 import { CompactTaskRow } from "./compact-task-row"
 import { IconButton } from "./icon-button"
 import { EXPANDED_DASHBOARD_MAX_VISIBLE_ROWS } from "./expanded-dashboard-model"
-import { useTaskReorder } from "./use-task-reorder"
+import { TaskReorder } from "./task-reorder"
 
 export type TodoPanelProps = {
   tasks: readonly Task[]
@@ -41,26 +41,23 @@ function TodoTaskList({
   tasks,
 }: TodoTaskListProps) {
   const taskIds = tasks.map((task) => task.id)
-  const taskReorder = useTaskReorder({ disabled: busy, onReorder, taskIds })
 
   return (
-    <div className="grid min-w-0 gap-[var(--expanded-task-row-gap)]">
-      {tasks.map((task) => (
-        <CompactTaskRow
-          busy={busy}
-          focus={focus}
-          key={task.id}
-          onDragEnd={taskReorder.onReorderEnd}
-          onDragOver={taskReorder.handleDragOver}
-          onDrop={(event) => taskReorder.handleDrop(event, task.id)}
-          onOpenTask={onOpenTask}
-          onReorderStart={taskReorder.onReorderStart}
-          onToggleFocus={onToggleFocus}
-          onToggleTask={onToggleTask}
-          task={task}
-        />
-      ))}
-    </div>
+    <TaskReorder disabled={busy} onReorder={onReorder} taskIds={taskIds}>
+      <div className="grid min-w-0 gap-[var(--expanded-task-row-gap)]">
+        {tasks.map((task) => (
+          <CompactTaskRow
+            busy={busy}
+            focus={focus}
+            key={task.id}
+            onOpenTask={onOpenTask}
+            onToggleFocus={onToggleFocus}
+            onToggleTask={onToggleTask}
+            task={task}
+          />
+        ))}
+      </div>
+    </TaskReorder>
   )
 }
 

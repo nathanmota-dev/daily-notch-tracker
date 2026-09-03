@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { vi } from "vitest"
 
@@ -14,6 +14,11 @@ import {
   selectTasksForDashboard,
   sortTasksForDashboard,
 } from "./expanded-dashboard-model"
+import {
+  finishPointerTaskDrag,
+  mockSortableRects,
+  startPointerTaskDrag,
+} from "../test/task-reorder-helpers"
 
 const FIXTURE_NOW = Date.parse("2026-08-31T12:00:00.000Z")
 
@@ -307,12 +312,6 @@ describe("ExpandedDashboard callbacks", () => {
     const onOpenTasks = vi.fn()
     const onOpenTask = vi.fn()
     const onReorder = vi.fn()
-    const dataTransfer = {
-      effectAllowed: "none",
-      dropEffect: "none",
-      getData: vi.fn(() => "expanded-task-1"),
-      setData: vi.fn(),
-    }
 
     render(
       <ExpandedDashboard
@@ -347,23 +346,13 @@ describe("ExpandedDashboard callbacks", () => {
         name: "Open details for Plan the next focused block",
       }),
     )
-    fireEvent.dragStart(
+    mockSortableRects('[data-slot="compact-task-row"]')
+    startPointerTaskDrag(
       screen.getByRole("button", {
         name: "Reorder Plan the next focused block",
       }),
-      { dataTransfer },
     )
-    expect(dataTransfer.setData).toHaveBeenCalledWith(
-      "text/plain",
-      "expanded-task-1",
-    )
-    const targetRow = document.querySelectorAll(
-      '[data-slot="compact-task-row"]',
-    )[1]
-    expect(targetRow).toHaveAttribute("data-task-id", "expanded-task-2")
-    fireEvent.dragOver(targetRow, { dataTransfer })
-    fireEvent.drop(targetRow, { dataTransfer })
-    expect(dataTransfer.getData).toHaveBeenCalledWith("text/plain")
+    await finishPointerTaskDrag(100)
 
     expect(onToggleTask).toHaveBeenCalledWith("expanded-task-1", true)
     expect(onToggleFocus).toHaveBeenCalledWith("expanded-task-1")
@@ -376,7 +365,7 @@ describe("ExpandedDashboard callbacks", () => {
     ])
   })
 
-  it("makes only drag handles draggable and sends the pause action for an active task", async () => {
+  it("makes task cards sortable and keeps the task controls interactive", async () => {
     const onToggleFocus = vi.fn()
     const snapshot = createExpandedDashboardFixtureSnapshot(
       "expanded",
@@ -400,14 +389,18 @@ describe("ExpandedDashboard callbacks", () => {
       />,
     )
 
-    const draggableElements = Array.from(
-      document.querySelectorAll('[draggable="true"]'),
+    const dragHandles = Array.from(
+      document.querySelectorAll('[data-slot="drag-handle"]'),
     )
     const rows = Array.from(
       document.querySelectorAll('[data-slot="compact-task-row"]'),
     )
 
-    expect(draggableElements).toHaveLength(2)
+    expect(dragHandles).toHaveLength(2)
+    expect(rows.every((row) => row.getAttribute("role") === "button")).toBe(true)
+    expect(
+      rows.every((row) => row.getAttribute("aria-roledescription") === "sortable"),
+    ).toBe(true)
     expect(rows.every((row) => !row.hasAttribute("draggable"))).toBe(true)
     expect(document.querySelectorAll('[data-slot="drag-dot"]')).toHaveLength(12)
 
@@ -533,7 +526,7 @@ describe("ExpandedDashboard callbacks", () => {
       screen.getByRole("button", {
         name: "Reorder Plan the next focused block",
       }),
-    ).toBeDisabled()
+    ).toHaveAttribute("aria-disabled", "true")
 
     const body = screen.getByRole("button", {
       name: "Open details for Plan the next focused block",

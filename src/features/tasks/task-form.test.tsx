@@ -62,7 +62,10 @@ describe("TaskForm", () => {
     expect(screen.getByText("0 / 150")).toBeInTheDocument()
     expect(screen.getByText("0 / 500")).toBeInTheDocument()
     expect(screen.getByRole("spinbutton", { name: "Duration (minutes)" })).toHaveValue(25)
-    expect(screen.getByLabelText("Date")).toHaveValue("2026-09-02")
+    expect(screen.getByLabelText("Date")).toHaveAttribute(
+      "data-value",
+      "2026-09-02",
+    )
   })
 
   it("uses presets and one-minute controls while preserving typed text", async () => {
@@ -72,13 +75,13 @@ describe("TaskForm", () => {
     const duration = screen.getByRole("spinbutton", {
       name: "Duration (minutes)",
     })
-    await user.click(screen.getByRole("button", { name: "50 min" }))
-    expect(duration).toHaveValue(50)
+    await user.click(screen.getByRole("button", { name: "30 min" }))
+    expect(duration).toHaveValue(30)
 
     await user.click(screen.getByRole("button", { name: "Aumentar tempo de foco" }))
-    expect(duration).toHaveValue(51)
+    expect(duration).toHaveValue(31)
     await user.click(screen.getByRole("button", { name: "Reduzir tempo de foco" }))
-    expect(duration).toHaveValue(50)
+    expect(duration).toHaveValue(30)
 
     await user.clear(duration)
     await user.type(duration, "181")
@@ -134,11 +137,10 @@ describe("TaskForm", () => {
     expect(onCancel).toHaveBeenCalledOnce()
   })
 
-  it("renders edit-only controls and uses Save for existing tasks", async () => {
+  it("renders the edit form and uses Save for existing tasks", async () => {
     const user = userEvent.setup()
+    const onCancel = vi.fn()
     const onDelete = vi.fn()
-    const onFocus = vi.fn()
-    const onDoneChange = vi.fn()
 
     render(
       <TaskForm
@@ -149,28 +151,33 @@ describe("TaskForm", () => {
           title: "Existing task",
         }}
         errors={{}}
-        focusActionLabel="Start focus for Existing task"
         mode="edit"
-        onCancel={vi.fn()}
+        onCancel={onCancel}
         onChange={vi.fn()}
         onDelete={onDelete}
-        onDoneChange={onDoneChange}
-        onFocus={onFocus}
         onSubmit={vi.fn()}
         titleRef={createRef<HTMLInputElement>()}
       />,
     )
 
     expect(screen.getByRole("heading", { name: "Edit task" })).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Save task" })).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "Start focus for Existing task" }))
-    await user.click(
-      screen.getByRole("checkbox", { name: /Mark task as complete/ }),
+    expect(screen.queryByText("Task details")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "Start focus for Existing task" }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Back to list" })).toHaveAttribute(
+      "title",
+      "Back to list",
     )
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument()
+    expect(screen.getByRole("form", { name: "Edit task" })).toHaveClass(
+      "bg-canvas",
+    )
+    expect(screen.getByRole("button", { name: "Save task" })).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Delete task" }))
+    await user.click(screen.getByRole("button", { name: "Back to list" }))
 
-    expect(onFocus).toHaveBeenCalledOnce()
-    expect(onDoneChange).toHaveBeenCalledWith(true)
     expect(onDelete).toHaveBeenCalledOnce()
+    expect(onCancel).toHaveBeenCalledOnce()
   })
 })

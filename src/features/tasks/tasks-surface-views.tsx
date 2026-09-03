@@ -1,7 +1,7 @@
-import type { AppSnapshot } from "../../lib/desktopApi"
 import { InlineTaskForm } from "./inline-task-form"
 import { TaskForm } from "./task-form"
 import { TaskList } from "./task-list"
+import { parseLocalDateString } from "../../lib/local-date"
 import type {
   TaskDetailViewProps,
   TaskListAndCreateViewProps,
@@ -11,39 +11,18 @@ import type {
 } from "./tasks-view-types"
 
 function formatSelectedDay(dateValue: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue)
-  if (!match) {
+  const date = parseLocalDateString(dateValue)
+
+  if (!date) {
     return "Choose a day"
   }
 
-  const date = new Date(0)
-  date.setHours(12, 0, 0, 0)
-  date.setFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-
-  return Number.isNaN(date.getTime())
-    ? "Choose a day"
-    : new Intl.DateTimeFormat("en-US", {
-        day: "numeric",
-        month: "long",
-        weekday: "long",
-        year: "numeric",
-      }).format(date)
-}
-
-function focusLabel(snapshot: AppSnapshot, taskId: string) {
-  const task = snapshot.tasks.find((item) => item.id === taskId)
-  const isActive = snapshot.focus.activeTaskId === taskId
-  const title = task?.title ?? "task"
-
-  if (isActive && snapshot.focus.state === "paused") {
-    return `Resume focus for ${title}`
-  }
-
-  if (isActive && snapshot.focus.state === "running") {
-    return `Pause focus for ${title}`
-  }
-
-  return `Start focus for ${title}`
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "long",
+    weekday: "long",
+    year: "numeric",
+  }).format(date)
 }
 
 export function MutationError({ error }: TasksMutationErrorProps) {
@@ -158,8 +137,6 @@ export function TaskDetailView({
   actions,
   draftController,
   mutations,
-  routing,
-  snapshot,
 }: TaskDetailViewProps) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto pr-1">
@@ -168,23 +145,10 @@ export function TaskDetailView({
         busy={mutations.busy}
         draft={draftController.draft}
         errors={draftController.draftErrors}
-        focusActionLabel={
-          routing.selectedTaskId
-            ? focusLabel(snapshot, routing.selectedTaskId)
-            : undefined
-        }
         mode="edit"
         onCancel={actions.backToList}
         onChange={actions.updateDraft}
         onDelete={actions.deleteSelectedTask}
-        onDoneChange={(isDone) =>
-          draftController.setDraft((current) => ({ ...current, isDone }))
-        }
-        onFocus={
-          routing.selectedTaskId
-            ? () => actions.toggleFocus(routing.selectedTaskId!)
-            : undefined
-        }
         onSubmit={actions.saveDraft}
         titleRef={draftController.titleRef}
       />
