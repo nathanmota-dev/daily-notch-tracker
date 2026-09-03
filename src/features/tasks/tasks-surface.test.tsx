@@ -261,19 +261,18 @@ describe("Tasks surface", () => {
     )
   })
 
-  it("edits, completes, and deletes a task", async () => {
+  it("edits and deletes a task without a completion control", async () => {
     const initialTask = createTask("editable-task", "Original task")
     const snapshot = createSnapshot([initialTask])
     const updatedTask = {
       ...initialTask,
       title: "Updated task",
-      isDone: true,
     }
     const updateTask = vi.fn(async (input: UpdateTaskInput) => {
       expect(input).toMatchObject({
         id: initialTask.id,
         title: "Updated task",
-        isDone: true,
+        isDone: false,
       })
       return createSnapshot([updatedTask], { revision: 2 })
     })
@@ -292,9 +291,7 @@ describe("Tasks surface", () => {
     expect(await screen.findByRole("heading", { name: "Edit task" })).toBeInTheDocument()
     await user.clear(screen.getByLabelText("Title"))
     await user.type(screen.getByLabelText("Title"), "Updated task")
-    await user.click(
-      screen.getByRole("checkbox", { name: /Mark task as complete/ }),
-    )
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Save task" }))
 
     await waitFor(() => expect(updateTask).toHaveBeenCalledOnce())
@@ -302,8 +299,8 @@ describe("Tasks surface", () => {
     await user.click(screen.getByRole("button", { name: "Back to list" }))
     expect(await screen.findByText("Updated task")).toBeInTheDocument()
     expect(
-      screen.getByRole("checkbox", { name: "Mark Updated task as incomplete" }),
-    ).toBeChecked()
+      screen.getByRole("checkbox", { name: "Mark Updated task as complete" }),
+    ).not.toBeChecked()
 
     await user.click(
       screen.getByRole("button", { name: "Open details for Updated task" }),
@@ -315,6 +312,7 @@ describe("Tasks surface", () => {
 
   it("edits every task field and keeps the detail open after saving", async () => {
     const initialTask = createTask("all-fields-task", "Original task", {
+      isDone: true,
       notes: "Original note",
     })
     const editedDate = nearbyDate()
@@ -357,10 +355,7 @@ describe("Tasks surface", () => {
     fireEvent.change(screen.getByLabelText("Date"), {
       target: { value: editedDate },
     })
-    await user.click(screen.getByRole("button", { name: "50 min" }))
-    await user.click(
-      screen.getByRole("checkbox", { name: /Mark task as complete/ }),
-    )
+    await user.click(screen.getByRole("button", { name: "30 min" }))
     await user.click(screen.getByRole("button", { name: "Save task" }))
 
     await waitFor(() => expect(updateTask).toHaveBeenCalledOnce())
@@ -368,10 +363,8 @@ describe("Tasks surface", () => {
     expect(screen.getByLabelText("Title")).toHaveValue("Updated task")
     expect(screen.getByLabelText("Notes")).toHaveValue("Updated note")
     expect(screen.getByLabelText("Date")).toHaveValue(editedDate)
-    expect(screen.getByRole("spinbutton", { name: "Duration (minutes)" })).toHaveValue(50)
-    expect(
-      screen.getByRole("checkbox", { name: /Mark task as complete/ }),
-    ).toBeChecked()
+    expect(screen.getByRole("spinbutton", { name: "Duration (minutes)" })).toHaveValue(30)
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument()
   })
 
   it("discards edits on Cancel without persisting them", async () => {
@@ -520,7 +513,7 @@ describe("Tasks surface", () => {
     await waitFor(() => expect(resumeFocus).toHaveBeenCalledOnce())
   })
 
-  it("sends the complete current bucket when reordering by its handle", async () => {
+  it("sends the complete current bucket when reordering from a task card", async () => {
     const firstTask = createTask("first-task", "First task", { sortOrder: 0 })
     const secondTask = createTask("second-task", "Second task", { sortOrder: 1 })
     const snapshot = createSnapshot([firstTask, secondTask])

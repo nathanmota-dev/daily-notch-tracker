@@ -72,13 +72,13 @@ describe("TaskForm", () => {
     const duration = screen.getByRole("spinbutton", {
       name: "Duration (minutes)",
     })
-    await user.click(screen.getByRole("button", { name: "50 min" }))
-    expect(duration).toHaveValue(50)
+    await user.click(screen.getByRole("button", { name: "30 min" }))
+    expect(duration).toHaveValue(30)
 
     await user.click(screen.getByRole("button", { name: "Aumentar tempo de foco" }))
-    expect(duration).toHaveValue(51)
+    expect(duration).toHaveValue(31)
     await user.click(screen.getByRole("button", { name: "Reduzir tempo de foco" }))
-    expect(duration).toHaveValue(50)
+    expect(duration).toHaveValue(30)
 
     await user.clear(duration)
     await user.type(duration, "181")
@@ -134,11 +134,10 @@ describe("TaskForm", () => {
     expect(onCancel).toHaveBeenCalledOnce()
   })
 
-  it("renders edit-only controls and uses Save for existing tasks", async () => {
+  it("renders the edit form and uses Save for existing tasks", async () => {
     const user = userEvent.setup()
     const onCancel = vi.fn()
     const onDelete = vi.fn()
-    const onDoneChange = vi.fn()
 
     render(
       <TaskForm
@@ -153,7 +152,6 @@ describe("TaskForm", () => {
         onCancel={onCancel}
         onChange={vi.fn()}
         onDelete={onDelete}
-        onDoneChange={onDoneChange}
         onSubmit={vi.fn()}
         titleRef={createRef<HTMLInputElement>()}
       />,
@@ -168,14 +166,14 @@ describe("TaskForm", () => {
       "title",
       "Back to list",
     )
-    expect(screen.getByRole("button", { name: "Save task" })).toBeInTheDocument()
-    await user.click(
-      screen.getByRole("checkbox", { name: /Mark task as complete/ }),
+    expect(screen.queryByText("Completed")).not.toBeInTheDocument()
+    expect(screen.getByRole("form", { name: "Edit task" })).toHaveClass(
+      "bg-canvas",
     )
+    expect(screen.getByRole("button", { name: "Save task" })).toBeInTheDocument()
     await user.click(screen.getByRole("button", { name: "Delete task" }))
     await user.click(screen.getByRole("button", { name: "Back to list" }))
 
-    expect(onDoneChange).toHaveBeenCalledWith(true)
     expect(onDelete).toHaveBeenCalledOnce()
     expect(onCancel).toHaveBeenCalledOnce()
   })

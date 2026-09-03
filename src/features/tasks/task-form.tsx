@@ -5,7 +5,6 @@ import type {
 } from "react"
 
 import { FocusTimePicker } from "../../components/focus-time-picker"
-import { Checkbox } from "../../components/ui/checkbox"
 import { cn } from "../../lib/utils"
 import {
   countTaskCharacters,
@@ -25,7 +24,6 @@ export type TaskFormProps = {
   busy: boolean
   titleRef: RefObject<HTMLInputElement | null>
   onChange: (field: TaskDraftField, value: string) => void
-  onDoneChange?: (isDone: boolean) => void
   onSubmit: () => void
   onCancel: () => void
   onDelete?: () => void
@@ -170,9 +168,10 @@ function TaskScheduleFields({
   onChange,
 }: Pick<TaskFormProps, "draft" | "errors" | "onChange">) {
   return (
-    <div className="grid grid-cols-2 gap-3 max-[640px]:grid-cols-1">
-      <div className="grid gap-2">
+    <div className="grid grid-cols-2 items-start gap-4 max-[640px]:grid-cols-1">
+      <div className="grid min-w-0 content-start gap-2">
         <FocusTimePicker
+          className="min-w-0"
           error={errors.estimateMinutes}
           id="task-duration"
           label="Duration (minutes)"
@@ -182,7 +181,7 @@ function TaskScheduleFields({
         />
       </div>
 
-      <div className="grid gap-2">
+      <div className="grid min-w-0 content-start gap-2">
         <LabeledField
           error={errors.scheduledDate}
           id="task-date"
@@ -193,7 +192,7 @@ function TaskScheduleFields({
             errors.scheduledDate ? "task-date-error" : undefined
           }
           aria-invalid={Boolean(errors.scheduledDate)}
-          className={fieldClassName(errors.scheduledDate)}
+          className={cn(fieldClassName(errors.scheduledDate), "h-10 self-start")}
           id="task-date"
           onChange={(event) =>
             onChange("scheduledDate", event.currentTarget.value)
@@ -215,7 +214,6 @@ export function TaskForm({
   onCancel,
   onChange,
   onDelete,
-  onDoneChange,
   onSubmit,
   titleRef,
 }: TaskFormProps) {
@@ -227,7 +225,7 @@ export function TaskForm({
   return (
     <form
       aria-label={mode === "create" ? "Create task" : "Edit task"}
-      className="min-h-0 w-full flex-[1_1_auto] overflow-y-auto rounded-panel border border-border bg-panel p-[clamp(16px,3vw,28px)] shadow-panel"
+      className="min-h-0 w-full flex-[1_1_auto] overflow-y-auto rounded-panel border border-border bg-canvas p-[clamp(16px,3vw,28px)] shadow-panel"
       data-slot="task-form"
       noValidate
       onSubmit={handleSubmit}
@@ -244,28 +242,12 @@ export function TaskForm({
           />
         </section>
 
-        <section className="grid gap-4 rounded-control border border-border bg-panel-hover/50 p-4">
+        <section className="grid gap-4 rounded-control border border-border bg-canvas p-4">
           <TaskScheduleFields
             draft={draft}
             errors={errors}
             onChange={onChange}
           />
-
-          {mode === "edit" && onDoneChange && (
-            <label className="inline-flex cursor-pointer items-center gap-2.5 border-t border-border pt-3 text-[0.85rem] text-content">
-              <Checkbox
-                aria-label="Mark task as complete"
-                checked={draft.isDone}
-                disabled={busy}
-                onCheckedChange={(checked) => {
-                  if (typeof checked === "boolean") {
-                    onDoneChange(checked)
-                  }
-                }}
-              />
-              <span>Completed</span>
-            </label>
-          )}
         </section>
       </div>
 

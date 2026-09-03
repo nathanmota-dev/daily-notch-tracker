@@ -15,6 +15,7 @@ import { Checkbox } from "../../components/ui/checkbox"
 import { DragHandle } from "../../components/drag-handle"
 import { IconButton } from "../../components/icon-button"
 import { cn } from "../../lib/utils"
+import { stopTaskReorder } from "../../components/task-reorder-events"
 
 export type TaskListProps = {
   tasks: readonly Task[]
@@ -54,6 +55,7 @@ function TaskSummary({
       className="min-w-0 cursor-pointer border-0 bg-transparent py-0 text-left text-inherit outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       disabled={busy}
       onClick={() => onOpenTask(task.id)}
+      onKeyDown={(event) => event.stopPropagation()}
       type="button"
     >
       <span
@@ -121,6 +123,8 @@ function TaskActions({
         className="size-8 rounded-full bg-accent p-0 text-canvas hover:bg-accent/85"
         disabled={busy || !canFocus}
         onClick={() => onToggleFocus(task.id)}
+        onKeyDown={stopTaskReorder}
+        onPointerDown={stopTaskReorder}
         size="sm"
         type="button"
         variant="ghost"
@@ -132,6 +136,8 @@ function TaskActions({
         className="size-8 rounded-full bg-panel-hover p-0 text-muted hover:bg-white/[0.12] hover:text-content"
         disabled={busy}
         onClick={() => onOpenTask(task.id)}
+        onKeyDown={stopTaskReorder}
+        onPointerDown={stopTaskReorder}
         size="sm"
         type="button"
         variant="ghost"
@@ -143,6 +149,8 @@ function TaskActions({
         className="size-8 rounded-full bg-panel-hover p-0 text-muted hover:bg-danger/15 hover:text-danger"
         disabled={busy}
         onClick={() => onDeleteTask(task.id)}
+        onKeyDown={stopTaskReorder}
+        onPointerDown={stopTaskReorder}
         size="sm"
         type="button"
         variant="ghost"
@@ -168,8 +176,9 @@ function TaskRow({
 
   return (
     <article
+      {...sortable.attributes}
       className={cn(
-        "group relative grid min-h-[55px] min-w-0 grid-cols-[20px_minmax(0,1fr)_auto_repeat(3,32px)] items-center gap-4 rounded-[11px] border border-transparent bg-panel px-3 py-2 transition-[background-color,border-color,box-shadow,opacity] duration-150 hover:border-border-strong hover:bg-panel-hover",
+        "group relative grid min-h-[55px] min-w-0 cursor-grab grid-cols-[20px_minmax(0,1fr)_auto_repeat(3,32px)] items-center gap-4 rounded-[11px] border border-transparent bg-panel pr-3 py-2 pl-10 transition-[background-color,border-color,box-shadow,opacity] duration-150 hover:border-border-strong hover:bg-panel-hover active:cursor-grabbing",
         sortable.isDragging &&
           "z-10 border-accent/60 bg-accent/10 opacity-90 shadow-accent-glow",
         sortable.isOver &&
@@ -181,15 +190,14 @@ function TaskRow({
       data-over={sortable.isOver ? "true" : "false"}
       data-slot="tasks-task-row"
       data-task-id={task.id}
-      ref={sortable.setNodeRef}
+      ref={sortable.setNodeAndActivatorRef}
       style={sortable.style}
+      aria-label={`Reorder ${task.title}`}
+      {...sortable.listeners}
     >
       <DragHandle
-        className="absolute left-0 top-1/2 z-10 size-5 -translate-y-1/2 opacity-[0.001] transition-opacity group-hover:opacity-100 focus-within:opacity-100"
-        attributes={sortable.attributes}
-        disabled={busy}
-        listeners={sortable.listeners}
-        setActivatorNodeRef={sortable.setActivatorNodeRef}
+        className="absolute left-2 top-1/2 z-10 size-5 -translate-y-1/2 opacity-[0.001] transition-opacity group-hover:opacity-100"
+        interactive={false}
         taskTitle={task.title}
       />
       <Checkbox
@@ -201,6 +209,8 @@ function TaskRow({
         className="size-5 rounded-full"
         checked={task.isDone}
         disabled={busy}
+        onKeyDown={stopTaskReorder}
+        onPointerDown={stopTaskReorder}
         onCheckedChange={(checked) => {
           if (typeof checked === "boolean") {
             onToggleTask(task.id)

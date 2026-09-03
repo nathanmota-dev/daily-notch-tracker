@@ -21,15 +21,17 @@ export type SortableTaskItem = {
   isOver: boolean
   listeners: DraggableSyntheticListeners
   setActivatorNodeRef: (element: HTMLElement | null) => void
+  setNodeAndActivatorRef: (element: HTMLElement | null) => void
   setNodeRef: (element: HTMLElement | null) => void
   style: CSSProperties
 }
 
 export type DragHandleProps = {
-  attributes: DraggableAttributes
+  attributes?: DraggableAttributes
   className?: string
   disabled?: boolean
-  listeners: DraggableSyntheticListeners
-  setActivatorNodeRef: (element: HTMLElement | null) => void
+  interactive?: boolean
+  listeners?: DraggableSyntheticListeners
+  setActivatorNodeRef?: (element: HTMLElement | null) => void
   taskTitle: string
 }

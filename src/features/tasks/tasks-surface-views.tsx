@@ -153,9 +153,6 @@ export function TaskDetailView({
         onCancel={actions.backToList}
         onChange={actions.updateDraft}
         onDelete={actions.deleteSelectedTask}
-        onDoneChange={(isDone) =>
-          draftController.setDraft((current) => ({ ...current, isDone }))
-        }
         onSubmit={actions.saveDraft}
         titleRef={draftController.titleRef}
       />

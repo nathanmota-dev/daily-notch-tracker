@@ -116,7 +116,7 @@ function FocusTimePickerControls({
   onStep,
 }: FocusTimePickerControlsProps) {
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full min-w-0 items-center gap-2">
       <IconButton
         aria-label="Reduzir tempo de foco"
         disabled={decreaseDisabled}
@@ -130,7 +130,7 @@ function FocusTimePickerControls({
 
       <div
         className={cn(
-          "flex h-10 min-w-28 items-center justify-center gap-1 rounded-control border border-border bg-panel px-2 transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40",
+          "flex h-10 min-w-0 flex-1 items-center justify-center gap-1 rounded-control border border-border bg-panel px-2 transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/40",
           isInvalid &&
             "border-danger focus-within:border-danger focus-within:ring-danger/40",
         )}
@@ -138,7 +138,7 @@ function FocusTimePickerControls({
         <input
           aria-describedby={isInvalid ? errorId : undefined}
           aria-invalid={isInvalid}
-          className="w-16 bg-transparent text-center text-title font-semibold text-content outline-none"
+          className="min-w-0 flex-1 bg-transparent text-center text-title font-semibold text-content outline-none"
           disabled={disabled}
           id={inputId}
           inputMode="numeric"

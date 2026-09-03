@@ -351,7 +351,7 @@ describe("ExpandedDashboard callbacks", () => {
     ])
   })
 
-  it("makes only drag handles sortable and sends the pause action for an active task", async () => {
+  it("makes task cards sortable and keeps the task controls interactive", async () => {
     const onToggleFocus = vi.fn()
     const snapshot = createExpandedDashboardFixtureSnapshot(
       "expanded",
@@ -383,10 +383,9 @@ describe("ExpandedDashboard callbacks", () => {
     )
 
     expect(dragHandles).toHaveLength(2)
+    expect(rows.every((row) => row.getAttribute("role") === "button")).toBe(true)
     expect(
-      dragHandles.every((handle) =>
-        handle.getAttribute("aria-roledescription") === "sortable",
-      ),
+      rows.every((row) => row.getAttribute("aria-roledescription") === "sortable"),
     ).toBe(true)
     expect(rows.every((row) => !row.hasAttribute("draggable"))).toBe(true)
     expect(document.querySelectorAll('[data-slot="drag-dot"]')).toHaveLength(12)
@@ -513,7 +512,7 @@ describe("ExpandedDashboard callbacks", () => {
       screen.getByRole("button", {
         name: "Reorder Plan the next focused block",
       }),
-    ).toBeDisabled()
+    ).toHaveAttribute("aria-disabled", "true")
 
     const body = screen.getByRole("button", {
       name: "Open details for Plan the next focused block",
