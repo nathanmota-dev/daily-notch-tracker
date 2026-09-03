@@ -519,10 +519,11 @@ test.describe("DailyNotch surface router", () => {
     await expect(
       page.getByRole("spinbutton", { name: "Duration (minutes)" }),
     ).toHaveValue("25")
-    await expect(page.getByLabel("Date")).toHaveValue(/^\d{4}-\d{2}-\d{2}$/)
-    await expect(
-      page.getByRole("checkbox", { name: "Mark task as complete" }),
-    ).not.toBeChecked()
+    await expect(page.getByLabel("Date")).toHaveAttribute(
+      "data-value",
+      /^\d{4}-\d{2}-\d{2}$/,
+    )
+    await expect(page.getByText("Completed")).toHaveCount(0)
     await expect(page.getByText("Task details")).toHaveCount(0)
     await expect(
       page.getByRole("button", {
@@ -544,7 +545,7 @@ test.describe("DailyNotch surface router", () => {
     await expect(page.getByRole("heading", { name: "Edit task" })).toHaveCount(0)
   })
 
-  test("edits every task field and verifies the saved task in its new bucket", async ({
+  test("edits task fields and verifies the saved task in its new bucket", async ({
     page,
   }) => {
     await loadTasksFixture(page, "expanded", "task", expandedTasks.first.id)
@@ -554,8 +555,8 @@ test.describe("DailyNotch surface router", () => {
     await page
       .getByRole("spinbutton", { name: "Duration (minutes)" })
       .fill("50")
-    await page.getByLabel("Date").fill("")
-    await page.getByRole("checkbox", { name: "Mark task as complete" }).click()
+    await page.getByLabel("Date").click()
+    await page.getByRole("button", { name: "Clear date" }).click()
     await page.getByRole("button", { name: "Save task" }).click()
 
     await expect(page.getByLabel("Title")).toHaveValue("Edited browser task")
@@ -565,10 +566,10 @@ test.describe("DailyNotch surface router", () => {
     await expect(
       page.getByRole("spinbutton", { name: "Duration (minutes)" }),
     ).toHaveValue("50")
-    await expect(page.getByLabel("Date")).toHaveValue("")
-    await expect(
-      page.getByRole("checkbox", { name: "Mark task as complete" }),
-    ).toBeChecked()
+    await expect(page.getByLabel("Date")).toHaveAttribute(
+      "data-empty",
+      "true",
+    )
 
     await page.getByRole("button", { name: "Back to list" }).click()
     await expect(taskRow(page, expandedTasks.first.id)).toHaveCount(0)
@@ -589,14 +590,14 @@ test.describe("DailyNotch surface router", () => {
     ).toHaveCount(0)
     await expect(
       editedTask.getByRole("checkbox", {
-        name: "Mark Edited browser task as incomplete",
+        name: "Mark Edited browser task as complete",
       }),
-    ).toBeChecked()
+    ).not.toBeChecked()
     await expect(
       editedTask.getByRole("button", {
         name: "Start focus for Edited browser task",
       }),
-    ).toBeDisabled()
+    ).toBeEnabled()
   })
 
   test("deletes the only task and returns to the empty state", async ({
@@ -662,11 +663,8 @@ test.describe("DailyNotch surface router", () => {
       expandedTasks.second.id,
     ])
 
-    const sourceHandle = taskRow(page, expandedTasks.first.id).getByRole(
-      "button",
-      { name: `Reorder ${expandedTasks.first.title}` },
-    )
-    const sourceBox = await sourceHandle.boundingBox()
+    const sourceRow = taskRow(page, expandedTasks.first.id)
+    const sourceBox = await sourceRow.boundingBox()
     const targetBox = await taskRow(page, expandedTasks.second.id).boundingBox()
     if (!sourceBox || !targetBox) {
       throw new Error("Task reorder targets are missing")

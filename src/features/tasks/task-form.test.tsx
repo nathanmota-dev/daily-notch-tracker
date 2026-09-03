@@ -62,7 +62,10 @@ describe("TaskForm", () => {
     expect(screen.getByText("0 / 150")).toBeInTheDocument()
     expect(screen.getByText("0 / 500")).toBeInTheDocument()
     expect(screen.getByRole("spinbutton", { name: "Duration (minutes)" })).toHaveValue(25)
-    expect(screen.getByLabelText("Date")).toHaveValue("2026-09-02")
+    expect(screen.getByLabelText("Date")).toHaveAttribute(
+      "data-value",
+      "2026-09-02",
+    )
   })
 
   it("uses presets and one-minute controls while preserving typed text", async () => {

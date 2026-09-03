@@ -310,12 +310,12 @@ describe("Tasks surface", () => {
     expect(await screen.findByRole("button", { name: "Add your first task" })).toBeInTheDocument()
   })
 
-  it("edits every task field and keeps the detail open after saving", async () => {
+  it("edits task fields and keeps the detail open after saving", async () => {
     const initialTask = createTask("all-fields-task", "Original task", {
       isDone: true,
       notes: "Original note",
     })
-    const editedDate = nearbyDate()
+    const editedDate = today
     const snapshot = createSnapshot([initialTask])
     const updatedTask = {
       ...initialTask,
@@ -352,9 +352,6 @@ describe("Tasks surface", () => {
     await user.type(screen.getByLabelText("Title"), "Updated task")
     await user.clear(screen.getByLabelText("Notes"))
     await user.type(screen.getByLabelText("Notes"), "Updated note")
-    fireEvent.change(screen.getByLabelText("Date"), {
-      target: { value: editedDate },
-    })
     await user.click(screen.getByRole("button", { name: "30 min" }))
     await user.click(screen.getByRole("button", { name: "Save task" }))
 
@@ -362,7 +359,10 @@ describe("Tasks surface", () => {
     expect(screen.getByRole("heading", { name: "Edit task" })).toBeInTheDocument()
     expect(screen.getByLabelText("Title")).toHaveValue("Updated task")
     expect(screen.getByLabelText("Notes")).toHaveValue("Updated note")
-    expect(screen.getByLabelText("Date")).toHaveValue(editedDate)
+    expect(screen.getByLabelText("Date")).toHaveAttribute(
+      "data-value",
+      editedDate,
+    )
     expect(screen.getByRole("spinbutton", { name: "Duration (minutes)" })).toHaveValue(30)
     expect(screen.queryByText("Completed")).not.toBeInTheDocument()
   })

@@ -4,6 +4,7 @@ import type {
   RefObject,
 } from "react"
 
+import { DatePicker } from "../../components/date-picker"
 import { FocusTimePicker } from "../../components/focus-time-picker"
 import { cn } from "../../lib/utils"
 import {
@@ -187,17 +188,13 @@ function TaskScheduleFields({
           id="task-date"
           label="Date"
         />
-        <input
+        <DatePicker
           aria-describedby={
             errors.scheduledDate ? "task-date-error" : undefined
           }
           aria-invalid={Boolean(errors.scheduledDate)}
-          className={cn(fieldClassName(errors.scheduledDate), "h-10 self-start")}
           id="task-date"
-          onChange={(event) =>
-            onChange("scheduledDate", event.currentTarget.value)
-          }
-          type="date"
+          onValueChange={(value) => onChange("scheduledDate", value)}
           value={draft.scheduledDate}
         />
         <FieldError error={errors.scheduledDate} id="task-date-error" />
