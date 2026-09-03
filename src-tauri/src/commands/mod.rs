@@ -1,22 +1,30 @@
 use std::sync::Mutex;
 
 use tauri::{
-    AppHandle, Emitter, Manager, Runtime, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
 };
 
 use crate::domain::{
     parse_task_id, AppDiagnostics, AppError, AppSnapshot, CreateTaskInput, FocusSettingsPatch,
-    MoveTasksInput, TasksWindowIntent, UpdateTaskInput,
+    MoveTasksInput, StartFocusInput, TasksWindowIntent, UpdateTaskInput,
 };
 use crate::services::sync_focus_scheduler;
 use crate::state::AppState;
+
+#[path = "window-placement.rs"]
+mod window_placement;
+use window_placement::calculate_tasks_window_position;
+#[path = "window-commands.rs"]
+mod window_commands;
+use window_commands::{is_allowed_release_url, open_window, show_and_focus_window};
 
 const STORE_EVENTS: &[&str] = &["store-changed"];
 const SETTINGS_EVENTS: &[&str] = &["store-changed", "settings-changed"];
 const FOCUS_EVENTS: &[&str] = &["focus-changed"];
 const TASKS_WINDOW_INTENT_EVENT: &str = "tasks-window-intent";
-const TASKS_WINDOW_WIDTH: f64 = 960.0;
-const TASKS_WINDOW_HEIGHT: f64 = 720.0;
+const TASKS_WINDOW_WIDTH: f64 = 800.0;
+const TASKS_WINDOW_HEIGHT: f64 = 550.0;
 const TASKS_WINDOW_MIN_WIDTH: f64 = 760.0;
 const TASKS_WINDOW_MIN_HEIGHT: f64 = 480.0;
 
@@ -91,9 +99,9 @@ pub async fn update_settings<R: Runtime>(
 #[tauri::command]
 pub async fn start_focus<R: Runtime>(
     app: AppHandle<R>,
-    task_id: Option<String>,
+    input: StartFocusInput,
 ) -> Result<AppSnapshot, AppError> {
-    mutate_and_emit(app, FOCUS_EVENTS, move |state| state.start_focus(task_id)).await
+    mutate_and_emit(app, FOCUS_EVENTS, move |state| state.start_focus(input)).await
 }
 
 #[tauri::command]
@@ -142,6 +150,24 @@ pub async fn open_tasks_window<R: Runtime>(
     let intent = intent.unwrap_or(TasksWindowIntent::List);
     validate_tasks_window_intent(Some(&intent))?;
     open_tasks_window_with_intent(&app, &intent)
+}
+
+#[tauri::command]
+pub async fn close_tasks_window<R: Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
+    let Some(tasks_window) = app.get_webview_window("tasks") else {
+        return Ok(());
+    };
+
+    tasks_window
+        .hide()
+        .map_err(|_| AppError::integration_unavailable("The Tasks window could not be hidden."))?;
+
+    if let Some(overlay_window) = app.get_webview_window("overlay") {
+        let _ = overlay_window.show();
+        let _ = overlay_window.set_focus();
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -249,13 +275,18 @@ fn open_tasks_window_with_intent<R: Runtime>(
         .inner_size(TASKS_WINDOW_WIDTH, TASKS_WINDOW_HEIGHT)
         .min_inner_size(TASKS_WINDOW_MIN_WIDTH, TASKS_WINDOW_MIN_HEIGHT)
         .resizable(true)
-        .center()
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .skip_taskbar(true)
+        .visible(false)
         .build()
         .map_err(|_| {
             AppError::integration_unavailable("The desktop window could not be opened.")
         })?,
     };
 
+    position_tasks_window_below_overlay(app, &window)?;
     show_and_focus_window(&window)?;
 
     if is_existing_window {
@@ -269,6 +300,33 @@ fn open_tasks_window_with_intent<R: Runtime>(
     Ok(())
 }
 
+fn position_tasks_window_below_overlay<R: Runtime>(
+    app: &AppHandle<R>,
+    tasks_window: &WebviewWindow<R>,
+) -> Result<(), AppError> {
+    let Some(overlay_window) = app.get_webview_window("overlay") else {
+        return Ok(());
+    };
+    let (Ok(overlay_position), Ok(overlay_size), Ok(tasks_size)) = (
+        overlay_window.outer_position(),
+        overlay_window.outer_size(),
+        tasks_window.outer_size(),
+    ) else {
+        return Ok(());
+    };
+    let work_area = overlay_window
+        .current_monitor()
+        .ok()
+        .flatten()
+        .map(|monitor| *monitor.work_area());
+    let position =
+        calculate_tasks_window_position(overlay_position, overlay_size, tasks_size, work_area);
+
+    tasks_window
+        .set_position(PhysicalPosition::new(position.x, position.y))
+        .map_err(|_| AppError::integration_unavailable("The Tasks window could not be positioned."))
+}
+
 fn tasks_window_url(intent: &TasksWindowIntent) -> String {
     let intent_query = match intent {
         TasksWindowIntent::List => "list".to_owned(),
@@ -277,44 +335,6 @@ fn tasks_window_url(intent: &TasksWindowIntent) -> String {
     };
 
     format!("index.html?surface=tasks&intent={intent_query}")
-}
-
-fn open_window<R: Runtime>(
-    app: &AppHandle<R>,
-    label: &str,
-    title: &str,
-    width: f64,
-    height: f64,
-) -> Result<(), AppError> {
-    let window = match app.get_webview_window(label) {
-        Some(window) => window,
-        None => WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
-            .title(title)
-            .inner_size(width, height)
-            .center()
-            .build()
-            .map_err(|_| {
-                AppError::integration_unavailable("The desktop window could not be opened.")
-            })?,
-    };
-
-    show_and_focus_window(&window)?;
-    Ok(())
-}
-
-fn show_and_focus_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), AppError> {
-    window
-        .show()
-        .map_err(|_| AppError::integration_unavailable("The desktop window could not be shown."))?;
-    window.set_focus().map_err(|_| {
-        AppError::integration_unavailable("The desktop window could not receive focus.")
-    })?;
-    Ok(())
-}
-
-fn is_allowed_release_url(url: &str) -> bool {
-    let trimmed = url.trim();
-    trimmed == url && trimmed.starts_with("https://") && trimmed["https://".len()..].contains('.')
 }
 
 #[cfg(test)]

@@ -4,20 +4,26 @@ use uuid::Uuid;
 use super::AppState;
 use crate::domain::task::parse_task_id;
 use crate::domain::{
-    clamp_minutes, AppError, AppSnapshot, DomainResult, FocusSession, FocusSnapshot, FocusState,
+    clamp_minutes, validate_duration_seconds, AppError, AppSnapshot, DomainResult, FocusSession,
+    FocusSnapshot, FocusState, StartFocusInput,
 };
 
 const MILLIS_PER_MINUTE: u64 = 60_000;
 const MILLIS_PER_SECOND: u64 = 1_000;
 
 impl AppState {
-    pub fn start_focus(&mut self, task_id: Option<String>) -> DomainResult<AppSnapshot> {
-        let task_id = task_id
+    pub fn start_focus(&mut self, input: StartFocusInput) -> DomainResult<AppSnapshot> {
+        let task_id = input
+            .task_id
             .as_deref()
             .map(|value| parse_task_id(value, "taskId"))
             .transpose()?;
+        let duration_seconds = input
+            .duration_seconds
+            .map(validate_duration_seconds)
+            .transpose()?;
 
-        self.start_focus_at(task_id, Utc::now())
+        self.start_focus_with_duration_at(task_id, duration_seconds, Utc::now())
     }
 
     pub fn pause_focus(&mut self) -> DomainResult<AppSnapshot> {
@@ -36,9 +42,19 @@ impl AppState {
         self.toggle_focus_at(Local::now().date_naive(), Utc::now())
     }
 
+    #[cfg(test)]
     pub(crate) fn start_focus_at(
         &mut self,
         task_id: Option<Uuid>,
+        started_at: DateTime<Utc>,
+    ) -> DomainResult<AppSnapshot> {
+        self.start_focus_with_duration_at(task_id, None, started_at)
+    }
+
+    pub(crate) fn start_focus_with_duration_at(
+        &mut self,
+        task_id: Option<Uuid>,
+        duration_seconds: Option<u64>,
         started_at: DateTime<Utc>,
     ) -> DomainResult<AppSnapshot> {
         self.mutate(|state| {
@@ -52,7 +68,7 @@ impl AppState {
                 state.finish_focus(started_at, false)?;
             }
 
-            state.begin_focus(task_id, started_at)
+            state.begin_focus(task_id, duration_seconds, started_at)
         })
     }
 
@@ -145,7 +161,7 @@ impl AppState {
                     .into_iter()
                     .find(|task| !task.is_done)
                     .map(|task| task.id);
-                state.begin_focus(task_id, now)
+                state.begin_focus(task_id, None, now)
             }
         })
     }
@@ -181,6 +197,7 @@ impl AppState {
     fn begin_focus(
         &mut self,
         task_id: Option<Uuid>,
+        custom_duration_seconds: Option<u64>,
         started_at: DateTime<Utc>,
     ) -> DomainResult<()> {
         let (active_task_title, duration_minutes) = match task_id {
@@ -203,7 +220,10 @@ impl AppState {
             None => (None, self.settings.focus_minutes),
         };
 
-        let total_ms = duration_ms(duration_minutes)?;
+        let total_ms = match custom_duration_seconds {
+            Some(duration_seconds) => duration_seconds_ms(duration_seconds)?,
+            None => duration_ms(duration_minutes)?,
+        };
         let end_at = add_millis(started_at, total_ms)?;
         self.focus = FocusSnapshot {
             state: FocusState::Running,
@@ -286,6 +306,13 @@ fn duration_ms(minutes: u32) -> DomainResult<u64> {
     let minutes = u64::from(clamp_minutes(i64::from(minutes)));
     minutes
         .checked_mul(MILLIS_PER_MINUTE)
+        .ok_or_else(|| AppError::internal("The focus duration is out of range."))
+}
+
+fn duration_seconds_ms(seconds: u64) -> DomainResult<u64> {
+    let seconds = validate_duration_seconds(seconds)?;
+    seconds
+        .checked_mul(MILLIS_PER_SECOND)
         .ok_or_else(|| AppError::internal("The focus duration is out of range."))
 }
 

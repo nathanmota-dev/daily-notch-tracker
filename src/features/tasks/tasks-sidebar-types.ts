@@ -5,5 +5,6 @@ export type TasksSidebarProps = {
   selectedDate: IsoDateString
   onDateChange: (date: IsoDateString) => void
   onOpenSettings: () => void
+  showHeader?: boolean
   today?: Date | number
 }

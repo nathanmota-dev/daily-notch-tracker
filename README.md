@@ -121,24 +121,22 @@ detectadas pelo evento de escala e por uma consulta periódica.
 Wayland e alguns compositores podem atrasar ou rejeitar a alteração de posição
 de uma janela sempre no topo, ou não expor métricas completas durante uma
 reconfiguração. Nesses casos, o app mantém a posição atual e continua
-funcionando. A visibilidade nativa também depende do compositor: snapshots
-`idle` ocultam a janela e estados `running`/`paused` a mostram novamente; use a
-tray do overlay ou a superfície `Tasks` como fallback se o compositor não
-respeitar uma dessas operações.
+funcionando. O estado `idle` mantém uma área preta compacta de aproximadamente
+204 x 32 px visível para que o hover e o teclado tenham um alvo estável; estados
+`running` e `paused` expandem essa mesma janela para o timer recolhido.
 
 ### Interação do overlay
 
 O overlay expande imediatamente quando o ponteiro entra na superfície e começa
 a recolher 400 ms depois que o ponteiro sai. Uma nova entrada cancela o
 recolhimento pendente, e apenas um timer pode ficar ativo por vez. Menus e
-popovers futuros podem manter o overlay expandido com o contrato reutilizável
-`useOverlayHold(isHeld)`; esta etapa fornece a infraestrutura, mas não cria um
-popover visual.
+popovers podem manter o overlay expandido com o contrato reutilizável
+`useOverlayHold(isHeld)`. O seletor de duração do foco usa esse hold para não
+recolher enquanto a sessão está sendo configurada.
 
-No navegador, a janela nativa não existe: o widget recolhido em estado `idle`
-continua usando `hidden` como fallback visual e de acessibilidade. Em Tauri, a
-janela permanece `visible` na configuração inicial para permitir o primeiro
-snapshot e passa a ser ocultada ou mostrada pelo estado de foco.
+No navegador, a janela nativa não existe, mas a área compacta continua sendo
+renderizada. Em Tauri, a janela permanece `visible` e o resize acompanha os
+estados idle, recolhido e expandido.
 
 Durante o desenvolvimento, o widget pode ser renderizado com uma fixture pelo
 parâmetro `?fixture=`. As opções recolhidas são `running`, `paused`, `no-task`,
@@ -173,12 +171,17 @@ frente sem criar duplicatas. `Settings` continua sendo a superfície reservada
 para configurações futuras; `Tasks` já é a superfície funcional descrita
 abaixo.
 
-A janela `Tasks` é criada sob demanda com tamanho inicial de 960 x 720 px,
-permite redimensionamento e respeita o tamanho mínimo de 760 x 480 px. Fechar
-a janela apenas a oculta para que o processo, o estado compartilhado e um foco
-em andamento continuem ativos; ao reabrir, a mesma janela é reutilizada. A
-seção estrutural `Calendar` reutiliza o seletor de data atual. Eventos ainda
-não são exibidos porque a integração ICS pertence a uma etapa posterior.
+A janela `Tasks` é criada sob demanda com tamanho inicial de 800 x 550 px,
+permite redimensionamento e respeita o tamanho mínimo de 760 x 480 px. Ela é
+transparente e sem decorações nativas; o cabeçalho fornece o botão de fechar.
+Ao abrir, fica centralizada em relação ao dashboard e posicionada 8 px abaixo,
+com ajuste à área de trabalho do monitor quando essa métrica está disponível.
+Fechar a janela apenas a oculta para que o processo, o estado compartilhado e
+um foco em andamento continuem ativos; ao reabrir, a mesma janela é reutilizada.
+A seção estrutural `Calendar` reutiliza o seletor de data atual. A lista mantém
+as tarefas visíveis durante a criação inline, mostra duração/data e oferece
+ações diretas de foco, edição e exclusão. Eventos ainda não são exibidos porque
+a integração ICS pertence a uma etapa posterior.
 
 O focus engine é autoritativo no Rust: iniciar, pausar, retomar, parar e
 alternar um bloco persistem cada transição relevante, e `endAt` é a fonte de
@@ -200,6 +203,26 @@ arquivo persistido. Concluir a tarefa ativa finaliza sua sessão como concluída
 soma o tempo e marca a tarefa como feita na mesma mutação atômica. Excluir a
 tarefa ativa finaliza a sessão como interrompida e, quando houver tempo válido,
 preserva o registro como sessão standalone sem atribuí-lo à tarefa removida.
+
+Iniciar o foco abre um seletor da sessão atual com minutos e segundos. A
+duração aceita `00:01` até `180:00`, é usada somente nessa execução e não altera
+o campo de estimativa da tarefa. `Esc`, Cancel, clique externo e os controles de
+teclado fecham ou ajustam o seletor.
+
+### Rotas do preview web
+
+O preview do navegador usa a mesma composição de superfícies e um mock em
+memória. `surface` seleciona `overlay`, `tasks` ou `settings`; `intent` aceita
+`list`, `add` ou `task&taskId=<id>` na superfície Tasks; e `fixture` habilita
+somente dados visuais de desenvolvimento, como `running` ou `expanded`.
+
+Exemplos:
+
+```text
+http://localhost:5173/?surface=tasks&intent=list
+http://localhost:5173/?surface=tasks&intent=add
+http://localhost:5173/?surface=overlay&fixture=expanded
+```
 
 ## Verificações
 

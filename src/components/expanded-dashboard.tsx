@@ -1,4 +1,7 @@
 import type { AppSnapshot, DesktopApiError } from "../lib/desktopApi"
+import type { FocusSessionPickerProps } from "./focus-session-picker"
+import { FocusSessionPicker } from "./focus-session-picker"
+import { useOverlayHold } from "../app/use-overlay-interaction"
 import { cn } from "../lib/utils"
 import { ProgressTray } from "./progress-tray"
 import { Panel } from "./panel"
@@ -18,6 +21,7 @@ export type ExpandedDashboardCallbacks = {
   onOpenTasks: () => void
   onOpenTask: (taskId: string) => void
   onReorder: (taskIds: string[]) => void
+  focusSessionPicker: FocusSessionPickerProps
 }
 
 export type ExpandedDashboardProps = {
@@ -41,10 +45,12 @@ export function ExpandedDashboard({
   onReorder = noopReorder,
   onToggleFocus = noop,
   onToggleTask = noop,
+  focusSessionPicker,
   dashboardError = null,
   now,
   snapshot,
 }: ExpandedDashboardProps) {
+  useOverlayHold(focusSessionPicker?.open ?? false)
   const countdown = useFocusCountdown(snapshot.focus, { now })
   const orderedTasks = selectTasksForDashboard(snapshot.tasks, countdown.now)
   const activity = getActivitySummary(snapshot.sessions, countdown.now)
@@ -53,7 +59,7 @@ export function ExpandedDashboard({
     <ProgressTray
       aria-label="Focus timeline"
       className={cn(
-        "min-h-[var(--expanded-dashboard-min-height)] w-[var(--expanded-dashboard-width)] rounded-panel bg-transparent",
+        "min-h-[var(--expanded-dashboard-min-height)] w-[var(--expanded-dashboard-width)] overflow-visible rounded-panel bg-transparent",
         className,
       )}
       data-focus-state={snapshot.focus.state}
@@ -87,7 +93,12 @@ export function ExpandedDashboard({
           />
           <ActivityPanel {...activity} today={countdown.now} />
         </div>
-      </Panel>
+        </Panel>
+      {focusSessionPicker?.open && (
+        <div className="flex justify-end px-4 pt-2">
+          <FocusSessionPicker {...focusSessionPicker} />
+        </div>
+      )}
     </ProgressTray>
   )
 }

@@ -148,7 +148,7 @@ describe("CollapsedFocusWidget", () => {
     )
   })
 
-  it("hides the idle presentation without rendering a progress bar", () => {
+  it("renders the idle notch without rendering a progress bar", () => {
     const snapshot = createEmptyAppSnapshot()
 
     render(
@@ -163,7 +163,8 @@ describe("CollapsedFocusWidget", () => {
     )
 
     expect(widget).toHaveAttribute("data-state", "idle")
-    expect(widget).toHaveAttribute("hidden")
+    expect(widget).not.toHaveAttribute("hidden")
+    expect(screen.getByRole("button", { name: "Open focus dashboard" })).toBeInTheDocument()
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument()
   })
 })
@@ -225,7 +226,8 @@ describe("CollapsedFocusWidget countdown", () => {
       '[data-slot="collapsed-focus-widget"]',
     )
     expect(idleWidget).toHaveAttribute("data-state", "idle")
-    expect(idleWidget).toHaveAttribute("hidden")
+    expect(idleWidget).not.toHaveAttribute("hidden")
+    expect(screen.getByRole("button", { name: "Open focus dashboard" })).toBeInTheDocument()
     expect(screen.queryByRole("timer")).not.toBeInTheDocument()
   })
 })

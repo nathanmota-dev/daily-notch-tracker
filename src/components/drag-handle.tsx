@@ -5,12 +5,14 @@ import { IconButton } from "./icon-button"
 export type DragHandleProps = {
   taskId: string
   taskTitle: string
+  className?: string
   disabled?: boolean
   onReorderStart: (taskId: string) => void
   onReorderEnd: () => void
 }
 
 export function DragHandle({
+  className,
   onReorderStart,
   onReorderEnd,
   taskId,
@@ -35,7 +37,7 @@ export function DragHandle({
   return (
     <IconButton
       aria-label={"Reorder " + taskTitle}
-      className="cursor-grab text-muted active:cursor-grabbing"
+      className={`cursor-grab text-muted active:cursor-grabbing ${className ?? ""}`}
       data-slot="drag-handle"
       disabled={disabled}
       draggable={!disabled}

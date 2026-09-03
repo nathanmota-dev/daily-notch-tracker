@@ -14,8 +14,8 @@
       {
         "label": "overlay",
         "title": "DailyNotch Linux",
-        "width": 360,
-        "height": 72,
+        "width": 204,
+        "height": 32,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,

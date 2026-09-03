@@ -2,7 +2,7 @@ use chrono::{DateTime, Duration, NaiveDate, Utc};
 use uuid::Uuid;
 
 use super::*;
-use crate::domain::{CreateTaskInput, UpdateTaskInput};
+use crate::domain::{CreateTaskInput, StartFocusInput, UpdateTaskInput};
 
 fn timestamp() -> DateTime<Utc> {
     DateTime::parse_from_rfc3339("2026-08-31T12:00:00Z")
@@ -43,6 +43,43 @@ fn start_focus_uses_the_task_estimate_and_increments_revision() {
         Some("Focus task")
     );
     assert_eq!(snapshot.focus.total_ms, 40 * 60 * 1_000);
+}
+
+#[test]
+fn custom_focus_duration_is_runtime_only_and_uses_seconds() {
+    let task_id = Uuid::new_v4();
+    let mut state = AppState::default();
+    state
+        .add_task_at(task_input("Custom focus", 40, None), task_id, timestamp())
+        .expect("test task should be added");
+
+    let snapshot = state
+        .start_focus_with_duration_at(Some(task_id), Some(1_530), timestamp())
+        .expect("custom focus should start");
+
+    assert_eq!(snapshot.focus.total_ms, 1_530_000);
+    assert_eq!(
+        snapshot.focus.end_at,
+        Some(timestamp() + Duration::seconds(1_530))
+    );
+    assert_eq!(snapshot.tasks[0].estimate_minutes, 40);
+}
+
+#[test]
+fn public_focus_input_rejects_an_invalid_custom_duration() {
+    let mut state = AppState::default();
+    let before = state.snapshot();
+
+    let error = state
+        .start_focus(StartFocusInput {
+            task_id: None,
+            duration_seconds: Some(0),
+        })
+        .expect_err("zero duration should be rejected");
+
+    assert_eq!(error.code, crate::domain::AppErrorCode::Validation);
+    assert_eq!(error.field.as_deref(), Some("durationSeconds"));
+    assert_eq!(state.snapshot(), before);
 }
 
 #[test]

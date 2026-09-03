@@ -1,23 +1,17 @@
 import { useState } from "react"
 
 import { useDesktopMutations } from "../../app/use-desktop-mutations"
-import {
-  type AppSnapshot,
-  type DesktopApi,
-  type DesktopApiError,
-  type TasksWindowIntent,
+import { useFocusSessionFlow } from "../../components/use-focus-session-flow"
+import type {
+  AppSnapshot,
+  DesktopApi,
+  TasksWindowIntent,
 } from "../../lib/desktopApi"
 import { getLocalDateString } from "../../lib/local-date"
 import { createTaskSurfaceActions } from "./tasks-actions"
-import { TaskForm } from "./task-form"
-import { TaskList } from "./task-list"
-import {
-  selectTasksForTasksSurface,
-  type TasksTab,
-} from "./tasks-model"
-import { TasksContentHeader } from "./tasks-content-header"
+import { TasksSurfaceContent } from "./tasks-surface-content"
+import { type TasksTab } from "./tasks-model"
 import { useTaskDraftController, useTaskSurfaceRouting } from "./tasks-state"
-import { TasksSidebar } from "./tasks-sidebar"
 import { useTasksWindowIntent } from "./tasks-window-intent"
 
 export type TasksSurfaceProps = {
@@ -27,180 +21,6 @@ export type TasksSurfaceProps = {
   refreshSnapshot: () => Promise<AppSnapshot>
   initialIntent?: TasksWindowIntent
   search?: string
-}
-
-function focusLabel(snapshot: AppSnapshot, taskId: string) {
-  const task = snapshot.tasks.find((item) => item.id === taskId)
-  const isActive = snapshot.focus.activeTaskId === taskId
-  const title = task?.title ?? "task"
-
-  if (isActive && snapshot.focus.state === "paused") {
-    return `Resume focus for ${title}`
-  }
-
-  if (isActive && snapshot.focus.state === "running") {
-    return `Pause focus for ${title}`
-  }
-
-  return `Start focus for ${title}`
-}
-
-function MutationError({ error }: { error: DesktopApiError | null }) {
-  if (!error) {
-    return null
-  }
-
-  return (
-    <p
-      className="m-0 mb-3 text-[0.78rem] leading-[1.4] text-danger"
-      data-slot="tasks-error"
-      role="alert"
-    >
-      Could not update tasks. Code: {error.code}.
-    </p>
-  )
-}
-
-function TasksListView({
-  busy,
-  error,
-  focus,
-  onAdd,
-  onOpenTask,
-  onReorder,
-  onToggleFocus,
-  onToggleTask,
-  tasks,
-}: {
-  busy: boolean
-  error: DesktopApiError | null
-  focus: AppSnapshot["focus"]
-  onAdd: () => void
-  onOpenTask: (taskId: string) => void
-  onReorder: (taskIds: string[]) => void
-  onToggleFocus: (taskId: string) => void
-  onToggleTask: (taskId: string) => void
-  tasks: AppSnapshot["tasks"]
-}) {
-  return (
-    <section
-      aria-label="Tasks in selected list"
-      className="min-h-0 flex-[1_1_auto] overflow-y-auto pb-2 pr-1"
-    >
-      <MutationError error={error} />
-      <TaskList
-        busy={busy}
-        focus={focus}
-        onAddTask={onAdd}
-        onOpenTask={onOpenTask}
-        onReorder={onReorder}
-        onToggleFocus={onToggleFocus}
-        onToggleTask={onToggleTask}
-        tasks={tasks}
-      />
-    </section>
-  )
-}
-
-type TasksSurfaceContentProps = {
-  activeTab: TasksTab
-  actions: ReturnType<typeof createTaskSurfaceActions>
-  draftController: ReturnType<typeof useTaskDraftController>
-  mutations: ReturnType<typeof useDesktopMutations>
-  routing: ReturnType<typeof useTaskSurfaceRouting>
-  selectedDate: string
-  setActiveTab: (tab: TasksTab) => void
-  setSelectedDate: (date: string) => void
-  snapshot: AppSnapshot
-}
-
-function TasksSurfaceContent({
-  activeTab,
-  actions,
-  draftController,
-  mutations,
-  routing,
-  selectedDate,
-  setActiveTab,
-  setSelectedDate,
-  snapshot,
-}: TasksSurfaceContentProps) {
-  return (
-    <main
-      className="grid h-screen min-h-[480px] min-w-0 grid-cols-[minmax(280px,320px)_minmax(0,1fr)] gap-6 overflow-hidden bg-canvas p-6 text-content max-[640px]:h-auto max-[640px]:min-h-screen max-[640px]:grid-cols-1 max-[640px]:overflow-visible"
-      data-surface="tasks"
-    >
-      <TasksSidebar
-        busy={mutations.busy}
-        onDateChange={setSelectedDate}
-        onOpenSettings={actions.openSettings}
-        selectedDate={selectedDate}
-      />
-      <section
-        className="min-h-0 min-w-0 flex flex-col overflow-hidden pb-0 pl-0 pr-2 pt-1 max-[640px]:overflow-visible"
-        data-slot="tasks-content"
-      >
-        <TasksContentHeader
-          activeTab={activeTab}
-          busy={mutations.busy}
-          date={selectedDate}
-          onAdd={actions.openAdd}
-          onTabChange={setActiveTab}
-          showAdd={routing.panel === "list"}
-          totalCount={snapshot.tasks.length}
-        />
-        {(routing.panel === "create" || routing.panel === "detail") && (
-          <MutationError error={mutations.error} />
-        )}
-        {routing.panel === "create" || routing.panel === "detail" ? (
-          <TaskForm
-            busy={mutations.busy}
-            draft={draftController.draft}
-            errors={draftController.draftErrors}
-            focusActionLabel={
-              routing.panel === "detail" && routing.selectedTaskId
-                ? focusLabel(snapshot, routing.selectedTaskId)
-                : undefined
-            }
-            mode={routing.panel === "create" ? "create" : "edit"}
-            onCancel={actions.backToList}
-            onChange={actions.updateDraft}
-            onDelete={
-              routing.panel === "detail"
-                ? actions.deleteSelectedTask
-                : undefined
-            }
-            onDoneChange={(isDone) =>
-              draftController.setDraft((current) => ({ ...current, isDone }))
-            }
-            onFocus={
-              routing.panel === "detail" && routing.selectedTaskId
-                ? () => actions.toggleFocus(routing.selectedTaskId!)
-                : undefined
-            }
-            onSubmit={actions.saveDraft}
-            titleRef={draftController.titleRef}
-          />
-        ) : (
-          <TasksListView
-            busy={mutations.busy}
-            error={mutations.error}
-            focus={snapshot.focus}
-            onAdd={actions.openAdd}
-            onOpenTask={actions.openTask}
-            onReorder={actions.reorder}
-            onToggleFocus={actions.toggleFocus}
-            onToggleTask={actions.toggleTask}
-            tasks={selectTasksForTasksSurface(
-              snapshot.tasks,
-              activeTab,
-              selectedDate,
-            )}
-          />
-        )}
-      </section>
-    </main>
-  )
 }
 
 export function TasksSurface({
@@ -227,14 +47,19 @@ export function TasksSurface({
     selectedDate,
     selectedTask,
   })
-  const mutations = useDesktopMutations({
-    applySnapshot,
-    refreshSnapshot,
+  const mutations = useDesktopMutations({ applySnapshot, refreshSnapshot })
+  const focusSession = useFocusSessionFlow({
+    api,
+    mutationBusy: mutations.busy,
+    mutationError: mutations.error,
+    runMutation: mutations.runMutation,
+    snapshot,
   })
   const actions = createTaskSurfaceActions({
     activeTab,
     api,
     draft: draftController.draft,
+    focusTask: focusSession.requestFocus,
     mutations,
     panel: routing.panel,
     resetForAdd: draftController.resetForAdd,
@@ -246,11 +71,13 @@ export function TasksSurface({
     setSelectedTaskId: routing.setSelectedTaskId,
     snapshot,
   })
+
   return (
     <TasksSurfaceContent
       activeTab={activeTab}
       actions={actions}
       draftController={draftController}
+      focusPicker={focusSession.picker}
       mutations={mutations}
       routing={routing}
       selectedDate={selectedDate}

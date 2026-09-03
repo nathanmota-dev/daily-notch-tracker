@@ -48,11 +48,9 @@ function CalendarDay({
       aria-label={formatTasksCalendarDate(date)}
       aria-pressed={isSelected}
       className={cn(
-        "group relative grid size-full min-h-[30px] cursor-pointer place-items-center rounded-control border border-transparent bg-transparent p-0 text-[0.78rem] text-content outline-none transition-[background-color,border-color,color,box-shadow] duration-150 hover:bg-panel-hover focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:pointer-events-none disabled:opacity-50",
-        isToday && "border-accent text-accent",
-        isSelected && "bg-accent text-canvas",
-        isSelected && isToday &&
-          "shadow-[inset_0_0_0_2px_var(--canvas)]",
+        "group relative grid size-full min-h-[30px] cursor-pointer place-items-center rounded-full border border-transparent bg-transparent p-0 text-[0.78rem] text-content outline-none transition-[background-color,border-color,color,box-shadow] duration-150 hover:bg-panel-hover focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-canvas disabled:pointer-events-none disabled:opacity-50",
+        isToday && "text-accent",
+        isSelected && "bg-accent text-white",
       )}
       data-date={date}
       data-selected={isSelected ? "true" : "false"}
@@ -62,15 +60,6 @@ function CalendarDay({
       type="button"
     >
       <span>{dayOfMonth}</span>
-      {isToday && (
-        <span
-          aria-hidden="true"
-          className={cn(
-            "absolute bottom-1 size-1 rounded-full",
-            isSelected ? "bg-canvas" : "bg-accent",
-          )}
-        />
-      )}
     </button>
   )
 }
@@ -82,19 +71,14 @@ function CalendarHeader({
   onPreviousMonth,
 }: TasksCalendarHeaderProps) {
   return (
-    <header className="flex items-center justify-between gap-3">
-      <div>
-        <p className="m-0 mb-1.5 text-[0.7rem] font-[650] uppercase tracking-[0.16em] text-muted">
-          Planning
-        </p>
-        <h3
-          aria-live="polite"
-          className="m-0 text-base font-[650] leading-[1.2] tracking-[-0.01em] text-content"
-        >
-          {monthLabel}
-        </h3>
-      </div>
-      <div className="flex gap-0.5">
+    <header className="relative flex items-center justify-center gap-3">
+      <h3
+        aria-live="polite"
+        className="m-0 text-[0.95rem] font-semibold leading-[1.2] tracking-[-0.01em] text-content"
+      >
+        {monthLabel}
+      </h3>
+      <div className="absolute inset-y-0 left-0 flex items-center">
         <Button
           aria-label="Previous month"
           disabled={busy}
@@ -105,6 +89,8 @@ function CalendarHeader({
         >
           <ChevronLeftIcon aria-hidden="true" />
         </Button>
+      </div>
+      <div className="absolute inset-y-0 right-0 flex items-center">
         <Button
           aria-label="Next month"
           disabled={busy}
@@ -128,7 +114,7 @@ function CalendarGrid({
   return (
     <div
       aria-label={`Calendar for ${model.monthLabel}`}
-      className="grid grid-cols-7 gap-1"
+      className="grid grid-cols-7 content-start gap-1"
       data-month={`${model.year}-${String(model.month + 1).padStart(2, "0")}`}
       data-row-count={model.rowCount}
       role="group"
@@ -198,7 +184,7 @@ export function TasksCalendar({
   return (
     <section
       aria-label="Monthly task calendar"
-      className="grid gap-3.5"
+      className="grid min-h-0 flex-1 grid-rows-[auto_auto_minmax(0,1fr)_auto] gap-3.5"
       data-slot="tasks-calendar-widget"
     >
       <CalendarHeader
@@ -225,7 +211,7 @@ export function TasksCalendar({
       <CalendarGrid busy={busy} model={model} onSelectDate={onSelectDate} />
 
       <Button
-        className="justify-self-start"
+        className="w-full justify-center border-0 bg-panel-hover hover:bg-white/[0.12]"
         disabled={busy}
         onClick={selectToday}
         size="sm"

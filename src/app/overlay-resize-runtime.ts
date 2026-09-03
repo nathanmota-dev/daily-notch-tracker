@@ -31,6 +31,7 @@ import {
 type OverlayResizeRuntimeOptions = {
   container: HTMLElement
   visual: HTMLElement
+  focusState: "idle" | "running" | "paused"
   presentationMode: OverlayPresentationMode
   minimalMode: boolean
   showTimeline: boolean
@@ -88,6 +89,7 @@ function createTargetSizeReader(options: OverlayResizeRuntimeOptions) {
         : undefined
 
     return getOverlayTargetLogicalSize(options.presentationMode, {
+      focusState: options.focusState,
       minimalMode: options.minimalMode,
       showTimeline: options.showTimeline,
       measuredVisualHeight,

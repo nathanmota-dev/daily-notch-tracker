@@ -238,25 +238,25 @@ describe("useOverlayInteraction", () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it("shows active sessions and hides idle overlays through the adapter", () => {
+  it("keeps the idle notch visible and shows it for active sessions", () => {
     const adapter = createAdapter()
     const { rerender } = render(
       <InteractionHarness adapter={adapter} focusState="idle" />,
     )
 
-    expect(adapter.hide).toHaveBeenCalledOnce()
-    expect(adapter.show).not.toHaveBeenCalled()
+    expect(adapter.show).toHaveBeenCalledOnce()
+    expect(adapter.hide).not.toHaveBeenCalled()
 
     rerender(<InteractionHarness adapter={adapter} focusState="running" />)
-    expect(adapter.show).toHaveBeenCalledOnce()
+    expect(adapter.show).toHaveBeenCalledTimes(2)
 
     rerender(<InteractionHarness adapter={adapter} focusState="paused" />)
-    expect(adapter.show).toHaveBeenCalledTimes(2)
+    expect(adapter.show).toHaveBeenCalledTimes(3)
   })
 
   it("absorbs native visibility failures", () => {
     const adapter = createAdapter()
-    adapter.hide.mockRejectedValueOnce(new Error("window unavailable"))
+    adapter.show.mockRejectedValueOnce(new Error("window unavailable"))
 
     expect(() =>
       render(<InteractionHarness adapter={adapter} focusState="idle" />),

@@ -81,11 +81,11 @@ describe("App", () => {
     expect(screen.queryByText("Contrato desktop conectado")).not.toBeInTheDocument()
   })
 
-  it("uses an opaque canvas for normal window surfaces", async () => {
+  it("uses a compact opaque canvas for normal window surfaces", async () => {
     render(<App api={createMockDesktopApi().api} surface="tasks" />)
 
     expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument()
-    expect(screen.getByRole("main")).toHaveClass("bg-canvas")
+    expect(screen.getByRole("main")).toHaveClass("bg-black")
   })
 
   it("renders a supplied focus snapshot without coupling the shell to Tauri", () => {
@@ -147,7 +147,7 @@ describe("App", () => {
     }
   })
 
-  it("hides an idle overlay even when its initial presentation is expanded", () => {
+  it("keeps an idle notch visible even when its initial presentation is expanded", () => {
     const adapter = createOverlayAdapter()
 
     render(
@@ -162,8 +162,8 @@ describe("App", () => {
       "data-presentation-mode",
       "expanded",
     )
-    expect(adapter.hide).toHaveBeenCalledOnce()
-    expect(adapter.show).not.toHaveBeenCalled()
+    expect(adapter.show).toHaveBeenCalledOnce()
+    expect(adapter.hide).not.toHaveBeenCalled()
   })
 
   it("shows a safe error and retries the snapshot request", async () => {
@@ -333,7 +333,15 @@ describe("App", () => {
 
       act(() => controller.emit("shortcut-changed", updatedSnapshot))
 
-      expect(await screen.findByText("1 tarefa")).toBeInTheDocument()
+      if (surface === "tasks") {
+        await waitFor(() =>
+          expect(
+            document.querySelector('[data-slot="tasks-open-count"]'),
+          ).toHaveTextContent("1 open"),
+        )
+      } else {
+        expect(await screen.findByText("1 tarefa")).toBeInTheDocument()
+      }
     },
   )
 
@@ -487,7 +495,13 @@ describe("App", () => {
         name: "Start focus for Review the desktop contract",
       }),
     )
-    await waitFor(() => expect(startFocus).toHaveBeenCalledWith("expanded-task-2"))
+    await user.click(screen.getByRole("button", { name: "Start focus" }))
+    await waitFor(() =>
+      expect(startFocus).toHaveBeenCalledWith({
+        taskId: "expanded-task-2",
+        durationSeconds: 3_000,
+      }),
+    )
   })
 
   it("lets Rust focus events drive running, paused, and idle presentation", async () => {

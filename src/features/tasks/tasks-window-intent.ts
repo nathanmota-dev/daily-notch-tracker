@@ -47,15 +47,28 @@ function safelyUnlisten(unlisten: DesktopUnlisten) {
 
 export function useTasksWindowIntent(
   api: DesktopApi,
-  search = typeof window === "undefined" ? "" : window.location.search,
+  search?: string,
 ) {
   const [intent, setIntent] = useState<TasksWindowIntent>(() =>
-    parseTasksWindowIntent(search),
+    parseTasksWindowIntent(
+      search ?? (typeof window === "undefined" ? "" : window.location.search),
+    ),
   )
 
   useEffect(() => {
     let active = true
     let unlisten: DesktopUnlisten | null = null
+
+    const updateFromLocation = () => {
+      if (active && search === undefined) {
+        setIntent(parseTasksWindowIntent(window.location.search))
+      }
+    }
+
+    if (search === undefined && typeof window !== "undefined") {
+      window.addEventListener("popstate", updateFromLocation)
+      window.addEventListener("hashchange", updateFromLocation)
+    }
 
     void api
       .subscribe("tasks-window-intent", (nextIntent) => {
@@ -77,8 +90,12 @@ export function useTasksWindowIntent(
       if (unlisten) {
         safelyUnlisten(unlisten)
       }
+      if (search === undefined && typeof window !== "undefined") {
+        window.removeEventListener("popstate", updateFromLocation)
+        window.removeEventListener("hashchange", updateFromLocation)
+      }
     }
-  }, [api])
+  }, [api, search])
 
   return intent
 }

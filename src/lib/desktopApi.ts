@@ -49,6 +49,7 @@ export type {
   MoveTasksInput,
   ShortcutDiagnostic,
   ShortcutStatus,
+  StartFocusInput,
   SurfaceLabel,
   Task,
   TaskBucket,

@@ -1,5 +1,6 @@
 import type { IconBaseProps, IconType } from "react-icons"
 import {
+  FiCalendar,
   FiCheck,
   FiChevronDown,
   FiChevronLeft,
@@ -8,6 +9,7 @@ import {
   FiChevronsDown,
   FiChevronsUp,
   FiClock,
+  FiEdit2,
   FiList,
   FiMaximize2,
   FiMinus,
@@ -16,6 +18,7 @@ import {
   FiPlay,
   FiPlus,
   FiSettings,
+  FiTrash2,
   FiX,
 } from "react-icons/fi"
 
@@ -23,6 +26,7 @@ export type AppIconProps = IconBaseProps
 export type AppIcon = IconType
 
 export const icons = {
+  calendar: FiCalendar,
   clock: FiClock,
   play: FiPlay,
   pause: FiPause,
@@ -40,9 +44,12 @@ export const icons = {
   chevronsDown: FiChevronsDown,
   list: FiList,
   expand: FiMaximize2,
+  edit: FiEdit2,
+  trash: FiTrash2,
 } satisfies Record<string, AppIcon>
 
 export const {
+  calendar: CalendarIcon,
   clock: ClockIcon,
   play: PlayIcon,
   pause: PauseIcon,
@@ -60,4 +67,6 @@ export const {
   chevronsDown: ChevronsDownIcon,
   list: ListIcon,
   expand: ExpandIcon,
+  edit: EditIcon,
+  trash: TrashIcon,
 } = icons

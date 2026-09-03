@@ -12,8 +12,8 @@ describe("Tauri overlay window configuration", () => {
 
   it("configures the compact transparent window behavior", () => {
     expect(overlayWindow).toMatchObject({
-      width: 360,
-      height: 72,
+      width: 204,
+      height: 32,
       decorations: false,
       transparent: true,
       alwaysOnTop: true,
