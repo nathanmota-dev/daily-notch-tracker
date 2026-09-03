@@ -658,47 +658,30 @@ test.describe("DailyNotch surface router", () => {
       expandedTasks.second.id,
     ])
 
-    await page.evaluate(() => {
-      const source = document.querySelector(
-        '[data-slot="tasks-task-row"][data-task-id="expanded-task-1"] [data-slot="drag-handle"]',
-      )
-      const target = document.querySelector(
-        '[data-slot="tasks-task-row"][data-task-id="expanded-task-2"]',
-      )
-      if (!source || !target) {
-        throw new Error("Task reorder targets are missing")
-      }
+    const sourceHandle = taskRow(page, expandedTasks.first.id).getByRole(
+      "button",
+      { name: `Reorder ${expandedTasks.first.title}` },
+    )
+    const sourceBox = await sourceHandle.boundingBox()
+    const targetBox = await taskRow(page, expandedTasks.second.id).boundingBox()
+    if (!sourceBox || !targetBox) {
+      throw new Error("Task reorder targets are missing")
+    }
 
-      const dataTransfer = new DataTransfer()
-      source.dispatchEvent(
-        new DragEvent("dragstart", {
-          bubbles: true,
-          cancelable: true,
-          dataTransfer,
-        }),
-      )
-      target.dispatchEvent(
-        new DragEvent("dragover", {
-          bubbles: true,
-          cancelable: true,
-          dataTransfer,
-        }),
-      )
-      target.dispatchEvent(
-        new DragEvent("drop", {
-          bubbles: true,
-          cancelable: true,
-          dataTransfer,
-        }),
-      )
-      source.dispatchEvent(
-        new DragEvent("dragend", {
-          bubbles: true,
-          cancelable: true,
-          dataTransfer,
-        }),
-      )
-    })
+    await page.mouse.move(
+      sourceBox.x + sourceBox.width / 2,
+      sourceBox.y + sourceBox.height / 2,
+    )
+    await page.mouse.down()
+    await page.mouse.move(
+      sourceBox.x + sourceBox.width / 2 + 8,
+      sourceBox.y + sourceBox.height / 2 + 8,
+    )
+    await page.mouse.move(
+      targetBox.x + targetBox.width / 2,
+      targetBox.y + targetBox.height / 2,
+    )
+    await page.mouse.up()
 
     await expect.poll(() => taskRowIds(page)).toEqual([
       expandedTasks.second.id,

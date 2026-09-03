@@ -13,6 +13,11 @@ import {
 } from "../../lib/desktopApi"
 import { getLocalDateString } from "../../lib/local-date"
 import { App } from "../../app/App"
+import {
+  finishPointerTaskDrag,
+  mockSortableRects,
+  startPointerTaskDrag,
+} from "../../test/task-reorder-helpers"
 import { TasksSurface } from "./tasks-surface"
 
 const today = getLocalDateString()
@@ -535,20 +540,11 @@ describe("Tasks surface", () => {
 
     render(<AppForTasks api={controller.api} />)
     await screen.findByRole("heading", { name: "Tasks" })
-    const rows = document.querySelectorAll('[data-slot="tasks-task-row"]')
-    const dataTransfer = {
-      effectAllowed: "none",
-      dropEffect: "none",
-      getData: vi.fn(() => firstTask.id),
-      setData: vi.fn(),
-    }
-
-    fireEvent.dragStart(
+    mockSortableRects('[data-slot="tasks-task-row"]')
+    startPointerTaskDrag(
       screen.getByRole("button", { name: "Reorder First task" }),
-      { dataTransfer },
     )
-    fireEvent.dragOver(rows[1], { dataTransfer })
-    fireEvent.drop(rows[1], { dataTransfer })
+    await finishPointerTaskDrag(100)
 
     await waitFor(() => expect(moveTasks).toHaveBeenCalledOnce())
     expect(moveTasks).toHaveBeenCalledWith({

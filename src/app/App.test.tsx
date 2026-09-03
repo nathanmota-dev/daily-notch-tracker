@@ -15,6 +15,11 @@ import { getLocalDateString } from "../lib/local-date"
 import {
   type OverlayWindowAdapter,
 } from "../lib/desktop/overlay-window"
+import {
+  finishPointerTaskDrag,
+  mockSortableRects,
+  startPointerTaskDrag,
+} from "../test/task-reorder-helpers"
 import { OVERLAY_COLLAPSE_DELAY_MS } from "./use-overlay-interaction"
 import { App, AppShell } from "./App"
 
@@ -702,28 +707,14 @@ describe("App", () => {
     )
 
     await screen.findByRole("region", { name: "Expanded dashboard" })
-    const rows = document.querySelectorAll('[data-slot="compact-task-row"]')
-    const dataTransfer = {
-      effectAllowed: "none",
-      dropEffect: "none",
-      getData: vi.fn(() => "expanded-task-1"),
-      setData: vi.fn(),
-    }
-
-    fireEvent.dragStart(
+    mockSortableRects('[data-slot="compact-task-row"]')
+    startPointerTaskDrag(
       screen.getByRole("button", {
         name: "Reorder Plan the next focused block",
       }),
-      { dataTransfer },
     )
-    fireEvent.dragOver(rows[1], { dataTransfer })
-    fireEvent.drop(rows[1], { dataTransfer })
+    await finishPointerTaskDrag(100)
 
-    expect(
-      Array.from(
-        document.querySelectorAll('[data-slot="compact-task-row"]'),
-      ).map((row) => row.getAttribute("data-task-id")),
-    ).toEqual(["expanded-task-1", "expanded-task-2"])
     await waitFor(() => expect(moveTasks).toHaveBeenCalledOnce())
     expect(moveTasks).toHaveBeenCalledWith({
       taskIds: ["expanded-task-2", "expanded-task-1"],

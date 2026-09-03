@@ -1,51 +1,32 @@
-import type { DragEvent } from "react"
-
+import { cn } from "../lib/utils"
 import { IconButton } from "./icon-button"
+import type { DragHandleProps } from "./task-reorder-types"
 
-export type DragHandleProps = {
-  taskId: string
-  taskTitle: string
-  className?: string
-  disabled?: boolean
-  onReorderStart: (taskId: string) => void
-  onReorderEnd: () => void
-}
+export type { DragHandleProps } from "./task-reorder-types"
 
 export function DragHandle({
+  attributes,
   className,
-  onReorderStart,
-  onReorderEnd,
-  taskId,
-  taskTitle,
   disabled = false,
+  listeners,
+  setActivatorNodeRef,
+  taskTitle,
 }: DragHandleProps) {
-  function handleDragStart(event: DragEvent<HTMLButtonElement>) {
-    if (disabled) {
-      event.preventDefault()
-      return
-    }
-
-    event.dataTransfer?.setData("text/plain", taskId)
-
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = "move"
-    }
-
-    onReorderStart(taskId)
-  }
-
   return (
     <IconButton
+      {...attributes}
       aria-label={"Reorder " + taskTitle}
-      className={`cursor-grab text-muted active:cursor-grabbing ${className ?? ""}`}
+      className={cn(
+        "cursor-grab text-muted active:cursor-grabbing",
+        className,
+      )}
       data-slot="drag-handle"
       disabled={disabled}
-      draggable={!disabled}
-      onDragEnd={onReorderEnd}
-      onDragStart={handleDragStart}
+      ref={setActivatorNodeRef}
       size="sm"
       type="button"
       variant="ghost"
+      {...listeners}
     >
       <span
         aria-hidden="true"
