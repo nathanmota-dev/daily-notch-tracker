@@ -9,7 +9,7 @@ use crate::domain::{
     parse_task_id, AppDiagnostics, AppError, AppSnapshot, CreateTaskInput, FocusSettingsPatch,
     MoveTasksInput, StartFocusInput, TasksWindowIntent, UpdateTaskInput,
 };
-use crate::services::sync_focus_scheduler;
+use crate::services::{close_reusable_window, show_and_focus_window, sync_focus_scheduler};
 use crate::state::AppState;
 
 #[path = "window-placement.rs"]
@@ -17,9 +17,7 @@ mod window_placement;
 use window_placement::calculate_tasks_window_position;
 #[path = "window-commands.rs"]
 mod window_commands;
-use window_commands::{
-    close_reusable_window, is_allowed_release_url, open_window, show_and_focus_window,
-};
+use window_commands::{is_allowed_release_url, open_window};
 
 const STORE_EVENTS: &[&str] = &["store-changed"];
 const SETTINGS_EVENTS: &[&str] = &["store-changed", "settings-changed"];
