@@ -148,3 +148,7 @@ pub(crate) fn handle_run_event<R: Runtime>(app: &AppHandle<R>, event: RunEvent) 
         cleanup_before_exit(app);
     }
 }
+
+#[cfg(test)]
+#[path = "app-lifecycle-tests.rs"]
+mod tests;
