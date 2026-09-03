@@ -1,5 +1,4 @@
-import { ChevronLeftIcon } from "../../icons"
-import { IconButton } from "../../components/icon-button"
+import { BackButton } from "../../components/back-button"
 import { Button } from "../../components/ui/button"
 import type { TaskFormProps } from "./task-form"
 
@@ -10,18 +9,13 @@ export function TaskFormHeader({
 }: Pick<TaskFormProps, "busy" | "mode" | "onCancel">) {
   return (
     <header className="mb-5 flex items-start gap-3 border-b border-border pb-5">
-      <IconButton
-        aria-label="Back to list"
-        className="mt-0.5 shrink-0 rounded-full bg-panel-hover text-muted hover:text-content"
+      <BackButton
+        ariaLabel="Back to list"
+        className="mt-0.5"
         disabled={busy}
         onClick={onCancel}
-        size="sm"
         title="Back to list"
-        type="button"
-        variant="ghost"
-      >
-        <ChevronLeftIcon aria-hidden="true" />
-      </IconButton>
+      />
       <div className="min-w-0">
         <h2 className="m-0 text-[clamp(1.35rem,3vw,1.85rem)] font-bold leading-[1.05] tracking-[-0.045em] text-content">
           {mode === "create" ? "New task" : "Edit task"}
