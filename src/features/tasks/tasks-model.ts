@@ -11,7 +11,7 @@ export const TASK_NOTES_MAX_CHARS = 500
 export const TASK_MIN_DURATION_MINUTES = 1
 export const TASK_MAX_DURATION_MINUTES = 180
 export const TASK_DEFAULT_DURATION_MINUTES = 25
-export const TASK_DURATION_PRESETS = [15, 25, 50] as const
+export const TASK_DURATION_PRESETS = [15, 25, 30, 50] as const
 
 export type TasksTab = "day" | "unscheduled"
 

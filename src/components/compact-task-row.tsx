@@ -1,21 +1,19 @@
 import { PauseIcon, PlayIcon } from "../icons"
-import type { DragEvent, KeyboardEvent } from "react"
+import type { KeyboardEvent } from "react"
 import type { FocusSnapshot, Task } from "../lib/desktopApi"
 import { Checkbox } from "./ui/checkbox"
 import { DragHandle } from "./drag-handle"
 import { IconButton } from "./icon-button"
 import { formatTaskDuration } from "./expanded-dashboard-model"
 import { cn } from "../lib/utils"
+import { stopTaskReorder } from "./task-reorder-events"
+import { useSortableTask } from "./use-sortable-task"
 
 export type CompactTaskRowProps = {
   task: Task
   focus: FocusSnapshot
   onToggleTask: (taskId: string, isDone: boolean) => void
   onToggleFocus: (taskId: string) => void
-  onReorderStart: (taskId: string) => void
-  onDragEnd: () => void
-  onDragOver: (event: DragEvent<HTMLElement>) => void
-  onDrop: (event: DragEvent<HTMLElement>) => void
   onOpenTask: (taskId: string) => void
   busy?: boolean
 }
@@ -39,6 +37,8 @@ function TaskBody({
         }
       }}
       onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+        stopTaskReorder(event)
+
         if (isBusy) {
           return
         }
@@ -83,16 +83,13 @@ function TaskBody({
 export function CompactTaskRow({
   busy,
   focus,
-  onDragEnd,
-  onDragOver,
-  onDrop,
   onOpenTask,
-  onReorderStart,
   onToggleFocus,
   onToggleTask,
   task,
 }: CompactTaskRowProps) {
   const isBusy = busy ?? false
+  const sortable = useSortableTask(task.id, isBusy)
   const canFocus = !task.isDone
   const isFocused =
     canFocus && focus.activeTaskId === task.id && focus.state !== "idle"
@@ -106,18 +103,27 @@ export function CompactTaskRow({
 
   return (
     <article
-      className="grid min-h-[var(--expanded-task-row-height)] min-w-0 grid-cols-[32px_16px_minmax(0,1fr)_32px] items-center gap-1.5 rounded-control bg-white/[0.035] p-[0_4px_0_0] transition-colors duration-150 hover:bg-white/[0.075]"
+      {...sortable.attributes}
+      className={cn(
+        "grid min-h-[var(--expanded-task-row-height)] min-w-0 cursor-grab grid-cols-[32px_20px_minmax(0,1fr)_32px] items-center gap-2.5 rounded-control bg-white/[0.035] p-[0_4px_0_0] transition-[background-color,border-color,box-shadow,opacity] duration-150 hover:bg-white/[0.075] active:cursor-grabbing",
+        sortable.isDragging &&
+          "z-10 border border-accent/60 bg-accent/15 opacity-90 shadow-accent-glow",
+        sortable.isOver &&
+          !sortable.isDragging &&
+          "border border-accent/60 bg-accent/10",
+      )}
       data-completed={task.isDone ? "true" : "false"}
+      data-dragging={sortable.isDragging ? "true" : "false"}
+      data-over={sortable.isOver ? "true" : "false"}
       data-slot="compact-task-row"
       data-task-id={task.id}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+      ref={sortable.setNodeAndActivatorRef}
+      style={sortable.style}
+      aria-label={`Reorder ${task.title}`}
+      {...sortable.listeners}
     >
       <DragHandle
-        disabled={isBusy}
-        onReorderEnd={onDragEnd}
-        onReorderStart={onReorderStart}
-        taskId={task.id}
+        interactive={false}
         taskTitle={task.title}
       />
 
@@ -129,6 +135,8 @@ export function CompactTaskRow({
         }
         checked={task.isDone}
         disabled={isBusy}
+        onKeyDown={stopTaskReorder}
+        onPointerDown={stopTaskReorder}
         onCheckedChange={(checked) => {
           if (typeof checked === "boolean") {
             onToggleTask(task.id, checked)
@@ -144,6 +152,8 @@ export function CompactTaskRow({
         data-slot="task-focus-toggle"
         disabled={isBusy || !canFocus}
         onClick={() => onToggleFocus(task.id)}
+        onKeyDown={stopTaskReorder}
+        onPointerDown={stopTaskReorder}
         size="sm"
         type="button"
         variant="ghost"

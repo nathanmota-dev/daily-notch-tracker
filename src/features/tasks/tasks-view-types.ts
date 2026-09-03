@@ -77,7 +77,7 @@ export type TasksListViewProps = {
 
 export type TaskDetailViewProps = Pick<
   TasksSurfaceContentProps,
-  "actions" | "draftController" | "mutations" | "routing" | "snapshot"
+  "actions" | "draftController" | "mutations"
 >
 
 export type TaskListAndCreateViewProps = Pick<

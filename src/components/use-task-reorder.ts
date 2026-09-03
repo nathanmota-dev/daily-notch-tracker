@@ -1,4 +1,6 @@
-import { useState, type DragEvent } from "react"
+import { useEffect, useState } from "react"
+
+import type { DragEndEvent, DragStartEvent } from "@dnd-kit/core"
 
 import { reorderTaskIds } from "./expanded-dashboard-model"
 
@@ -15,19 +17,24 @@ export function useTaskReorder({
 }: UseTaskReorderOptions) {
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null)
 
-  function handleDragOver(event: DragEvent<HTMLElement>) {
-    event.preventDefault()
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "move"
+  useEffect(() => {
+    if (draggedTaskId && !taskIds.includes(draggedTaskId)) {
+      setDraggedTaskId(null)
+    }
+  }, [draggedTaskId, taskIds])
+
+  function handleDragStart(event: DragStartEvent) {
+    if (!disabled) {
+      setDraggedTaskId(String(event.active.id))
     }
   }
 
-  function handleDrop(event: DragEvent<HTMLElement>, targetTaskId: string) {
-    event.preventDefault()
-    const sourceTaskId = event.dataTransfer?.getData("text/plain") || draggedTaskId
+  function handleDragEnd(event: DragEndEvent) {
+    const sourceTaskId = String(event.active.id)
+    const targetTaskId = event.over ? String(event.over.id) : null
     setDraggedTaskId(null)
 
-    if (!sourceTaskId || disabled) {
+    if (!targetTaskId || disabled) {
       return
     }
 
@@ -37,10 +44,14 @@ export function useTaskReorder({
     }
   }
 
+  function handleDragCancel() {
+    setDraggedTaskId(null)
+  }
+
   return {
-    handleDragOver,
-    handleDrop,
-    onReorderEnd: () => setDraggedTaskId(null),
-    onReorderStart: setDraggedTaskId,
+    draggedTaskId,
+    onDragCancel: handleDragCancel,
+    onDragEnd: handleDragEnd,
+    onDragStart: handleDragStart,
   }
 }
