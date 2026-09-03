@@ -131,11 +131,6 @@ body {
   font-family: var(--font-interface);
 }
 
-button,
-input {
-  font: inherit;
-}
-
 @keyframes progress-tray-rainbow {
   from {
     filter: drop-shadow(var(--progress-rgb-shadow)) hue-rotate(0deg);

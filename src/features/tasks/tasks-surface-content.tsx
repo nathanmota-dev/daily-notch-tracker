@@ -31,18 +31,15 @@ export function TasksSurfaceContent({
 
   return (
     <main
-      className="grid h-screen min-h-[480px] min-w-0 grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden bg-canvas p-5 text-content max-[640px]:h-auto max-[640px]:min-h-screen max-[640px]:overflow-visible"
+      className="mx-auto grid h-screen min-h-[480px] max-h-[550px] min-w-0 w-full max-w-[800px] grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden rounded-[22px] border border-white/[0.18] bg-black py-[18px] pl-5 pr-3 text-content max-[640px]:h-auto max-[640px]:min-h-screen max-[640px]:max-h-none max-[640px]:overflow-visible max-[640px]:rounded-none max-[640px]:border-0 max-[640px]:px-4"
       data-surface="tasks"
     >
       <TasksWindowHeader
-        activeTab={activeTab}
         busy={mutations.busy}
         onClose={actions.closeWindow}
-        onOpenSettings={actions.openSettings}
-        onTabChange={setActiveTab}
         openTaskCount={snapshot.tasks.filter((task) => !task.isDone).length}
       />
-      <div className="grid min-h-0 min-w-0 grid-cols-[220px_minmax(0,1fr)] gap-5 max-[640px]:grid-cols-1">
+      <div className="grid min-h-0 min-w-0 grid-cols-[minmax(250px,294px)_minmax(0,1fr)] gap-0 max-[640px]:grid-cols-1">
         <TasksSidebar
           busy={mutations.busy}
           onDateChange={setSelectedDate}
@@ -51,14 +48,17 @@ export function TasksSurfaceContent({
           showHeader={false}
         />
         <section
-          className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border pl-5 max-[640px]:border-l-0 max-[640px]:pl-0"
+          className="relative flex min-h-0 min-w-0 flex-col overflow-hidden border-l border-border pl-[18px] max-[640px]:border-l-0 max-[640px]:pl-0"
           data-slot="tasks-content"
         >
           <SelectedListHeader
+            activeTab={activeTab}
             busy={mutations.busy}
             date={activeTab === "day" ? selectedDate : ""}
-            onAdd={actions.openAdd}
-            showAdd={!isDetail && !isCreate}
+            onTabChange={setActiveTab}
+            unscheduledCount={
+              snapshot.tasks.filter((task) => task.scheduledDate === null).length
+            }
             taskCount={selectedTasks.length}
           />
           {isDetail ? (
@@ -81,7 +81,7 @@ export function TasksSurfaceContent({
           )}
           <FocusSessionPicker
             {...focusPicker}
-            className="absolute right-4 top-12"
+            className="absolute bottom-3 right-4"
           />
         </section>
       </div>

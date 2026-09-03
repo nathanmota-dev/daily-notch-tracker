@@ -1,7 +1,15 @@
 import type { DragEvent } from "react"
 
-import { EditIcon, PauseIcon, PlayIcon, TrashIcon } from "../../icons"
+import {
+  CalendarIcon,
+  ClockIcon,
+  EditIcon,
+  PauseIcon,
+  PlayIcon,
+  TrashIcon,
+} from "../../icons"
 import type { FocusSnapshot, Task } from "../../lib/desktopApi"
+import { getLocalDateString } from "../../lib/local-date"
 import { formatTaskDuration } from "./tasks-model"
 import { useTaskReorder } from "../../components/use-task-reorder"
 import { Checkbox } from "../../components/ui/checkbox"
@@ -48,14 +56,14 @@ function TaskSummary({
   return (
     <button
       aria-label={`Open details for ${task.title}`}
-      className="min-w-0 cursor-pointer border-0 bg-transparent py-1 text-left text-inherit outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+      className="min-w-0 cursor-pointer border-0 bg-transparent py-0 text-left text-inherit outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
       disabled={busy}
       onClick={() => onOpenTask(task.id)}
       type="button"
     >
       <span
         className={cn(
-          "block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.95rem] font-[650]",
+          "block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.85rem] font-semibold leading-[1.2]",
           task.isDone && "text-muted line-through",
         )}
       >
@@ -63,23 +71,38 @@ function TaskSummary({
       </span>
       <span
         className={cn(
-          "mt-1 block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.75rem] text-muted",
+          "mt-0.5 block min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[0.68rem] leading-[1.2] text-muted",
           task.isDone && "opacity-70",
         )}
       >
         {task.notes || "No note"}
       </span>
-      <span className="mt-1 flex flex-wrap gap-1 text-[0.63rem] text-muted">
-        <span className="rounded-pill bg-white/[0.08] px-1.5 py-0.5" data-slot="task-duration-chip">
-          {formatTaskDuration(task.estimateMinutes)}
-        </span>
-        {task.scheduledDate && (
-          <span className="rounded-pill bg-white/[0.08] px-1.5 py-0.5" data-slot="task-date-chip">
-            {task.scheduledDate}
-          </span>
-        )}
-      </span>
     </button>
+  )
+}
+
+function TaskMetadata({ task }: { task: Task }) {
+  const today = getLocalDateString()
+
+  return (
+    <div className="flex min-w-0 shrink-0 items-center gap-1.5 text-[0.62rem] text-muted [&_svg]:size-2.5">
+      {task.scheduledDate && (
+        <span
+          className="inline-flex items-center gap-1 rounded-pill bg-white/[0.08] px-3 py-1 whitespace-nowrap"
+          data-slot="task-date-chip"
+        >
+          <CalendarIcon aria-hidden="true" />
+          {task.scheduledDate === today ? "Today" : task.scheduledDate}
+        </span>
+      )}
+      <span
+        className="inline-flex items-center gap-1 rounded-pill bg-white/[0.08] px-2 py-1 whitespace-nowrap"
+        data-slot="task-duration-chip"
+      >
+        <ClockIcon aria-hidden="true" />
+        {formatTaskDuration(task.estimateMinutes).replace(" min", "m")}
+      </span>
+    </div>
   )
 }
 
@@ -99,19 +122,8 @@ function TaskActions({
   return (
     <>
       <IconButton
-        aria-label={`Edit ${task.title}`}
-        className="text-muted"
-        disabled={busy}
-        onClick={() => onOpenTask(task.id)}
-        size="sm"
-        type="button"
-        variant="ghost"
-      >
-        <EditIcon aria-hidden="true" />
-      </IconButton>
-      <IconButton
         aria-label={label}
-        className="text-accent"
+        className="size-8 rounded-full bg-accent p-0 text-canvas hover:bg-accent/85"
         disabled={busy || !canFocus}
         onClick={() => onToggleFocus(task.id)}
         size="sm"
@@ -121,8 +133,19 @@ function TaskActions({
         <Icon aria-hidden="true" />
       </IconButton>
       <IconButton
+        aria-label={`Edit ${task.title}`}
+        className="size-8 rounded-full bg-panel-hover p-0 text-muted hover:bg-white/[0.12] hover:text-content"
+        disabled={busy}
+        onClick={() => onOpenTask(task.id)}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        <EditIcon aria-hidden="true" />
+      </IconButton>
+      <IconButton
         aria-label={`Delete ${task.title}`}
-        className="text-muted hover:text-danger"
+        className="size-8 rounded-full bg-panel-hover p-0 text-muted hover:bg-danger/15 hover:text-danger"
         disabled={busy}
         onClick={() => onDeleteTask(task.id)}
         size="sm"
@@ -153,7 +176,7 @@ function TaskRow({
 
   return (
     <article
-      className="grid min-h-16 grid-cols-[36px_20px_minmax(0,1fr)_repeat(3,32px)] items-center gap-1 rounded-card border border-border bg-panel p-[8px_8px_8px_0] transition-[background-color,border-color] duration-150 hover:border-border-strong hover:bg-panel-hover"
+      className="group relative grid min-h-[55px] min-w-0 grid-cols-[20px_minmax(0,1fr)_auto_repeat(3,32px)] items-center gap-3 rounded-[11px] border border-transparent bg-panel px-3 py-2 transition-[background-color,border-color] duration-150 hover:border-border-strong hover:bg-panel-hover"
       data-completed={task.isDone ? "true" : "false"}
       data-slot="tasks-task-row"
       data-task-id={task.id}
@@ -161,6 +184,7 @@ function TaskRow({
       onDrop={onDrop}
     >
       <DragHandle
+        className="absolute left-0 top-1/2 z-10 size-5 -translate-y-1/2 opacity-[0.001] transition-opacity group-hover:opacity-100 focus-within:opacity-100"
         disabled={busy}
         onReorderEnd={onReorderEnd}
         onReorderStart={onReorderStart}
@@ -173,6 +197,7 @@ function TaskRow({
             ? `Mark ${task.title} as incomplete`
             : `Mark ${task.title} as complete`
         }
+        className="size-5 rounded-full"
         checked={task.isDone}
         disabled={busy}
         onCheckedChange={(checked) => {
@@ -182,6 +207,7 @@ function TaskRow({
         }}
       />
       <TaskSummary busy={busy} onOpenTask={onOpenTask} task={task} />
+      <TaskMetadata task={task} />
       <TaskActions
         Icon={Icon}
         busy={busy}
@@ -219,7 +245,7 @@ export function TaskList({
     return (
       <button
         aria-label="Add your first task"
-        className="flex min-h-[180px] w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-card border border-dashed border-border-strong bg-white/[0.02] p-6 text-muted outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="flex min-h-[120px] w-full cursor-pointer flex-col items-center justify-center gap-1.5 rounded-control border border-dashed border-border-strong bg-white/[0.02] p-6 text-muted outline-none focus-visible:rounded-control focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
         disabled={busy}
         onClick={onAddTask}
         type="button"

@@ -31,13 +31,13 @@ const expandedTasks = {
     id: "expanded-task-1",
     title: "Plan the next focused block",
     notes: "Set the top priority for today.",
-    duration: "25 min",
+    duration: "25m",
   },
   second: {
     id: "expanded-task-2",
     title: "Review the desktop contract",
     notes: "Keep the boundary between UI and desktop code clear.",
-    duration: "50 min",
+    duration: "50m",
   },
   completed: {
     id: "expanded-task-3",
@@ -50,7 +50,7 @@ async function leaveOverlay(page: Page) {
     overlay.dispatchEvent(
       new PointerEvent("pointerout", {
         bubbles: true,
-        relatedTarget: document.body,
+        relatedTarget: null,
       }),
     )
   })
@@ -303,13 +303,45 @@ test.describe("DailyNotch surface router", () => {
     await expect(content).toBeVisible()
     await expect(page.getByRole("heading", { name: "Calendar" })).toBeVisible()
     await expect(page.getByRole("heading", { name: "Day" })).toBeVisible()
-    await expect(page.getByRole("button", { name: "Settings" })).toBeVisible()
+    await expect(page.getByRole("button", { name: "Settings" })).toHaveCount(0)
     await expect(
       page.locator('[data-slot="tasks-events"]'),
     ).toHaveCount(0)
 
     const sidebarBox = await sidebar.boundingBox()
-    expect(sidebarBox?.width).toBe(220)
+    expect(sidebarBox?.width).toBe(294)
+  })
+
+  test("keeps the Tasks window compact at reference sizes", async ({ page }) => {
+    for (const size of [
+      { width: 922, height: 600 },
+      { width: 760, height: 480 },
+    ]) {
+      await page.setViewportSize(size)
+      await loadTasksFixture(page, "expanded", "list")
+
+      const surface = page.locator('[data-surface="tasks"]')
+      const box = await surface.boundingBox()
+      const documentSize = await page.evaluate(() => ({
+        height: document.documentElement.scrollHeight,
+        width: document.documentElement.scrollWidth,
+      }))
+
+      expect(box?.width ?? 0).toBeLessThanOrEqual(Math.min(size.width, 800))
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(size.width)
+      expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(size.height)
+      expect(documentSize.width).toBeLessThanOrEqual(size.width)
+      expect(documentSize.height).toBeLessThanOrEqual(size.height)
+
+      await page.goto(
+        `/?surface=tasks&fixture=expanded&intent=add`,
+      )
+      const form = page.locator('[data-slot="inline-task-form"]')
+      const formBox = await form.boundingBox()
+      expect((formBox?.x ?? 0) + (formBox?.width ?? 0)).toBeLessThanOrEqual(size.width)
+      expect((formBox?.y ?? 0) + (formBox?.height ?? 0)).toBeLessThanOrEqual(size.height)
+      await expect(page.locator("#inline-task-title")).toBeFocused()
+    }
   })
 
   test("renders and navigates the monthly Tasks calendar", async ({ page }) => {
@@ -350,7 +382,7 @@ test.describe("DailyNotch surface router", () => {
     await loadTasksFixture(page, "expanded", "list")
 
     await expect(page.locator('[data-slot="tasks-task-row"]')).toHaveCount(2)
-    await expect(page.getByText("2 open tasks", { exact: true })).toBeVisible()
+    await expect(page.locator('[data-slot="tasks-open-count"]')).toHaveText("2 open")
     await expect(
       page.locator('[data-slot="tasks-day-title"]'),
     ).toContainText("2 tasks")
@@ -366,7 +398,7 @@ test.describe("DailyNotch surface router", () => {
       ).toHaveText(task.duration)
       await expect(
         row.locator('[data-slot="task-date-chip"]'),
-      ).toHaveText(/^\d{4}-\d{2}-\d{2}$/)
+      ).toHaveText("Today")
       await expect(
         row.getByRole("button", { name: `Open details for ${task.title}` }),
       ).toBeVisible()
@@ -400,7 +432,6 @@ test.describe("DailyNotch surface router", () => {
     await expect(page.locator("#inline-task-title")).toBeFocused()
     await page.locator("#inline-task-title").fill("Unscheduled browser task")
     await page.locator("#inline-task-notes").fill("Keep this task undated.")
-    await page.locator("#inline-task-duration").fill("15")
     await page.getByRole("button", { name: "Add task" }).click()
 
     const createdTask = taskRow(page, "mock-task-1")
@@ -429,15 +460,8 @@ test.describe("DailyNotch surface router", () => {
     await expect(form).toBeVisible()
     await expect(page.locator("#inline-task-title")).toBeFocused()
 
-    const today = await taskRow(page, expandedTasks.first.id)
-      .locator('[data-slot="task-date-chip"]')
-      .textContent()
-    expect(today).toMatch(/^\d{4}-\d{2}-\d{2}$/)
-
     await page.locator("#inline-task-title").fill("Scheduled browser task")
     await page.locator("#inline-task-notes").fill("Created from the add intent.")
-    await page.locator("#inline-task-duration").fill("50")
-    await page.locator("#inline-task-date").fill(today!.trim())
     await form.getByRole("button", { name: "Add task" }).click()
 
     await expect(form).toHaveCount(0)
@@ -447,11 +471,11 @@ test.describe("DailyNotch surface router", () => {
     await expect(createdTask).toContainText("Created from the add intent.")
     await expect(
       createdTask.locator('[data-slot="task-duration-chip"]'),
-    ).toHaveText("50 min")
+    ).toHaveText("25m")
     await expect(
       createdTask.locator('[data-slot="task-date-chip"]'),
-    ).toHaveText(today!.trim())
-    await expect(page.getByText("3 open tasks", { exact: true })).toBeVisible()
+    ).toHaveText("Today")
+    await expect(page.locator('[data-slot="tasks-open-count"]')).toHaveText("3 open")
   })
 
   test("cancels the inline add form without creating a task", async ({
@@ -466,7 +490,7 @@ test.describe("DailyNotch surface router", () => {
     await expect(form).toHaveCount(0)
     await expect(page.locator('[data-slot="tasks-task-row"]')).toHaveCount(2)
     await expect(page.getByText("Cancelled browser task")).toHaveCount(0)
-    await expect(page.getByText("2 open tasks", { exact: true })).toBeVisible()
+    await expect(page.locator('[data-slot="tasks-open-count"]')).toHaveText("2 open")
   })
 
   test("opens the empty-state CTA into the inline task form", async ({
@@ -555,7 +579,7 @@ test.describe("DailyNotch surface router", () => {
     )
     await expect(
       editedTask.locator('[data-slot="task-duration-chip"]'),
-    ).toHaveText("50 min")
+    ).toHaveText("50m")
     await expect(
       editedTask.locator('[data-slot="task-date-chip"]'),
     ).toHaveCount(0)
@@ -603,7 +627,7 @@ test.describe("DailyNotch surface router", () => {
         name: `Start focus for ${expandedTasks.completed.title}`,
       }),
     ).toBeDisabled()
-    await expect(page.getByText("2 open tasks", { exact: true })).toBeVisible()
+    await expect(page.locator('[data-slot="tasks-open-count"]')).toHaveText("2 open")
 
     await taskRow(page, expandedTasks.first.id)
       .getByRole("checkbox", {
@@ -623,22 +647,58 @@ test.describe("DailyNotch surface router", () => {
       "data-task-id",
       expandedTasks.second.id,
     )
-    await expect(page.getByText("1 open task", { exact: true })).toBeVisible()
+    await expect(page.locator('[data-slot="tasks-open-count"]')).toHaveText("1 open")
   })
 
   test("reorders task rows through the drag handle", async ({ page }) => {
     await loadTasksFixture(page, "expanded", "list")
 
-    const firstRow = taskRow(page, expandedTasks.first.id)
-    const secondRow = taskRow(page, expandedTasks.second.id)
     await expect(await taskRowIds(page)).toEqual([
       expandedTasks.first.id,
       expandedTasks.second.id,
     ])
 
-    await firstRow
-      .getByRole("button", { name: `Reorder ${expandedTasks.first.title}` })
-      .dragTo(secondRow)
+    await page.evaluate(() => {
+      const source = document.querySelector(
+        '[data-slot="tasks-task-row"][data-task-id="expanded-task-1"] [data-slot="drag-handle"]',
+      )
+      const target = document.querySelector(
+        '[data-slot="tasks-task-row"][data-task-id="expanded-task-2"]',
+      )
+      if (!source || !target) {
+        throw new Error("Task reorder targets are missing")
+      }
+
+      const dataTransfer = new DataTransfer()
+      source.dispatchEvent(
+        new DragEvent("dragstart", {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer,
+        }),
+      )
+      target.dispatchEvent(
+        new DragEvent("dragover", {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer,
+        }),
+      )
+      target.dispatchEvent(
+        new DragEvent("drop", {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer,
+        }),
+      )
+      source.dispatchEvent(
+        new DragEvent("dragend", {
+          bubbles: true,
+          cancelable: true,
+          dataTransfer,
+        }),
+      )
+    })
 
     await expect.poll(() => taskRowIds(page)).toEqual([
       expandedTasks.second.id,
@@ -773,7 +833,7 @@ test.describe("DailyNotch surface router", () => {
 
     await page.getByRole("button", { name: "Add a task" }).click()
     await expect(page.locator('[data-surface="tasks"]')).toBeVisible()
-    await expect(page.getByRole("heading", { name: "New task" })).toBeVisible()
+    await expect(page.locator('[data-slot="inline-task-form"]')).toBeVisible()
 
     await page.getByLabel("Title").fill("Browser flow task")
     await page.getByRole("button", { name: "Add task" }).click()

@@ -14,7 +14,7 @@ export function TasksSidebar({
   return (
     <aside
       aria-label="Tasks sidebar"
-      className="flex min-h-0 min-w-0 flex-col gap-7 overflow-y-auto bg-transparent py-1 pr-5 max-[640px]:border-b max-[640px]:border-border max-[640px]:pb-5 max-[640px]:pr-0"
+      className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-transparent pr-[18px] pt-[18px] max-[640px]:border-b max-[640px]:pb-5 max-[640px]:pr-0 max-[640px]:pt-0"
       data-slot="tasks-sidebar"
     >
       {showHeader && (
@@ -43,7 +43,7 @@ export function TasksSidebar({
 
       <section
         aria-labelledby="tasks-calendar-heading"
-        className="grid gap-5"
+        className="grid min-h-0 flex-1 gap-5"
         data-slot="tasks-calendar"
       >
         <h2 id="tasks-calendar-heading" className="sr-only">

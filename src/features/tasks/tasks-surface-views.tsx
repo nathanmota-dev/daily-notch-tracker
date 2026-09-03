@@ -63,40 +63,60 @@ export function MutationError({ error }: TasksMutationErrorProps) {
 }
 
 export function SelectedListHeader({
+  activeTab,
   busy,
   date,
-  onAdd,
-  showAdd,
+  onTabChange,
   taskCount,
+  unscheduledCount,
 }: TasksSelectedListHeaderProps) {
   return (
     <header
-      className="flex shrink-0 items-start justify-between gap-4 pb-4"
+      className="flex shrink-0 items-center justify-between gap-3 pb-4"
       data-date={date}
       data-slot="tasks-day-header"
     >
       <div className="min-w-0">
-        <p className="m-0 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted">
-          {date ? "Selected day" : "Task list"}
-        </p>
-        <h2 className="m-0 mt-1 truncate text-[1.45rem] font-bold leading-tight tracking-[-0.035em] text-content">
-          {date ? "Day" : "Unscheduled"}
+        <h2
+          aria-label={date ? "Day" : "Unscheduled"}
+          className="m-0 truncate text-[0.95rem] font-semibold leading-tight tracking-[-0.02em] text-content"
+        >
+          {date ? "Today" : "Unscheduled"}
         </h2>
-        <p className="m-0 mt-1 text-[0.78rem] text-muted" data-slot="tasks-day-title">
-          {date ? formatSelectedDay(date) : "Tasks without a date"} · {taskCount} {taskCount === 1 ? "task" : "tasks"}
+        <p className="sr-only" data-slot="tasks-day-title">
+          {date ? formatSelectedDay(date) : "Tasks without a date"} · {taskCount}{" "}
+          {taskCount === 1 ? "task" : "tasks"}
         </p>
       </div>
-      {showAdd && (
+      <div
+        aria-label="Task lists"
+        className="inline-flex shrink-0 rounded-full bg-panel-hover p-0.5"
+        data-slot="tasks-segmented-control"
+        role="tablist"
+      >
         <button
-          aria-label="Add task"
-          className="shrink-0 cursor-pointer rounded-control border border-border bg-transparent px-3 py-2 text-[0.76rem] font-semibold text-content outline-none transition-colors hover:border-border-strong hover:bg-panel-hover focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+          aria-label="Day"
+          aria-selected={activeTab === "day"}
+          className="min-h-7 cursor-pointer rounded-full border-0 bg-transparent px-3 text-[0.7rem] font-semibold text-muted outline-none transition-colors hover:text-content aria-selected:bg-accent aria-selected:text-canvas focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
           disabled={busy}
-          onClick={onAdd}
+          onClick={() => onTabChange("day")}
+          role="tab"
           type="button"
         >
-          Add task
+          Day
         </button>
-      )}
+        <button
+          aria-label="Unscheduled"
+          aria-selected={activeTab === "unscheduled"}
+          className="min-h-7 cursor-pointer rounded-full border-0 bg-transparent px-3 text-[0.7rem] font-semibold text-muted outline-none transition-colors hover:text-content aria-selected:bg-accent aria-selected:text-canvas focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+          disabled={busy}
+          onClick={() => onTabChange("unscheduled")}
+          role="tab"
+          type="button"
+        >
+          Unscheduled {unscheduledCount}
+        </button>
+      </div>
     </header>
   )
 }
@@ -116,7 +136,7 @@ export function TasksListView({
   return (
     <section
       aria-label="Tasks in selected list"
-      className="min-h-0 min-w-0 flex-1 overflow-y-auto pr-1"
+      className="min-h-0 min-w-0 flex-1 overflow-y-auto"
     >
       <MutationError error={error} />
       <TaskList
@@ -204,6 +224,17 @@ export function TaskListAndCreateView({
           onSubmit={actions.saveDraft}
           titleRef={draftController.titleRef}
         />
+      )}
+      {!isCreate && (
+        <button
+          aria-label="Add task"
+          className="flex h-11 w-full shrink-0 cursor-pointer items-center justify-start rounded-control border border-border bg-panel px-3 text-left text-[0.76rem] font-semibold text-muted outline-none transition-colors hover:border-border-strong hover:bg-panel-hover hover:text-content focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+          disabled={mutations.busy}
+          onClick={actions.openAdd}
+          type="button"
+        >
+          Add a task
+        </button>
       )}
     </div>
   )

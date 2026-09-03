@@ -81,11 +81,11 @@ describe("App", () => {
     expect(screen.queryByText("Contrato desktop conectado")).not.toBeInTheDocument()
   })
 
-  it("uses an opaque canvas for normal window surfaces", async () => {
+  it("uses a compact opaque canvas for normal window surfaces", async () => {
     render(<App api={createMockDesktopApi().api} surface="tasks" />)
 
     expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument()
-    expect(screen.getByRole("main")).toHaveClass("bg-canvas")
+    expect(screen.getByRole("main")).toHaveClass("bg-black")
   })
 
   it("renders a supplied focus snapshot without coupling the shell to Tauri", () => {
@@ -333,11 +333,15 @@ describe("App", () => {
 
       act(() => controller.emit("shortcut-changed", updatedSnapshot))
 
-      expect(
-        await screen.findByText(
-          surface === "tasks" ? /1\s+open\s+task/ : "1 tarefa",
-        ),
-      ).toBeInTheDocument()
+      if (surface === "tasks") {
+        await waitFor(() =>
+          expect(
+            document.querySelector('[data-slot="tasks-open-count"]'),
+          ).toHaveTextContent("1 open"),
+        )
+      } else {
+        expect(await screen.findByText("1 tarefa")).toBeInTheDocument()
+      }
     },
   )
 

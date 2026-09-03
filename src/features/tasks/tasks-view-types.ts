@@ -19,12 +19,9 @@ import type {
 export type TasksViewIntent = "list" | "create" | "detail"
 
 export type TasksWindowHeaderProps = {
-  activeTab: TasksTab
   busy: boolean
   openTaskCount: number
   onClose: () => void
-  onOpenSettings: () => void
-  onTabChange: (tab: TasksTab) => void
 }
 
 export type TasksFocusPickerProps = FocusSessionPickerProps
@@ -57,10 +54,11 @@ export type TasksMutationErrorProps = {
 }
 
 export type TasksSelectedListHeaderProps = {
+  activeTab: TasksTab
   busy: boolean
   date: string
-  onAdd: () => void
-  showAdd: boolean
+  onTabChange: (tab: TasksTab) => void
+  unscheduledCount: number
   taskCount: number
 }
 

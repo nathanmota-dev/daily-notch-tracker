@@ -99,19 +99,14 @@ describe("Tasks surface", () => {
     expect(document.querySelector('[data-slot="tasks-events"]')).not.toBeInTheDocument()
   })
 
-  it("opens Settings through the desktop API", async () => {
-    const openSettingsWindow = vi.fn(async () => undefined)
-    const controller = createMockDesktopApi({
-      handlers: { openSettingsWindow },
-      snapshot: createSnapshot([]),
-    })
+  it("keeps the Tasks header compact", async () => {
+    const controller = createMockDesktopApi({ snapshot: createSnapshot([]) })
 
     render(<AppForTasks api={controller.api} />)
     await screen.findByRole("heading", { name: "Tasks" })
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Settings" }))
-
-    await waitFor(() => expect(openSettingsWindow).toHaveBeenCalledOnce())
+    expect(screen.queryByRole("button", { name: "Settings" })).not.toBeInTheDocument()
+    expect(document.querySelector('[data-slot="tasks-window-header"]')).toBeInTheDocument()
   })
 
   it("keeps Day and Unscheduled buckets independent", async () => {
@@ -194,14 +189,14 @@ describe("Tasks surface", () => {
     const snapshot = createSnapshot([])
     const createdTask = createTask("created-task", "Created task", {
       notes: "A note",
-      estimateMinutes: 40,
+      estimateMinutes: 25,
     })
     const addTask = vi.fn(async (input: CreateTaskInput) => {
       expect(input).toEqual({
         title: "Created task",
         notes: "A note",
         scheduledDate: today,
-        estimateMinutes: 40,
+        estimateMinutes: 25,
       })
       return createSnapshot([createdTask], { revision: 2 })
     })
@@ -219,8 +214,6 @@ describe("Tasks surface", () => {
     expect(title).toHaveFocus()
     await user.type(title, "Created task")
     await user.type(screen.getByLabelText("Notes"), "A note")
-    await user.clear(screen.getByLabelText("Duration (minutes)"))
-    await user.type(screen.getByLabelText("Duration (minutes)"), "40")
     await user.click(screen.getByRole("button", { name: "Add task" }))
 
     await waitFor(() => expect(addTask).toHaveBeenCalledOnce())
@@ -399,7 +392,7 @@ describe("Tasks surface", () => {
     expect(screen.queryByText("Discarded task")).not.toBeInTheDocument()
   })
 
-  it("keeps an invalid duration visible and does not call the API", async () => {
+  it("keeps scheduling controls out of the compact add form", async () => {
     const snapshot = createSnapshot([])
     const addTask = vi.fn(async () => createSnapshot([]))
     const applySnapshot = vi.fn()
@@ -420,21 +413,13 @@ describe("Tasks surface", () => {
     await screen.findByRole("heading", { name: "Tasks" })
     const user = userEvent.setup()
     await user.click(screen.getByRole("button", { name: "Add task" }))
-    await user.type(screen.getByLabelText("Title"), "Invalid duration task")
-    const duration = screen.getByRole("spinbutton", {
-      name: "Duration (minutes)",
-    })
-    await user.clear(duration)
-    await user.type(duration, "181")
-    await user.click(screen.getByRole("button", { name: "Add task" }))
 
+    expect(screen.getByRole("form", { name: "Create task" })).toBeInTheDocument()
+    expect(screen.queryByRole("spinbutton", { name: "Duration (minutes)" })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Date")).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Add task" })).toBeDisabled()
     expect(addTask).not.toHaveBeenCalled()
     expect(refreshSnapshot).not.toHaveBeenCalled()
-    expect(duration).toHaveValue(181)
-    expect(screen.getByRole("heading", { name: "New task" })).toBeInTheDocument()
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Duration must be between 1 and 180 minutes.",
-    )
   })
 
   it("keeps the draft after a validation rollback and hides the backend message", async () => {
@@ -613,7 +598,7 @@ describe("Tasks surface", () => {
     await waitFor(() => expect(getSnapshot).toHaveBeenCalledTimes(2))
     expect(alert).toHaveTextContent("conflict")
     expect(alert).not.toHaveTextContent("private")
-    expect(screen.getByRole("heading", { name: "New task" })).toBeInTheDocument()
+    expect(screen.getByRole("form", { name: "Create task" })).toBeInTheDocument()
   })
 
   it("routes initial and transient list, add, and task intents", async () => {
@@ -623,7 +608,7 @@ describe("Tasks surface", () => {
       search: "?surface=tasks&intent=add",
     })
 
-    expect(await screen.findByRole("heading", { name: "New task" })).toBeInTheDocument()
+    expect(await screen.findByRole("form", { name: "Create task" })).toBeInTheDocument()
     expect(screen.getByLabelText("Title")).toHaveFocus()
 
     await act(async () => {

@@ -1,5 +1,6 @@
 import type { IconBaseProps, IconType } from "react-icons"
 import {
+  FiCalendar,
   FiCheck,
   FiChevronDown,
   FiChevronLeft,
@@ -25,6 +26,7 @@ export type AppIconProps = IconBaseProps
 export type AppIcon = IconType
 
 export const icons = {
+  calendar: FiCalendar,
   clock: FiClock,
   play: FiPlay,
   pause: FiPause,
@@ -47,6 +49,7 @@ export const icons = {
 } satisfies Record<string, AppIcon>
 
 export const {
+  calendar: CalendarIcon,
   clock: ClockIcon,
   play: PlayIcon,
   pause: PauseIcon,
