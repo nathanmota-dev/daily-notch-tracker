@@ -136,8 +136,8 @@ describe("TaskForm", () => {
 
   it("renders edit-only controls and uses Save for existing tasks", async () => {
     const user = userEvent.setup()
+    const onCancel = vi.fn()
     const onDelete = vi.fn()
-    const onFocus = vi.fn()
     const onDoneChange = vi.fn()
 
     render(
@@ -149,28 +149,34 @@ describe("TaskForm", () => {
           title: "Existing task",
         }}
         errors={{}}
-        focusActionLabel="Start focus for Existing task"
         mode="edit"
-        onCancel={vi.fn()}
+        onCancel={onCancel}
         onChange={vi.fn()}
         onDelete={onDelete}
         onDoneChange={onDoneChange}
-        onFocus={onFocus}
         onSubmit={vi.fn()}
         titleRef={createRef<HTMLInputElement>()}
       />,
     )
 
     expect(screen.getByRole("heading", { name: "Edit task" })).toBeInTheDocument()
+    expect(screen.queryByText("Task details")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "Start focus for Existing task" }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Back to list" })).toHaveAttribute(
+      "title",
+      "Back to list",
+    )
     expect(screen.getByRole("button", { name: "Save task" })).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: "Start focus for Existing task" }))
     await user.click(
       screen.getByRole("checkbox", { name: /Mark task as complete/ }),
     )
     await user.click(screen.getByRole("button", { name: "Delete task" }))
+    await user.click(screen.getByRole("button", { name: "Back to list" }))
 
-    expect(onFocus).toHaveBeenCalledOnce()
     expect(onDoneChange).toHaveBeenCalledWith(true)
     expect(onDelete).toHaveBeenCalledOnce()
+    expect(onCancel).toHaveBeenCalledOnce()
   })
 })

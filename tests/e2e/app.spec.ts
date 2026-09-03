@@ -523,11 +523,15 @@ test.describe("DailyNotch surface router", () => {
     await expect(
       page.getByRole("checkbox", { name: "Mark task as complete" }),
     ).not.toBeChecked()
+    await expect(page.getByText("Task details")).toHaveCount(0)
     await expect(
       page.getByRole("button", {
         name: `Start focus for ${expandedTasks.first.title}`,
       }),
-    ).toBeEnabled()
+    ).toHaveCount(0)
+    await expect(
+      page.getByRole("button", { name: "Back to list" }),
+    ).toHaveAttribute("title", "Back to list")
   })
 
   test("falls back to the list for a similar but invalid task id", async ({

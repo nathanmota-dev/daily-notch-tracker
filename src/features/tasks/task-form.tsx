@@ -5,7 +5,6 @@ import type {
 } from "react"
 
 import { FocusTimePicker } from "../../components/focus-time-picker"
-import { Button } from "../../components/ui/button"
 import { Checkbox } from "../../components/ui/checkbox"
 import { cn } from "../../lib/utils"
 import {
@@ -17,6 +16,7 @@ import {
   type TaskDraftErrors,
   type TaskDraftField,
 } from "./tasks-model"
+import { TaskFormFooter, TaskFormHeader } from "./task-form-layout"
 
 export type TaskFormProps = {
   mode: "create" | "edit"
@@ -24,13 +24,11 @@ export type TaskFormProps = {
   errors: TaskDraftErrors
   busy: boolean
   titleRef: RefObject<HTMLInputElement | null>
-  focusActionLabel?: string
   onChange: (field: TaskDraftField, value: string) => void
   onDoneChange?: (isDone: boolean) => void
   onSubmit: () => void
   onCancel: () => void
   onDelete?: () => void
-  onFocus?: () => void
 }
 
 type FieldProps = {
@@ -115,8 +113,8 @@ function TaskTextFields({
   }
 
   return (
-    <>
-      <div className="mb-[18px] grid gap-2">
+    <div className="grid gap-4">
+      <div className="grid gap-2">
         <LabeledField error={errors.title} id="task-title" label="Title" />
         <input
           aria-describedby={errors.title ? "task-title-error" : undefined}
@@ -141,7 +139,7 @@ function TaskTextFields({
         <FieldError error={errors.title} id="task-title-error" />
       </div>
 
-      <div className="mb-[18px] grid gap-2">
+      <div className="grid gap-2">
         <LabeledField error={errors.notes} id="task-notes" label="Notes" />
         <textarea
           aria-describedby={errors.notes ? "task-notes-error" : undefined}
@@ -162,7 +160,7 @@ function TaskTextFields({
         />
         <FieldError error={errors.notes} id="task-notes-error" />
       </div>
-    </>
+    </div>
   )
 }
 
@@ -172,8 +170,8 @@ function TaskScheduleFields({
   onChange,
 }: Pick<TaskFormProps, "draft" | "errors" | "onChange">) {
   return (
-    <div className="grid grid-cols-2 gap-4 max-[640px]:grid-cols-1 max-[640px]:gap-0">
-      <div className="mb-[18px] grid gap-2">
+    <div className="grid grid-cols-2 gap-3 max-[640px]:grid-cols-1">
+      <div className="grid gap-2">
         <FocusTimePicker
           error={errors.estimateMinutes}
           id="task-duration"
@@ -184,7 +182,7 @@ function TaskScheduleFields({
         />
       </div>
 
-      <div className="mb-[18px] grid gap-2">
+      <div className="grid gap-2">
         <LabeledField
           error={errors.scheduledDate}
           id="task-date"
@@ -197,7 +195,9 @@ function TaskScheduleFields({
           aria-invalid={Boolean(errors.scheduledDate)}
           className={fieldClassName(errors.scheduledDate)}
           id="task-date"
-          onChange={(event) => onChange("scheduledDate", event.currentTarget.value)}
+          onChange={(event) =>
+            onChange("scheduledDate", event.currentTarget.value)
+          }
           type="date"
           value={draft.scheduledDate}
         />
@@ -211,13 +211,11 @@ export function TaskForm({
   busy,
   draft,
   errors,
-  focusActionLabel,
   mode,
   onCancel,
   onChange,
   onDelete,
   onDoneChange,
-  onFocus,
   onSubmit,
   titleRef,
 }: TaskFormProps) {
@@ -228,85 +226,55 @@ export function TaskForm({
 
   return (
     <form
-      className="mt-5 min-h-0 w-full flex-[1_1_auto] overflow-y-auto rounded-panel border border-border bg-panel p-[clamp(20px,4vw,36px)] shadow-panel"
+      aria-label={mode === "create" ? "Create task" : "Edit task"}
+      className="min-h-0 w-full flex-[1_1_auto] overflow-y-auto rounded-panel border border-border bg-panel p-[clamp(16px,3vw,28px)] shadow-panel"
+      data-slot="task-form"
       noValidate
       onSubmit={handleSubmit}
     >
-      <div className="mb-7 flex items-start justify-between gap-4 max-[640px]:flex-col">
-        <div>
-          <p className="m-0 mb-1.5 text-[0.7rem] font-[650] uppercase tracking-[0.16em] text-muted">
-            Task details
-          </p>
-          <h2 className="m-0 text-[clamp(1.5rem,3vw,2rem)] font-bold leading-[1.05] tracking-[-0.045em] text-content">
-            {mode === "create" ? "New task" : "Edit task"}
-          </h2>
-        </div>
-        <div className="flex flex-wrap justify-end gap-2 max-[640px]:justify-start">
-          {onFocus && focusActionLabel && (
-            <Button
-              disabled={busy || draft.isDone}
-              onClick={onFocus}
-              type="button"
-              variant="outline"
-            >
-              {focusActionLabel}
-            </Button>
+      <TaskFormHeader busy={busy} mode={mode} onCancel={onCancel} />
+
+      <div className="grid gap-4">
+        <section className="rounded-control border border-border bg-canvas p-4">
+          <TaskTextFields
+            draft={draft}
+            errors={errors}
+            onChange={onChange}
+            titleRef={titleRef}
+          />
+        </section>
+
+        <section className="grid gap-4 rounded-control border border-border bg-panel-hover/50 p-4">
+          <TaskScheduleFields
+            draft={draft}
+            errors={errors}
+            onChange={onChange}
+          />
+
+          {mode === "edit" && onDoneChange && (
+            <label className="inline-flex cursor-pointer items-center gap-2.5 border-t border-border pt-3 text-[0.85rem] text-content">
+              <Checkbox
+                aria-label="Mark task as complete"
+                checked={draft.isDone}
+                disabled={busy}
+                onCheckedChange={(checked) => {
+                  if (typeof checked === "boolean") {
+                    onDoneChange(checked)
+                  }
+                }}
+              />
+              <span>Completed</span>
+            </label>
           )}
-          <Button disabled={busy} onClick={onCancel} type="button" variant="ghost">
-            Back to list
-          </Button>
-        </div>
+        </section>
       </div>
 
-      <TaskTextFields
-        draft={draft}
-        errors={errors}
-        onChange={onChange}
-        titleRef={titleRef}
+      <TaskFormFooter
+        busy={busy}
+        mode={mode}
+        onCancel={onCancel}
+        onDelete={onDelete}
       />
-      <TaskScheduleFields draft={draft} errors={errors} onChange={onChange} />
-
-      {mode === "edit" && onDoneChange && (
-        <label className="inline-flex cursor-pointer items-center gap-2.5 text-[0.85rem] text-content">
-          <Checkbox
-            aria-label="Mark task as complete"
-            checked={draft.isDone}
-            disabled={busy}
-            onCheckedChange={(checked) => {
-              if (typeof checked === "boolean") {
-                onDoneChange(checked)
-              }
-            }}
-          />
-          <span>Completed</span>
-        </label>
-      )}
-
-      <footer className="mt-7 flex items-center gap-2 border-t border-border pt-5">
-        {onDelete && (
-          <Button
-            className="mr-auto"
-            disabled={busy}
-            onClick={onDelete}
-            type="button"
-            variant="destructive"
-          >
-            Delete task
-          </Button>
-        )}
-        <Button disabled={busy} onClick={onCancel} type="button" variant="outline">
-          Cancel
-        </Button>
-        <Button disabled={busy} type="submit">
-          {busy
-            ? mode === "create"
-              ? "Adding…"
-              : "Saving…"
-            : mode === "create"
-              ? "Add task"
-              : "Save task"}
-        </Button>
-      </footer>
     </form>
   )
 }

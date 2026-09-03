@@ -636,20 +636,9 @@ describe("Tasks surface", () => {
     expect(screen.queryByDisplayValue("Different task")).not.toBeInTheDocument()
   })
 
-  it("starts focus for the persisted task from its detail view", async () => {
+  it("keeps focus actions out of the persisted task detail view", async () => {
     const task = createTask("detail-focus-task", "Detail focus task")
-    const runningSnapshot = createSnapshot([task], {
-      revision: 2,
-      focus: {
-        ...createSnapshot([task]).focus,
-        state: "running",
-        activeTaskId: task.id,
-        activeTaskTitle: task.title,
-      },
-    })
-    const startFocus = vi.fn(async () => runningSnapshot)
     const controller = createMockDesktopApi({
-      handlers: { startFocus },
       snapshot: createSnapshot([task]),
     })
 
@@ -659,16 +648,18 @@ describe("Tasks surface", () => {
     await user.click(
       screen.getByRole("button", { name: "Open details for Detail focus task" }),
     )
-    await user.click(
-      screen.getByRole("button", { name: "Start focus for Detail focus task" }),
-    )
+    expect(screen.getByRole("heading", { name: "Edit task" })).toBeInTheDocument()
+    expect(screen.queryByText("Task details")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: "Start focus for Detail focus task" }),
+    ).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole("button", { name: "Start focus" }))
+    const backButton = screen.getByRole("button", { name: "Back to list" })
+    expect(backButton).toHaveAttribute("title", "Back to list")
+    backButton.focus()
+    await user.keyboard("{Enter}")
     await waitFor(() =>
-      expect(startFocus).toHaveBeenCalledWith({
-        taskId: task.id,
-        durationSeconds: 1_500,
-      }),
+      expect(screen.getByRole("heading", { name: "Tasks" })).toBeInTheDocument(),
     )
   })
 

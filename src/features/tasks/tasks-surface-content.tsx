@@ -66,8 +66,6 @@ export function TasksSurfaceContent({
               actions={actions}
               draftController={draftController}
               mutations={mutations}
-              routing={routing}
-              snapshot={snapshot}
             />
           ) : (
             <TaskListAndCreateView
