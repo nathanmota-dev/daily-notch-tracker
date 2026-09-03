@@ -1,6 +1,7 @@
 import { InlineTaskForm } from "./inline-task-form"
 import { TaskForm } from "./task-form"
 import { TaskList } from "./task-list"
+import { parseLocalDateString } from "../../lib/local-date"
 import type {
   TaskDetailViewProps,
   TaskListAndCreateViewProps,
@@ -10,23 +11,18 @@ import type {
 } from "./tasks-view-types"
 
 function formatSelectedDay(dateValue: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateValue)
-  if (!match) {
+  const date = parseLocalDateString(dateValue)
+
+  if (!date) {
     return "Choose a day"
   }
 
-  const date = new Date(0)
-  date.setHours(12, 0, 0, 0)
-  date.setFullYear(Number(match[1]), Number(match[2]) - 1, Number(match[3]))
-
-  return Number.isNaN(date.getTime())
-    ? "Choose a day"
-    : new Intl.DateTimeFormat("en-US", {
-        day: "numeric",
-        month: "long",
-        weekday: "long",
-        year: "numeric",
-      }).format(date)
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "long",
+    weekday: "long",
+    year: "numeric",
+  }).format(date)
 }
 
 export function MutationError({ error }: TasksMutationErrorProps) {
