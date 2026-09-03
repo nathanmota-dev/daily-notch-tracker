@@ -1,5 +1,9 @@
 import type { AppSnapshot } from "./contracts"
-import { overlaySurfaceSearch, tasksSurfaceSearch } from "./window-intent"
+import {
+  overlaySurfaceSearch,
+  settingsSurfaceSearch,
+  tasksSurfaceSearch,
+} from "./window-intent"
 import { cloneSnapshot } from "./mock-state-helpers"
 import type { MockState } from "./mock-state-types"
 
@@ -75,6 +79,18 @@ export function navigateBrowserToOverlay() {
     {},
     "",
     `${window.location.pathname || "/"}${overlaySurfaceSearch()}`,
+  )
+  window.dispatchEvent(new PopStateEvent("popstate"))
+}
+
+export function navigateBrowserToSettings() {
+  if (typeof window === "undefined") {
+    return
+  }
+  window.history.pushState(
+    {},
+    "",
+    `${window.location.pathname || "/"}${settingsSurfaceSearch()}`,
   )
   window.dispatchEvent(new PopStateEvent("popstate"))
 }

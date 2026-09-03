@@ -6,8 +6,8 @@ import {
 import {
   ErrorShell,
   LoadingShell,
-  SurfacePlaceholder,
 } from "./AppStates"
+import { SettingsSurface } from "../features/settings/settings-surface"
 import { TasksSurface } from "../features/tasks/tasks-surface"
 
 import {
@@ -152,7 +152,18 @@ function renderSurface(
     return <LoadingShell surface="tasks" />
   }
 
-  return <SurfacePlaceholder snapshot={snapshot} surface={surface} />
+  if (surface === "settings" && api && snapshotOptions) {
+    return (
+      <SettingsSurface
+        api={api}
+        applySnapshot={snapshotOptions.applySnapshot}
+        refreshSnapshot={snapshotOptions.refreshSnapshot}
+        snapshot={snapshot}
+      />
+    )
+  }
+
+  return <LoadingShell surface="settings" />
 }
 
 export function App({

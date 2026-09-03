@@ -35,6 +35,27 @@ pub(super) fn show_and_focus_window<R: Runtime>(window: &WebviewWindow<R>) -> Re
     Ok(())
 }
 
+pub(super) fn close_reusable_window<R: Runtime>(
+    app: &AppHandle<R>,
+    label: &str,
+    error_message: &str,
+) -> Result<(), AppError> {
+    let Some(window) = app.get_webview_window(label) else {
+        return Ok(());
+    };
+
+    window
+        .hide()
+        .map_err(|_| AppError::integration_unavailable(error_message))?;
+
+    if let Some(overlay_window) = app.get_webview_window("overlay") {
+        let _ = overlay_window.show();
+        let _ = overlay_window.set_focus();
+    }
+
+    Ok(())
+}
+
 pub(super) fn is_allowed_release_url(url: &str) -> bool {
     let trimmed = url.trim();
     trimmed == url && trimmed.starts_with("https://") && trimmed["https://".len()..].contains('.')

@@ -136,6 +136,12 @@ fn empty_state_matches_the_typescript_snapshot_contract() {
     assert_eq!(json["tasks"], serde_json::json!([]));
     assert_eq!(json["sessions"], serde_json::json!([]));
     assert_eq!(json["settings"]["focusMinutes"], 25);
+    assert_eq!(json["settings"]["notificationsEnabled"], true);
+    assert_eq!(json["settings"]["playSound"], true);
+    assert_eq!(json["settings"]["showTimeline"], true);
+    assert_eq!(json["settings"]["rainbowTimeline"], false);
+    assert_eq!(json["settings"]["minimalMode"], false);
+    assert_eq!(json["settings"]["launchAtLogin"], false);
     assert_eq!(json["focus"]["state"], "idle");
     assert_eq!(json["focus"]["activeTaskId"], serde_json::Value::Null);
     assert_eq!(json["shortcutStatus"], "unavailable");
@@ -274,6 +280,24 @@ fn task_durations_are_rejected_while_settings_keep_defensive_clamp() {
         })
         .expect("settings patch should succeed");
     assert_eq!(snapshot.settings.focus_minutes, 1);
+}
+
+#[test]
+fn updated_default_duration_is_used_for_a_task_free_focus() {
+    let mut state = AppState::default();
+    state
+        .update_settings(FocusSettingsPatch {
+            focus_minutes: Some(45),
+            ..FocusSettingsPatch::default()
+        })
+        .expect("settings patch should succeed");
+
+    let snapshot = state
+        .start_focus_at(None, timestamp(31, 10))
+        .expect("a task-free focus should start");
+
+    assert_eq!(snapshot.focus.active_task_id, None);
+    assert_eq!(snapshot.focus.total_ms, 45 * 60_000);
 }
 
 #[test]
@@ -527,8 +551,11 @@ fn persisted_state_recovers_tasks_sessions_and_settings_after_reloading() {
     state
         .update_settings(FocusSettingsPatch {
             focus_minutes: Some(50),
+            notifications_enabled: Some(false),
+            play_sound: Some(false),
+            show_timeline: Some(false),
+            rainbow_timeline: Some(true),
             minimal_mode: Some(true),
-            ..FocusSettingsPatch::default()
         })
         .expect("settings should persist");
     let started_at = timestamp(31, 23);
@@ -555,6 +582,10 @@ fn persisted_state_recovers_tasks_sessions_and_settings_after_reloading() {
     assert_eq!(snapshot.sessions.len(), 1);
     assert_eq!(snapshot.sessions[0].focused_seconds, 1_500);
     assert_eq!(snapshot.settings.focus_minutes, 50);
+    assert!(!snapshot.settings.notifications_enabled);
+    assert!(!snapshot.settings.play_sound);
+    assert!(!snapshot.settings.show_timeline);
+    assert!(snapshot.settings.rainbow_timeline);
     assert!(snapshot.settings.minimal_mode);
     assert_eq!(snapshot.focus, FocusSnapshot::default());
 }

@@ -38,6 +38,7 @@ export function TasksSurfaceContent({
         busy={mutations.busy}
         onClose={actions.closeWindow}
         openTaskCount={snapshot.tasks.filter((task) => !task.isDone).length}
+        onOpenSettings={actions.openSettings}
       />
       <div className="grid min-h-0 min-w-0 grid-cols-[minmax(250px,294px)_minmax(0,1fr)] gap-0 max-[640px]:grid-cols-1">
         <TasksSidebar

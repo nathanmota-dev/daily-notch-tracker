@@ -1,10 +1,11 @@
-import { CloseIcon, ListIcon } from "../../icons"
+import { CloseIcon, ListIcon, SettingsIcon } from "../../icons"
 import { IconButton } from "../../components/icon-button"
 import type { TasksWindowHeaderProps } from "./tasks-view-types"
 
 export function TasksWindowHeader({
   busy,
   onClose,
+  onOpenSettings,
   openTaskCount,
 }: TasksWindowHeaderProps) {
   return (
@@ -27,6 +28,18 @@ export function TasksWindowHeader({
         >
           {openTaskCount} open
         </span>
+        <IconButton
+          aria-label="Settings"
+          className="size-7 rounded-full bg-panel-hover p-0 text-muted hover:bg-white/[0.12] hover:text-content"
+          disabled={busy}
+          onClick={onOpenSettings}
+          size="sm"
+          title="Settings"
+          type="button"
+          variant="ghost"
+        >
+          <SettingsIcon aria-hidden="true" />
+        </IconButton>
         <IconButton
           aria-label="Close Tasks"
           className="size-7 rounded-full bg-panel-hover p-0 text-muted hover:bg-white/[0.12] hover:text-content"

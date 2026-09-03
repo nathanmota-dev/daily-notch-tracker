@@ -77,7 +77,14 @@ describe("SurfaceRouter", () => {
       expect(
         await screen.findByRole("heading", { name: headingName }),
       ).toBeInTheDocument()
-      expect(screen.getByText("Nenhuma tarefa ainda.")).toBeInTheDocument()
+      if (surface === "tasks") {
+        expect(document.querySelector('[data-slot="tasks-day-title"]')).toHaveTextContent(
+          "0 tasks",
+        )
+      } else {
+        expect(screen.getByRole("heading", { name: "Timer" })).toBeInTheDocument()
+        expect(screen.getByRole("heading", { name: "Diagnostics" })).toBeInTheDocument()
+      }
     }
   })
 

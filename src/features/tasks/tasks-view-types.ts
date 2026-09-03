@@ -22,6 +22,7 @@ export type TasksWindowHeaderProps = {
   busy: boolean
   openTaskCount: number
   onClose: () => void
+  onOpenSettings: () => void
 }
 
 export type TasksFocusPickerProps = FocusSessionPickerProps

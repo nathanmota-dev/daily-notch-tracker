@@ -101,6 +101,20 @@ describe("ExpandedDashboard", () => {
     ).toHaveAttribute("data-overflow", "on")
   })
 
+  it("does not render the timeline or RGB when the timeline is disabled", () => {
+    const snapshot = createExpandedDashboardFixtureSnapshot("expanded-empty")
+    snapshot.settings.showTimeline = false
+    snapshot.settings.rainbowTimeline = true
+
+    render(<ExpandedDashboard snapshot={snapshot} />)
+
+    const tray = document.querySelector('[data-slot="progress-tray"]')
+    expect(tray).toHaveAttribute("data-timeline", "off")
+    expect(tray).toHaveAttribute("data-rainbow", "off")
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument()
+    expect(document.querySelector("linearGradient")).not.toBeInTheDocument()
+  })
+
   it("keeps completed tasks at the end of the ordered list", () => {
     renderFixture("expanded-completed")
 

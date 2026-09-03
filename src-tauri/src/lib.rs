@@ -20,13 +20,12 @@ pub use state::AppState;
 pub use storage::{PersistedPayload, RecoveryDiagnostic, Repository, RepositoryError};
 
 fn handle_window_event<R: tauri::Runtime>(window: &tauri::Window<R>, event: &WindowEvent) {
-    if window.label() != "tasks" {
+    if !matches!(window.label(), "tasks" | "settings") {
         return;
     }
 
     if let WindowEvent::CloseRequested { api, .. } = event {
-        // Closing Tasks should only hide its reusable window. The app state,
-        // scheduler, and any active focus session must continue running.
+        // Closing a reusable window should not stop the app or its active focus.
         api.prevent_close();
         let _ = window.hide();
     }
@@ -62,6 +61,7 @@ pub fn run() {
             commands::open_tasks_window,
             commands::close_tasks_window,
             commands::open_settings_window,
+            commands::close_settings_window,
             commands::open_external_release,
         ])
         .run(tauri::generate_context!())
@@ -70,13 +70,14 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{atomic::AtomicBool, Arc};
     use std::time::Duration;
 
     use super::handle_window_event;
     use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindowBuilder, WindowEvent};
 
     #[test]
-    fn tasks_window_close_is_intercepted_without_removing_the_window() {
+    fn reusable_window_close_is_intercepted_without_removing_the_window() {
         let app = tauri::test::mock_builder()
             .on_window_event(handle_window_event)
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
@@ -95,6 +96,8 @@ mod tests {
         handle_window_event(&settings_window, &WindowEvent::Focused(true));
 
         let app_handle = app.handle().clone();
+        let settings_preserved = Arc::new(AtomicBool::new(false));
+        let settings_preserved_for_run = Arc::clone(&settings_preserved);
         let close_tasks = tasks.clone();
         let closer = std::thread::spawn(move || {
             std::thread::sleep(Duration::from_millis(10));
@@ -119,6 +122,16 @@ mod tests {
                         .expect("settings window should still exist")
                         .close()
                         .expect("settings window should close");
+                } else if label == "settings" {
+                    settings_preserved_for_run.store(
+                        handle.get_webview_window("settings").is_some(),
+                        std::sync::atomic::Ordering::Release,
+                    );
+                    handle
+                        .get_webview_window("settings")
+                        .expect("settings window should still exist")
+                        .destroy()
+                        .expect("settings window should be destroyable in the test");
                 }
             }
         });
@@ -126,5 +139,6 @@ mod tests {
         closer.join().expect("window closer should finish");
         assert_eq!(exit_code, 0);
         assert!(app_handle.get_webview_window("tasks").is_some());
+        assert!(settings_preserved.load(std::sync::atomic::Ordering::Acquire));
     }
 }

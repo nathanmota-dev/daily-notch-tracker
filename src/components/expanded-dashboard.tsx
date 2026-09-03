@@ -65,8 +65,10 @@ export function ExpandedDashboard({
       data-focus-state={snapshot.focus.state}
       data-slot="expanded-dashboard-tray"
       progress={getExpandedDashboardProgress(snapshot.focus, countdown.now)}
-      rainbowTimeline={snapshot.settings.rainbowTimeline}
-      showTimeline
+      rainbowTimeline={
+        snapshot.settings.showTimeline && snapshot.settings.rainbowTimeline
+      }
+      showTimeline={snapshot.settings.showTimeline}
     >
       <Panel
         aria-label="Expanded dashboard"
