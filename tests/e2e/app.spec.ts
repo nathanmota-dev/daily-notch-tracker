@@ -882,4 +882,16 @@ test.describe("DailyNotch surface router", () => {
     await page.getByRole("button", { name: "Close Settings" }).click()
     await expect(page.locator('[data-surface="overlay"]')).toBeVisible()
   })
+
+  test("returns to Tasks when the Settings back button is clicked", async ({
+    page,
+  }) => {
+    await page.goto("/?surface=tasks")
+    await page.getByRole("button", { name: "Settings" }).click()
+
+    await expect(page.locator('[data-surface="settings"]')).toBeVisible()
+    await page.getByRole("button", { name: "Back to tasks" }).click()
+
+    await expect(page.locator('[data-surface="tasks"]')).toBeVisible()
+  })
 })

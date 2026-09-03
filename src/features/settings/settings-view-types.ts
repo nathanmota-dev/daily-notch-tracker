@@ -57,6 +57,7 @@ export type SettingsSurfaceContentProps = {
   mutationError: DesktopApiError | null
   mutationBusy: boolean
   onAutostartChange: (enabled: boolean) => void
+  onBack: () => void
   onClose: () => void
   onCommitFocusMinutes: () => void
   onFocusMinutesChange: (value: string) => void
@@ -87,5 +88,5 @@ export type SettingsMutationErrorProps = Pick<
 
 export type SettingsHeaderProps = Pick<
   SettingsSurfaceContentProps,
-  "mutationBusy" | "onClose"
+  "mutationBusy" | "onBack" | "onClose"
 >

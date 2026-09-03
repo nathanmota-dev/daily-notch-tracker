@@ -182,6 +182,13 @@ export function SettingsSurface({
     runSettingsMutation("closeSettingsWindow", () => api.closeSettingsWindow())
   }, [api, runSettingsMutation])
 
+  const handleBack = useCallback(() => {
+    runSettingsMutation("returnToTasks", async () => {
+      await api.closeSettingsWindow()
+      await api.openTasksWindow({ kind: "list" })
+    })
+  }, [api, runSettingsMutation])
+
   return (
     <SettingsSurfaceContent
       autostart={getAutostartControlState(diagnostics, diagnosticsLoading)}
@@ -193,6 +200,7 @@ export function SettingsSurface({
       mutationError={mutations.error}
       mutationBusy={mutations.busy}
       onAutostartChange={handleAutostartChange}
+      onBack={handleBack}
       onClose={handleClose}
       onCommitFocusMinutes={onCommitFocusMinutes}
       onFocusMinutesChange={onFocusMinutesChange}

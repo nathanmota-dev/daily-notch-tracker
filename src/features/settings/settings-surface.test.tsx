@@ -272,7 +272,8 @@ describe("Settings surface", () => {
 
   it("returns to Tasks from the back button", async () => {
     const closeSettingsWindow = vi.fn(async () => undefined)
-    renderSettings({ handlers: { closeSettingsWindow } })
+    const openTasksWindow = vi.fn(async () => undefined)
+    renderSettings({ handlers: { closeSettingsWindow, openTasksWindow } })
     await screen.findByText("0.1.0-test")
 
     await userEvent.setup().click(
@@ -280,5 +281,6 @@ describe("Settings surface", () => {
     )
 
     await waitFor(() => expect(closeSettingsWindow).toHaveBeenCalledOnce())
+    expect(openTasksWindow).toHaveBeenCalledWith({ kind: "list" })
   })
 })

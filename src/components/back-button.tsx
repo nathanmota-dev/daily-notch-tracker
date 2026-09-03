@@ -5,6 +5,12 @@ import type { BackButtonProps } from "./back-button-types"
 
 export type { BackButtonProps } from "./back-button-types"
 
+function goBack() {
+  if (typeof window !== "undefined") {
+    window.history.back()
+  }
+}
+
 export function BackButton({
   ariaLabel = "Back",
   className,
@@ -21,7 +27,7 @@ export function BackButton({
       )}
       data-slot="back-button"
       disabled={disabled}
-      onClick={onClick}
+      onClick={onClick ?? goBack}
       size="sm"
       title={title ?? ariaLabel}
       type="button"

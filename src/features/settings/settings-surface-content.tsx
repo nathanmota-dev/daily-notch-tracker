@@ -13,7 +13,7 @@ import type {
   SettingsSurfaceContentProps,
 } from "./settings-view-types"
 
-function SettingsHeader({ mutationBusy, onClose }: SettingsHeaderProps) {
+function SettingsHeader({ mutationBusy, onBack, onClose }: SettingsHeaderProps) {
   return (
     <header
       className="flex items-start justify-between gap-4"
@@ -24,7 +24,7 @@ function SettingsHeader({ mutationBusy, onClose }: SettingsHeaderProps) {
           ariaLabel="Back to tasks"
           className="mt-0.5"
           disabled={mutationBusy}
-          onClick={onClose}
+          onClick={onBack}
           title="Back to tasks"
         />
         <div className="flex min-w-0 items-start gap-3">
@@ -108,6 +108,7 @@ export function SettingsSurfaceContent({
   mutationError,
   mutationBusy,
   onAutostartChange,
+  onBack,
   onClose,
   onCommitFocusMinutes,
   onFocusMinutesChange,
@@ -125,7 +126,11 @@ export function SettingsSurfaceContent({
       data-slot="settings-surface"
     >
       <div className="mx-auto max-w-3xl">
-        <SettingsHeader mutationBusy={mutationBusy} onClose={onClose} />
+        <SettingsHeader
+          mutationBusy={mutationBusy}
+          onBack={onBack}
+          onClose={onClose}
+        />
         <div className="mt-5 grid gap-3">
           <SettingsMutationError
             mutationBusy={mutationBusy}

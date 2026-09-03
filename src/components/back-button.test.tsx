@@ -5,6 +5,18 @@ import { vi } from "vitest"
 import { BackButton } from "./back-button"
 
 describe("BackButton", () => {
+  it("goes back in the current history when no action is provided", async () => {
+    const user = userEvent.setup()
+    const historyBack = vi.spyOn(window.history, "back")
+
+    render(<BackButton />)
+
+    await user.click(screen.getByRole("button", { name: "Back" }))
+
+    expect(historyBack).toHaveBeenCalledOnce()
+    historyBack.mockRestore()
+  })
+
   it("renders a reusable labelled button and invokes its action", async () => {
     const user = userEvent.setup()
     const onClick = vi.fn()
