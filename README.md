@@ -57,6 +57,26 @@ estado de runtime e um foco em andamento volta ao estado idle ao iniciar o app;
 as sessões concluídas ou interrompidas e o `focusedSeconds` permanecem
 persistidos.
 
+### Ciclo de vida no desktop
+
+Ao iniciar, somente o overlay do notch é criado e fica disponível; as janelas
+`Tasks` e `Settings` são abertas sob demanda. O aplicativo usa single-instance:
+se um segundo launch for solicitado, esse processo é encerrado e a primeira
+instância traz `Tasks` para frente quando a janela já existe; caso contrário,
+traz o overlay para frente. Os argumentos e o diretório do segundo launch são
+ignorados.
+
+Fechar `Tasks` ou `Settings` apenas oculta a janela e preserva o estado, um foco
+em andamento e seu scheduler para a próxima abertura. `Quit` é a saída explícita
+da aplicação, usada pela futura tray, e marca o processo como encerrando antes
+de cancelar o scheduler e sair.
+
+Uma instalação empacotada pode ser iniciada pelo menu do sistema ou por um
+launcher, sem manter um terminal aberto. No Linux, o single-instance depende de
+uma sessão D-Bus do usuário; ambientes desktop normalmente fornecem essa sessão
+automaticamente, mas uma execução fora dela precisa disponibilizar
+`DBUS_SESSION_BUS_ADDRESS` e um session bus funcional.
+
 Se o arquivo ainda não existir, o diretório é criado e o app começa com um
 payload vazio. JSON inválido ou um `schema_version` desconhecido inicia um
 estado vazio recuperável, preserva o arquivo original e registra um diagnóstico
