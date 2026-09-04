@@ -339,7 +339,7 @@ fn shortcut_status_publishes_complete_snapshots_without_tray_state() {
 }
 
 #[test]
-fn window_commands_reuse_labels_and_validate_external_inputs() {
+fn window_commands_reuse_labels_and_preserve_state() {
     let app = test_app();
     let handle = app.handle().clone();
     let task_id = "11111111-1111-4111-8111-111111111111".to_owned();
@@ -428,27 +428,31 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
         tauri::async_runtime::block_on(get_snapshot(handle.clone())).expect("snapshot should load");
     assert_eq!(snapshot_after_opening.focus, snapshot_before_opening.focus);
     assert_eq!(snapshot_after_opening.tasks, snapshot_before_opening.tasks);
-
-    assert_eq!(
-        tauri::async_runtime::block_on(open_tasks_window(
-            handle.clone(),
-            Some(TasksWindowIntent::Task {
-                task_id: "invalid".to_owned(),
-            }),
-        ))
-        .expect_err("invalid task intent should fail")
-        .code,
-        crate::domain::AppErrorCode::Validation
-    );
-    assert_eq!(
-        tauri::async_runtime::block_on(open_external_release(
-            "http://github.com/release".to_owned(),
-        ))
-        .expect_err("non-HTTPS release should fail")
-        .code,
-        crate::domain::AppErrorCode::InvalidUrl
-    );
     tauri::async_runtime::block_on(stop_focus(handle)).expect("standalone focus should stop");
+}
+
+#[test]
+fn window_commands_reject_invalid_task_window_intent() {
+    let app = test_app();
+    let error = tauri::async_runtime::block_on(open_tasks_window(
+        app.handle().clone(),
+        Some(TasksWindowIntent::Task {
+            task_id: "invalid".to_owned(),
+        }),
+    ))
+    .expect_err("invalid task intent should fail");
+
+    assert_eq!(error.code, crate::domain::AppErrorCode::Validation);
+}
+
+#[test]
+fn external_release_rejects_non_https_urls() {
+    let error = tauri::async_runtime::block_on(open_external_release(
+        "http://github.com/release".to_owned(),
+    ))
+    .expect_err("non-HTTPS release should fail");
+
+    assert_eq!(error.code, crate::domain::AppErrorCode::InvalidUrl);
 }
 
 #[test]
