@@ -8,6 +8,7 @@ use super::*;
 use crate::domain::session::FocusSession;
 use crate::domain::{
     AppErrorCode, CreateTaskInput, FocusSettingsPatch, MoveTasksInput, TaskBucket, UpdateTaskInput,
+    WindowMonitorSnapshot, WindowPlacementSnapshot,
 };
 use crate::storage::Repository;
 
@@ -38,6 +39,26 @@ fn loaded_state() -> (TestDirectory, AppState) {
     let state = AppState::load(Repository::new(test_directory.path()))
         .expect("empty repository should load");
     (test_directory, state)
+}
+
+fn sample_window_placement(x: i32, y: i32) -> WindowPlacementSnapshot {
+    WindowPlacementSnapshot {
+        revision: 0,
+        window_label: "overlay".to_owned(),
+        x,
+        y,
+        width: 800,
+        height: 550,
+        scale_factor: 1.0,
+        monitor: WindowMonitorSnapshot {
+            name: Some("primary".to_owned()),
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            scale_factor: 1.0,
+        },
+    }
 }
 
 fn default_diagnostics(state: &AppState) -> crate::domain::AppDiagnostics {
@@ -691,6 +712,61 @@ fn persisted_state_recovers_tasks_sessions_and_settings_after_reloading() {
     assert!(snapshot.settings.rainbow_timeline);
     assert!(snapshot.settings.minimal_mode);
     assert_eq!(snapshot.focus, FocusSnapshot::default());
+}
+
+#[test]
+fn window_placement_persists_with_its_own_revision_without_changing_the_snapshot() {
+    let (test_directory, mut state) = loaded_state();
+    let before = state.snapshot();
+
+    let saved = state
+        .save_window_placement(sample_window_placement(320, 180))
+        .expect("window placement should persist");
+
+    assert_eq!(saved.revision, 1);
+    assert_eq!(state.snapshot(), before);
+    assert_eq!(state.window_placement(), Some(saved.clone()));
+
+    let reloaded = AppState::load(Repository::new(test_directory.path()))
+        .expect("window placement should reload");
+    assert_eq!(reloaded.window_placement(), Some(saved));
+    assert_eq!(reloaded.revision(), 0);
+}
+
+#[test]
+fn window_placement_persistence_failure_restores_the_last_valid_value() {
+    let (test_directory, mut state) = loaded_state();
+    let first = state
+        .save_window_placement(sample_window_placement(100, 120))
+        .expect("initial window placement should persist");
+    state.fail_next_persistence_write();
+
+    let error = state
+        .save_window_placement(sample_window_placement(700, 420))
+        .expect_err("simulated placement write should fail");
+
+    assert_eq!(error.code, AppErrorCode::Persistence);
+    assert_eq!(state.window_placement(), Some(first.clone()));
+    assert_eq!(state.placement_revision, first.revision);
+
+    let reloaded = AppState::load(Repository::new(test_directory.path()))
+        .expect("last valid placement should remain readable");
+    assert_eq!(reloaded.window_placement(), Some(first));
+}
+
+#[test]
+fn invalid_window_placement_is_rejected_without_mutation() {
+    let (_test_directory, mut state) = loaded_state();
+    let mut invalid = sample_window_placement(0, 0);
+    invalid.window_label = "tasks".to_owned();
+
+    let error = state
+        .save_window_placement(invalid)
+        .expect_err("a placement for another native window should fail");
+
+    assert_eq!(error.code, AppErrorCode::Validation);
+    assert!(state.window_placement().is_none());
+    assert_eq!(state.revision(), 0);
 }
 
 #[test]

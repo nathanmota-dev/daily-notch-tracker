@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use super::*;
-use crate::domain::FocusSettings;
+use crate::domain::{FocusSettings, WindowMonitorSnapshot, WindowPlacementSnapshot};
 
 struct TestDirectory {
     path: PathBuf,
@@ -63,7 +63,28 @@ fn sample_payload(title: &str, focus_minutes: u32) -> PersistedPayload {
         ..FocusSettings::default()
     };
 
-    PersistedPayload::from_parts(vec![task], vec![session], settings)
+    PersistedPayload::from_parts_with_extended_window_placement(
+        vec![task],
+        vec![session],
+        settings,
+        Some(WindowPlacementSnapshot {
+            revision: 1,
+            window_label: "overlay".to_owned(),
+            x: 120,
+            y: 80,
+            width: 800,
+            height: 550,
+            scale_factor: 1.0,
+            monitor: WindowMonitorSnapshot {
+                name: Some("primary".to_owned()),
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+                scale_factor: 1.0,
+            },
+        }),
+    )
 }
 
 fn backup_paths(directory: &Path) -> Vec<PathBuf> {

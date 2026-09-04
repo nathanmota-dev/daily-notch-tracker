@@ -115,6 +115,19 @@ describe("Tasks surface", () => {
     expect(document.querySelector('[data-slot="tasks-window-header"]')).toBeInTheDocument()
   })
 
+  it("marks only the non-interactive title area as draggable", async () => {
+    render(<AppForTasks api={createMockDesktopApi({ snapshot: createSnapshot([]) }).api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+
+    const header = document.querySelector('[data-slot="tasks-window-header"]')
+    const dragRegion = header?.querySelector("[data-tauri-drag-region]")
+
+    expect(dragRegion).toBeInTheDocument()
+    expect(dragRegion).toHaveAttribute("data-tauri-drag-region", "deep")
+    expect(dragRegion).toHaveClass("cursor-move", "select-none")
+    expect(header?.querySelector("button[data-tauri-drag-region]")).not.toBeInTheDocument()
+  })
+
   it("opens Settings from the Tasks window header", async () => {
     const openSettingsWindow = vi.fn(async () => undefined)
     const controller = createMockDesktopApi({

@@ -202,6 +202,60 @@ describe("Tauri overlay window adapter", () => {
     })
   })
 
+  it("reads all monitors and forwards native window moves", async () => {
+    let emitMove:
+      | ((event: { payload: PhysicalPosition }) => void)
+      | undefined
+    const unlisten = vi.fn()
+    const appWindow = {
+      innerSize: vi.fn(async () => new PhysicalSize(800, 550)),
+      innerPosition: vi.fn(async () => new PhysicalPosition(0, 0)),
+      scaleFactor: vi.fn(async () => 1),
+      setSize: vi.fn(async () => undefined),
+      setPosition: vi.fn(async () => undefined),
+      show: vi.fn(async () => undefined),
+      hide: vi.fn(async () => undefined),
+      onMoved: vi.fn(
+        async (
+          handler: (event: { payload: PhysicalPosition }) => void,
+        ) => {
+          emitMove = handler
+          return unlisten
+        },
+      ),
+    }
+    const adapter = createTauriOverlayWindowAdapter(appWindow, {
+      monitorsReader: async () => [
+        {
+          name: "primary",
+          position: { x: 0, y: 0 },
+          size: { width: 1920, height: 1080 },
+          scaleFactor: 1,
+        },
+      ],
+    })
+
+    await expect(adapter.availableMonitors?.()).resolves.toEqual([
+      {
+        name: "primary",
+        x: 0,
+        y: 0,
+        width: 1920,
+        height: 1080,
+        scaleFactor: 1,
+      },
+    ])
+
+    const listener = vi.fn()
+    const cleanup = await adapter.subscribeToWindowMoves?.(listener)
+    emitMove?.({ payload: new PhysicalPosition(-1920, 32) })
+
+    expect(listener).toHaveBeenCalledWith({ x: -1920, y: 32 })
+    cleanup?.()
+    cleanup?.()
+    expect(unlisten).toHaveBeenCalledOnce()
+  })
+
   it("notifies scale changes immediately and polls changed metrics until cleanup", async () => {
     vi.useFakeTimers()
     let currentMonitor = {

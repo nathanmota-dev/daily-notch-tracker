@@ -99,6 +99,19 @@ describe("Settings surface", () => {
     expect(controller.getSnapshot().settings.launchAtLogin).toBe(false)
   })
 
+  it("marks the settings title as draggable without including its controls", async () => {
+    renderSettings()
+    await screen.findByRole("heading", { name: "Settings" })
+
+    const header = document.querySelector('[data-slot="settings-window-header"]')
+    const dragRegion = header?.querySelector("[data-tauri-drag-region]")
+
+    expect(dragRegion).toBeInTheDocument()
+    expect(dragRegion).toHaveAttribute("data-tauri-drag-region", "deep")
+    expect(dragRegion).toHaveClass("cursor-move", "select-none")
+    expect(header?.querySelector("button[data-tauri-drag-region]")).not.toBeInTheDocument()
+  })
+
   it("persists boolean preferences immediately and restores them after remount", async () => {
     const controller = renderSettings()
     await screen.findByText("0.1.0-test")

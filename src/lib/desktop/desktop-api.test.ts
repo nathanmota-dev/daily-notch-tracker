@@ -11,6 +11,8 @@ import {
   type TauriTransport,
   type TasksWindowOrigin,
   type UpdateTaskInput,
+  type WindowMonitorSnapshot,
+  type WindowPlacementSnapshot,
 } from "../desktopApi"
 
 const createTaskInput: CreateTaskInput = {
@@ -36,6 +38,24 @@ function createSnapshot(revision = 0): AppSnapshot {
   }
 }
 
+const sampleWindowPlacement: WindowPlacementSnapshot = {
+  revision: 2,
+  windowLabel: "overlay",
+  x: 120,
+  y: 80,
+  width: 800,
+  height: 550,
+  scaleFactor: 1,
+  monitor: {
+    name: "primary",
+    x: 0,
+    y: 0,
+    width: 1920,
+    height: 1080,
+    scaleFactor: 1,
+  } satisfies WindowMonitorSnapshot,
+}
+
 describe("createTauriDesktopApi", () => {
   it("maps every public method to its Tauri command and payload", async () => {
     const snapshot = createSnapshot()
@@ -55,6 +75,8 @@ describe("createTauriDesktopApi", () => {
     const tasksOrigin: TasksWindowOrigin = { presentationMode: "expanded" }
 
     await api.getSnapshot()
+    await api.getWindowPlacement()
+    await api.saveWindowPlacement()
     await api.addTask(createTaskInput)
     await api.updateTask(updateTaskInput)
     await api.deleteTask("task-1")
@@ -77,6 +99,8 @@ describe("createTauriDesktopApi", () => {
 
     expect(invoke.mock.calls).toEqual([
       ["get_snapshot", undefined],
+      ["get_window_placement", undefined],
+      ["save_window_placement", undefined],
       ["add_task", { input: createTaskInput }],
       ["update_task", { input: updateTaskInput }],
       ["delete_task", { taskId: "task-1" }],
@@ -264,6 +288,22 @@ describe("createMockDesktopApi", () => {
     await expect(
       subscribeFailureApi.subscribe("store-changed", vi.fn()),
     ).rejects.toMatchObject({ code: "integration-unavailable" })
+  })
+
+  it("persists and emits the shared extended window placement in the browser mock", async () => {
+    const controller = createMockDesktopApi({
+      windowPlacement: sampleWindowPlacement,
+    })
+    const placementChanged = vi.fn()
+    await controller.api.subscribe("window-placement-changed", placementChanged)
+
+    const loaded = await controller.api.getWindowPlacement()
+    const saved = await controller.api.saveWindowPlacement()
+
+    expect(loaded).toEqual(sampleWindowPlacement)
+    expect(saved).toEqual({ ...sampleWindowPlacement, revision: 3 })
+    expect(placementChanged).toHaveBeenCalledWith(saved)
+    expect(await controller.api.getWindowPlacement()).toEqual(saved)
   })
 
   it("mutates task buckets, settings, and browser window routes", async () => {

@@ -39,6 +39,8 @@ describe("Tauri overlay window configuration", () => {
       "core:window:allow-set-size-constraints",
       "core:window:allow-show",
       "core:window:allow-hide",
+      "core:window:allow-start-dragging",
+      "core:window:allow-available-monitors",
       "notification:default",
       "autostart:default",
       "global-shortcut:allow-register",
