@@ -10,8 +10,9 @@ use crate::domain::{
     MoveTasksInput, StartFocusInput, TasksWindowIntent, UpdateTaskInput,
 };
 use crate::services::{
-    close_reusable_window, current_tray_diagnostic, notify_focus_completion, show_and_focus_window,
-    sync_focus_scheduler, sync_tray_menu,
+    close_reusable_window, current_autostart_diagnostic, current_tray_diagnostic,
+    notify_focus_completion, set_autostart_entry, show_and_focus_window, sync_focus_scheduler,
+    sync_tray_menu,
 };
 use crate::state::AppState;
 
@@ -135,21 +136,21 @@ pub async fn get_app_diagnostics<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<AppDiagnostics, AppError> {
     let app_version = app.package_info().version.to_string();
+    let autostart_diagnostic = current_autostart_diagnostic(&app).await;
     let tray_diagnostic = current_tray_diagnostic(&app);
     with_state(&app, move |state| {
-        Ok(state.diagnostics(app_version, tray_diagnostic))
+        Ok(state.diagnostics(app_version, autostart_diagnostic, tray_diagnostic))
     })
     .await
 }
 
 #[tauri::command]
 pub async fn set_autostart<R: Runtime>(
-    _app: AppHandle<R>,
-    _enabled: bool,
+    app: AppHandle<R>,
+    enabled: bool,
 ) -> Result<AppSnapshot, AppError> {
-    Err(AppError::integration_unavailable(
-        "Autostart integration is not available yet.",
-    ))
+    set_autostart_entry(&app, enabled).await?;
+    with_state(&app, |state| Ok(state.snapshot())).await
 }
 
 #[tauri::command]

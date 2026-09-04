@@ -273,6 +273,108 @@ describe("Settings surface", () => {
     expect(screen.getByText("Registered")).toBeInTheDocument()
   })
 
+  it("refreshes effective autostart diagnostics after a successful change", async () => {
+    let effectiveEnabled = false
+    const diagnostics = createDiagnostics()
+    diagnostics.autostart = {
+      enabled: effectiveEnabled,
+      status: "available",
+      message: null,
+    }
+    const getAppDiagnostics = vi.fn(async () => ({
+      ...diagnostics,
+      autostart: {
+        ...diagnostics.autostart,
+        enabled: effectiveEnabled,
+      },
+    }))
+    const setAutostart = vi.fn(async (enabled: boolean) => {
+      effectiveEnabled = enabled
+      return controller.getSnapshot()
+    })
+    const controller = renderSettings({
+      diagnostics,
+      handlers: { getAppDiagnostics, setAutostart },
+    })
+
+    await screen.findByText("0.1.0-test")
+    await userEvent.setup().click(
+      screen.getByRole("switch", { name: "Launch at login" }),
+    )
+
+    await waitFor(() => {
+      expect(setAutostart).toHaveBeenCalledWith(true)
+      expect(getAppDiagnostics).toHaveBeenCalledTimes(2)
+      expect(
+        screen.getByRole("switch", { name: "Launch at login" }),
+      ).toBeChecked()
+    })
+  })
+
+  it("refreshes diagnostics after an autostart failure and retries successfully", async () => {
+    let attempts = 0
+    let effectiveDiagnostics: AppDiagnostics["autostart"] = {
+      enabled: false,
+      status: "available",
+      message: null,
+    }
+    const diagnostics = createDiagnostics()
+    diagnostics.autostart = effectiveDiagnostics
+    const getAppDiagnostics = vi.fn(async () => ({
+      ...diagnostics,
+      autostart: effectiveDiagnostics,
+    }))
+    const setAutostart = vi.fn(async (enabled: boolean) => {
+      attempts += 1
+      if (attempts === 1) {
+        effectiveDiagnostics = {
+          enabled: false,
+          status: "error",
+          message: "Autostart status could not be read from the desktop session.",
+        }
+        throw new DesktopApiError({
+          operation: "setAutostart",
+          code: "integration-unavailable",
+          message: "Autostart could not be updated in this desktop session.",
+        })
+      }
+
+      effectiveDiagnostics = {
+        enabled,
+        status: "available",
+        message: null,
+      }
+      return controller.getSnapshot()
+    })
+    const controller = renderSettings({
+      diagnostics,
+      handlers: { getAppDiagnostics, setAutostart },
+    })
+
+    await screen.findByText("0.1.0-test")
+    await userEvent.setup().click(
+      screen.getByRole("switch", { name: "Launch at login" }),
+    )
+
+    await waitFor(() => {
+      expect(setAutostart).toHaveBeenCalledTimes(1)
+      expect(getAppDiagnostics).toHaveBeenCalledTimes(2)
+      expect(screen.getByText("Error")).toBeInTheDocument()
+    })
+    expect(screen.getByRole("alert")).toHaveTextContent("could not be updated")
+
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }))
+
+    await waitFor(() => {
+      expect(setAutostart).toHaveBeenCalledTimes(2)
+      expect(getAppDiagnostics).toHaveBeenCalledTimes(3)
+      expect(
+        screen.getByRole("switch", { name: "Launch at login" }),
+      ).toBeChecked()
+      expect(screen.getByText("Available")).toBeInTheDocument()
+    })
+  })
+
   it.each([
     {
       status: "unavailable" as const,
