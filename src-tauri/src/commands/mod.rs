@@ -21,6 +21,9 @@ use window_placement::calculate_tasks_window_position;
 #[path = "window-commands.rs"]
 mod window_commands;
 use window_commands::{is_allowed_release_url, open_window};
+#[path = "global-shortcut.rs"]
+mod global_shortcut;
+pub(crate) use global_shortcut::publish_shortcut_status;
 
 const STORE_EVENTS: &[&str] = &["store-changed"];
 const SETTINGS_EVENTS: &[&str] = &["store-changed", "settings-changed"];

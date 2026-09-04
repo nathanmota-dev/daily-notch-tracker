@@ -133,6 +133,20 @@ impl AppState {
         self.focus.end_at.map(|end_at| (end_at, self.focus_token))
     }
 
+    pub(crate) fn set_shortcut_status(
+        &mut self,
+        shortcut_status: ShortcutStatus,
+    ) -> DomainResult<Option<AppSnapshot>> {
+        if self.shortcut_status == shortcut_status {
+            return Ok(None);
+        }
+
+        self.ensure_revision_available()?;
+        self.shortcut_status = shortcut_status;
+        self.revision += 1;
+        Ok(Some(self.snapshot()))
+    }
+
     fn mutate<F>(&mut self, operation: F) -> DomainResult<AppSnapshot>
     where
         F: FnOnce(&mut Self) -> DomainResult<()>,

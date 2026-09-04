@@ -21,8 +21,8 @@ pub use state::AppState;
 pub use storage::{PersistedPayload, RecoveryDiagnostic, Repository, RepositoryError};
 
 use services::{
-    focus_tasks_or_overlay, handle_run_event, handle_window_event, initialize_tray,
-    TrayRuntimeState,
+    focus_tasks_or_overlay, handle_run_event, handle_window_event, initialize_global_shortcut,
+    initialize_tray, TrayRuntimeState,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -45,6 +45,7 @@ pub fn run() {
             app.manage(Mutex::new(state));
             app.manage(FocusScheduler::new());
             app.manage(TrayRuntimeState::default());
+            initialize_global_shortcut(app);
             initialize_tray(app);
             Ok(())
         })
