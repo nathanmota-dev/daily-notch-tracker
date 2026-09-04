@@ -150,7 +150,7 @@ export function SettingsSupportSections({
       </SettingsSection>
 
       <SettingsSection
-        description="Review the current global shortcut integration."
+        description="Ctrl+Shift+Space starts or stops focus; it does not pause or resume."
         id="shortcut"
         title="Shortcut"
       >

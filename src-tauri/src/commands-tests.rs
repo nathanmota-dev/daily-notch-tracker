@@ -6,8 +6,8 @@ use std::time::{Duration as StdDuration, Instant};
 
 use super::*;
 use crate::domain::{
-    CreateTaskInput, FocusSettingsPatch, MoveTasksInput, StartFocusInput, TaskBucket,
-    TasksWindowIntent, UpdateTaskInput,
+    CreateTaskInput, FocusSettingsPatch, MoveTasksInput, ShortcutStatus, StartFocusInput,
+    TaskBucket, TasksWindowIntent, UpdateTaskInput,
 };
 use crate::services::FocusScheduler;
 use crate::state::AppState;
@@ -182,6 +182,40 @@ fn state_commands_share_the_managed_state_and_emit_snapshots() {
     );
     tauri::async_runtime::block_on(delete_task(handle, task_id.to_string()))
         .expect("task should be deleted");
+}
+
+#[test]
+fn shortcut_status_publishes_complete_snapshots_without_tray_state() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let received = Arc::new(Mutex::new(Vec::<AppSnapshot>::new()));
+    let received_for_listener = Arc::clone(&received);
+    handle.listen_any("shortcut-changed", move |event| {
+        if let Ok(snapshot) = serde_json::from_str::<AppSnapshot>(event.payload()) {
+            received_for_listener
+                .lock()
+                .expect("shortcut listener should not be poisoned")
+                .push(snapshot);
+        }
+    });
+
+    publish_shortcut_status(&handle, ShortcutStatus::Registered)
+        .expect("shortcut status should publish");
+    publish_shortcut_status(&handle, ShortcutStatus::Registered)
+        .expect("same shortcut status should be a no-op");
+    publish_shortcut_status(&handle, ShortcutStatus::Error)
+        .expect("shortcut error status should publish");
+
+    let snapshots = received
+        .lock()
+        .expect("shortcut snapshots should not be poisoned")
+        .clone();
+    assert_eq!(snapshots.len(), 2);
+    assert_eq!(snapshots[0].revision, 1);
+    assert_eq!(snapshots[0].shortcut_status, ShortcutStatus::Registered);
+    assert_eq!(snapshots[1].revision, 2);
+    assert_eq!(snapshots[1].shortcut_status, ShortcutStatus::Error);
+    assert_eq!(snapshots[1].tasks, Vec::new());
 }
 
 #[test]

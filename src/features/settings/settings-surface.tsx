@@ -9,6 +9,7 @@ import {
 import {
   FOCUS_MINUTES_ERROR,
   getAutostartControlState,
+  getShortcutStatusMessage,
   parseFocusMinutes,
   settingsTogglePatch,
   type SettingsToggleKey,
@@ -189,6 +190,12 @@ export function SettingsSurface({
     })
   }, [api, runSettingsMutation])
 
+  const shortcutStatus = snapshot.shortcutStatus
+  const shortcutMessage =
+    diagnostics?.shortcut.status === shortcutStatus
+      ? diagnostics.shortcut.message ?? getShortcutStatusMessage(shortcutStatus)
+      : getShortcutStatusMessage(shortcutStatus)
+
   return (
     <SettingsSurfaceContent
       autostart={getAutostartControlState(diagnostics, diagnosticsLoading)}
@@ -208,8 +215,8 @@ export function SettingsSurface({
       onRetryMutation={retryMutation}
       onToggle={handleToggle}
       settings={snapshot.settings}
-      shortcutMessage={diagnostics?.shortcut.message ?? diagnosticsError?.message ?? null}
-      shortcutStatus={diagnostics?.shortcut.status ?? snapshot.shortcutStatus}
+      shortcutMessage={shortcutMessage}
+      shortcutStatus={shortcutStatus}
     />
   )
 }

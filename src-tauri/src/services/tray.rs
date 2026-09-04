@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager, Runtime};
 
 use crate::domain::{AppSnapshot, FocusState, IntegrationStatus, ShortcutStatus, TrayDiagnostic};
+#[cfg(desktop)]
+use crate::services::desktop_session::graphical_session_available;
 
 #[cfg(desktop)]
 use crate::domain::TasksWindowIntent;
@@ -201,27 +203,6 @@ pub(crate) fn sync_tray_menu<R: Runtime>(_app: &AppHandle<R>, _snapshot: &AppSna
 fn snapshot_for_tray<R: Runtime>(app: &App<R>) -> Option<AppSnapshot> {
     let state = app.try_state::<Mutex<crate::state::AppState>>()?;
     state.lock().ok().map(|state| state.snapshot())
-}
-
-#[cfg(desktop)]
-fn graphical_session_available() -> bool {
-    #[cfg(target_os = "linux")]
-    {
-        graphical_session_available_for(
-            std::env::var_os("DISPLAY").is_some(),
-            std::env::var_os("WAYLAND_DISPLAY").is_some(),
-        )
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        true
-    }
-}
-
-#[cfg(all(desktop, target_os = "linux"))]
-fn graphical_session_available_for(display: bool, wayland: bool) -> bool {
-    display || wayland
 }
 
 #[cfg(desktop)]

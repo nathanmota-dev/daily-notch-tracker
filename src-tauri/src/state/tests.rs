@@ -169,6 +169,83 @@ fn diagnostics_expose_the_data_path_without_persistence_details() {
 }
 
 #[test]
+fn shortcut_status_revision_changes_only_when_the_status_changes() {
+    let mut state = AppState::default();
+
+    let registered = state
+        .set_shortcut_status(ShortcutStatus::Registered)
+        .expect("shortcut status should update")
+        .expect("a changed status should produce a snapshot");
+    assert_eq!(registered.revision, 1);
+    assert_eq!(registered.shortcut_status, ShortcutStatus::Registered);
+
+    assert!(state
+        .set_shortcut_status(ShortcutStatus::Registered)
+        .expect("same shortcut status should be accepted")
+        .is_none());
+    assert_eq!(state.revision(), 1);
+
+    let error = state
+        .set_shortcut_status(ShortcutStatus::Error)
+        .expect("shortcut status should update")
+        .expect("a changed status should produce a snapshot");
+    assert_eq!(error.revision, 2);
+    assert_eq!(error.shortcut_status, ShortcutStatus::Error);
+}
+
+#[test]
+fn shortcut_status_does_not_overflow_the_runtime_revision() {
+    let mut state = AppState {
+        revision: u64::MAX,
+        ..AppState::default()
+    };
+
+    let error = state
+        .set_shortcut_status(ShortcutStatus::Registered)
+        .expect_err("an exhausted revision should reject status changes");
+
+    assert_eq!(error.code, AppErrorCode::Internal);
+    assert_eq!(
+        state.snapshot().shortcut_status,
+        ShortcutStatus::Unavailable
+    );
+}
+
+#[test]
+fn shortcut_diagnostics_use_sanitized_messages_for_runtime_failures() {
+    let mut state = AppState::default();
+    state
+        .set_shortcut_status(ShortcutStatus::Error)
+        .expect("shortcut status should update");
+
+    let diagnostics =
+        state.diagnostics("0.1.0".to_owned(), crate::domain::TrayDiagnostic::default());
+
+    assert_eq!(
+        diagnostics.shortcut.message.as_deref(),
+        Some("Global shortcut could not be registered. It may already be in use.")
+    );
+}
+
+#[test]
+fn shortcut_status_is_not_written_to_the_persisted_payload() {
+    let (test_directory, mut state) = loaded_state();
+    state
+        .set_shortcut_status(ShortcutStatus::Registered)
+        .expect("shortcut status should update");
+    drop(state);
+
+    let reloaded = AppState::load(Repository::new(test_directory.path()))
+        .expect("persisted state should reload");
+
+    assert_eq!(
+        reloaded.snapshot().shortcut_status,
+        ShortcutStatus::Unavailable
+    );
+    assert_eq!(reloaded.revision(), 0);
+}
+
+#[test]
 fn task_crud_increments_revision_only_after_success() {
     let mut state = AppState::default();
     let task_id = add_task(

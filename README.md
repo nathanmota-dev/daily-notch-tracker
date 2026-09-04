@@ -96,6 +96,35 @@ acessadas independentemente da existência do overlay. Falhas do ícone, do
 AppIndicator ou do ambiente gráfico não encerram o processo nem interrompem o
 timer.
 
+### Atalho global
+
+O DailyNotch registra `Ctrl+Shift+Space` automaticamente quando a sessão
+desktop permite a integração. O atalho é somente leitura neste MVP e alterna
+o foco: em `idle`, inicia um bloco; em `running` ou `paused`, encerra o bloco.
+Ele não é um comando de pause/resume. O botão de foco em `Tasks` e a ação de
+foco do tray continuam disponíveis como fallbacks.
+
+O diagnóstico de Settings e o item informativo do tray mostram um destes
+estados:
+
+- `registered`: o atalho foi registrado pelo processo atual.
+- `unavailable`: não há uma sessão desktop gráfica disponível para tentar o
+  registro.
+- `error`: o registro falhou, por exemplo porque a combinação já está ocupada
+  ou porque o backend da sessão não a suporta.
+
+O registro é tentado novamente em uma nova inicialização. Falhas do atalho são
+não fatais: não encerram o focus engine, não cancelam o scheduler e não
+impedem o uso de `Tasks`, `Settings` ou do tray quando essas integrações
+estiverem disponíveis. O app expõe somente o estado resumido e uma mensagem
+sanitizada; detalhes brutos do plugin e dados pessoais não atravessam o IPC.
+
+No Linux, a implementação nativa depende de X11; em Wayland, o ambiente pode
+reportar `error` mesmo quando há uma sessão gráfica. WebKitGTK e AppIndicator
+também dependem do compositor e da distribuição: limitações de transparência,
+posicionamento, tray ou menu não alteram o timer, e as janelas `Tasks` e
+`Settings` são os fallbacks oficiais.
+
 Uma instalação empacotada pode ser iniciada pelo menu do sistema ou por um
 launcher, sem manter um terminal aberto. No Linux, o single-instance depende de
 uma sessão D-Bus do usuário; ambientes desktop normalmente fornecem essa sessão
@@ -109,8 +138,9 @@ interno. Antes da primeira gravação desse estado recuperado, o backend cria
 `dailynotch.json.recovery-<uuid>.bak` no mesmo diretório. O comando
 `get_app_diagnostics` expõe somente a versão, o caminho real do arquivo e o
 estado resumido das integrações; títulos, notas e erros brutos de persistência
-não atravessam o IPC. Atalhos globais e autostart permanecem `unavailable` até
-que os plugins correspondentes sejam adicionados. O comando temporário `greet`
+não atravessam o IPC. O status do atalho global é runtime-only e não é salvo no
+arquivo local; o autostart permanece `unavailable` até que sua integração seja
+adicionada. O comando temporário `greet`
 continua coberto pelo teste Rust do scaffold, mas não é registrado na aplicação.
 
 Ao executar somente a UI no navegador, o shell usa um snapshot mockado,

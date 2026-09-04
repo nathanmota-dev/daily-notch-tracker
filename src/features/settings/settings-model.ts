@@ -74,12 +74,24 @@ export function settingsTogglePatch(
 export function getStatusLabel(status: IntegrationStatus | ShortcutStatus) {
   switch (status) {
     case "available":
-    case "registered":
       return "Available"
+    case "registered":
+      return "Registered"
     case "unavailable":
       return "Unavailable"
     case "error":
       return "Error"
+  }
+}
+
+export function getShortcutStatusMessage(status: ShortcutStatus) {
+  switch (status) {
+    case "registered":
+      return null
+    case "unavailable":
+      return "Global shortcut integration is unavailable in this desktop session."
+    case "error":
+      return "Global shortcut could not be registered. It may already be in use."
   }
 }
 

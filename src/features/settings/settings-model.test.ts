@@ -5,6 +5,7 @@ import {
   DEFAULT_FOCUS_MINUTES,
   getAutostartControlState,
   getStatusLabel,
+  getShortcutStatusMessage,
   getTimelineControlState,
   MAX_FOCUS_MINUTES,
   MIN_FOCUS_MINUTES,
@@ -76,7 +77,8 @@ describe("settings model", () => {
       status: "unavailable",
     })
     expect(getAutostartControlState(null, true).message).toContain("Checking")
-    expect(getStatusLabel("registered")).toBe("Available")
+    expect(getStatusLabel("registered")).toBe("Registered")
     expect(getStatusLabel("error")).toBe("Error")
+    expect(getShortcutStatusMessage("error")).toContain("already be in use")
   })
 })

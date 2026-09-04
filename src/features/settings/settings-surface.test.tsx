@@ -252,14 +252,64 @@ describe("Settings surface", () => {
     })
     renderSettings({
       diagnostics: createAvailableIntegrationDiagnostics(),
-      snapshot,
+      snapshot: { ...snapshot, shortcutStatus: "registered" },
     })
 
     await screen.findByText("0.1.0-test")
     const autostart = screen.getByRole("switch", { name: "Launch at login" })
     expect(autostart).toBeChecked()
     expect(autostart).not.toBeDisabled()
-    expect(screen.getAllByText("Available")).toHaveLength(3)
+    expect(screen.getAllByText("Available")).toHaveLength(2)
+    expect(screen.getByText("Registered")).toBeInTheDocument()
+  })
+
+  it.each([
+    {
+      status: "unavailable" as const,
+      message: "Global shortcut integration is unavailable in this desktop session.",
+    },
+    {
+      status: "error" as const,
+      message: "Global shortcut could not be registered. It may already be in use.",
+    },
+  ])("shows the $status shortcut status and message", async ({ status, message }) => {
+    const diagnostics = createDiagnostics()
+    diagnostics.shortcut = { status, message }
+    renderSettings({
+      diagnostics,
+      snapshot: {
+        ...createSettingsSnapshot(),
+        shortcutStatus: status,
+      },
+    })
+
+    await screen.findByText("0.1.0-test")
+
+    const statusLabel = status === "error" ? "Error" : "Unavailable"
+    expect(screen.getAllByText(statusLabel).length).toBeGreaterThan(0)
+    expect(screen.getByText(message)).toBeInTheDocument()
+  })
+
+  it("keeps the live snapshot shortcut status ahead of an older diagnostics response", async () => {
+    const diagnostics = createDiagnostics()
+    diagnostics.shortcut = {
+      status: "unavailable",
+      message: "Old unavailable diagnostic",
+    }
+    const controller = renderSettings({ diagnostics })
+    await screen.findByText("0.1.0-test")
+
+    controller.emit("shortcut-changed", {
+      ...controller.getSnapshot(),
+      revision: controller.getSnapshot().revision + 1,
+      shortcutStatus: "error",
+    })
+
+    expect(await screen.findByText("Error")).toBeInTheDocument()
+    expect(
+      screen.getByText("Global shortcut could not be registered. It may already be in use."),
+    ).toBeInTheDocument()
+    expect(screen.queryByText("Old unavailable diagnostic")).not.toBeInTheDocument()
   })
 
   it("shows tray initialization errors as recoverable diagnostics", async () => {

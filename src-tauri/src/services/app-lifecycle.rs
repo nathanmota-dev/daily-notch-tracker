@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, Manager, RunEvent, Runtime, WebviewWindow, Window, WindowEvent};
 
-use super::FocusScheduler;
+use super::{cleanup_global_shortcut, FocusScheduler};
 use crate::domain::AppError;
 
 /// Tracks shutdown progress shared by the application lifecycle and future tray actions.
@@ -136,6 +136,8 @@ pub(crate) fn cleanup_before_exit<R: Runtime>(app: &AppHandle<R>) {
     if !should_cleanup {
         return;
     }
+
+    cleanup_global_shortcut(app);
 
     if let Some(scheduler) = app.try_state::<FocusScheduler>() {
         scheduler.cancel();

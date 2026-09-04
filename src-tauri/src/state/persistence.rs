@@ -115,8 +115,10 @@ fn shortcut_message(status: ShortcutStatus) -> Option<String> {
     match status {
         ShortcutStatus::Registered => None,
         ShortcutStatus::Unavailable => {
-            Some("Global shortcut integration is not available yet.".to_owned())
+            Some("Global shortcut integration is unavailable in this desktop session.".to_owned())
         }
-        ShortcutStatus::Error => Some("Global shortcut integration reported an error.".to_owned()),
+        ShortcutStatus::Error => {
+            Some("Global shortcut could not be registered. It may already be in use.".to_owned())
+        }
     }
 }
