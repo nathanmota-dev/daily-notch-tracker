@@ -110,11 +110,17 @@ export type AutostartDiagnostic = {
   message: string | null
 }
 
+export type TrayDiagnostic = {
+  status: IntegrationStatus
+  message: string | null
+}
+
 export type AppDiagnostics = {
   appVersion: string
   dataFilePath: string
   shortcut: ShortcutDiagnostic
   autostart: AutostartDiagnostic
+  tray: TrayDiagnostic
 }
 
 export type WindowPlacementSnapshot = {

@@ -54,6 +54,7 @@ export type {
   Task,
   TaskBucket,
   TasksWindowIntent,
+  TrayDiagnostic,
   UpdateTaskInput,
   WindowPlacementSnapshot,
 } from "./desktop/contracts"

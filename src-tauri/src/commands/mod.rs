@@ -9,7 +9,10 @@ use crate::domain::{
     parse_task_id, AppDiagnostics, AppError, AppSnapshot, CreateTaskInput, FocusSettingsPatch,
     MoveTasksInput, StartFocusInput, TasksWindowIntent, UpdateTaskInput,
 };
-use crate::services::{close_reusable_window, show_and_focus_window, sync_focus_scheduler};
+use crate::services::{
+    close_reusable_window, current_tray_diagnostic, show_and_focus_window, sync_focus_scheduler,
+    sync_tray_menu,
+};
 use crate::state::AppState;
 
 #[path = "window-placement.rs"]
@@ -129,7 +132,11 @@ pub async fn get_app_diagnostics<R: Runtime>(
     app: AppHandle<R>,
 ) -> Result<AppDiagnostics, AppError> {
     let app_version = app.package_info().version.to_string();
-    with_state(&app, move |state| Ok(state.diagnostics(app_version))).await
+    let tray_diagnostic = current_tray_diagnostic(&app);
+    with_state(&app, move |state| {
+        Ok(state.diagnostics(app_version, tray_diagnostic))
+    })
+    .await
 }
 
 #[tauri::command]
@@ -232,6 +239,8 @@ where
     if !event_names.contains(&"store-changed") && persisted_state_changed(&before, &snapshot) {
         let _ = app.emit("store-changed", &snapshot);
     }
+
+    sync_tray_menu(&app, &snapshot);
 
     Ok(snapshot)
 }

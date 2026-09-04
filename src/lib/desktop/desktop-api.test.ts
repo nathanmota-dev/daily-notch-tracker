@@ -186,7 +186,9 @@ describe("createMockDesktopApi", () => {
       ],
     })
     expect(await api.getSnapshot()).toEqual(mutationResult)
-    expect(await api.getAppDiagnostics()).toEqual(createBrowserDiagnostics())
+    const diagnostics = await api.getAppDiagnostics()
+    expect(diagnostics).toEqual(createBrowserDiagnostics())
+    expect(diagnostics.tray.status).toBe("unavailable")
   })
 
   it("supports command overrides and normalized failures", async () => {

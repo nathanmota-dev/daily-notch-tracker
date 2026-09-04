@@ -6,6 +6,8 @@ mod app_lifecycle;
 mod focus_runtime;
 #[path = "focus-scheduler.rs"]
 mod focus_scheduler;
+#[path = "tray.rs"]
+mod tray;
 
 pub use app_lifecycle::request_quit;
 pub use app_lifecycle::AppLifecycleState;
@@ -15,3 +17,4 @@ pub(crate) use app_lifecycle::{
 };
 pub(crate) use focus_runtime::sync_focus_scheduler;
 pub use focus_scheduler::FocusScheduler;
+pub(crate) use tray::{current_tray_diagnostic, initialize_tray, sync_tray_menu, TrayRuntimeState};

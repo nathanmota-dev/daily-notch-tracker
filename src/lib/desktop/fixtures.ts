@@ -206,5 +206,9 @@ export function createBrowserDiagnostics(): AppDiagnostics {
       status: "unavailable",
       message: "Autostart requires the desktop runtime.",
     },
+    tray: {
+      status: "unavailable",
+      message: "Tray integration requires the desktop runtime.",
+    },
   }
 }
