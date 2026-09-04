@@ -299,22 +299,25 @@ describe("useOverlayInteraction", () => {
       <InteractionHarness adapter={adapter} focusState="idle" />,
     )
 
-    expect(adapter.show).toHaveBeenCalledOnce()
+    expect(adapter.show).not.toHaveBeenCalled()
     expect(adapter.hide).not.toHaveBeenCalled()
 
     rerender(<InteractionHarness adapter={adapter} focusState="running" />)
-    expect(adapter.show).toHaveBeenCalledTimes(2)
+    expect(adapter.show).toHaveBeenCalledOnce()
 
     rerender(<InteractionHarness adapter={adapter} focusState="paused" />)
-    expect(adapter.show).toHaveBeenCalledTimes(3)
+    expect(adapter.show).toHaveBeenCalledTimes(2)
   })
 
   it("absorbs native visibility failures", () => {
     const adapter = createAdapter()
+    const { rerender } = render(
+      <InteractionHarness adapter={adapter} focusState="idle" />,
+    )
     adapter.show.mockRejectedValueOnce(new Error("window unavailable"))
 
     expect(() =>
-      render(<InteractionHarness adapter={adapter} focusState="idle" />),
+      rerender(<InteractionHarness adapter={adapter} focusState="running" />),
     ).not.toThrow()
   })
 })

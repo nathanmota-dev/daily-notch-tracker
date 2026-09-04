@@ -115,8 +115,16 @@ function useOverlayVisibilityEffect(
   adapter: OverlayWindowAdapter | null | undefined,
   focusState: FocusState,
 ) {
+  const initializedAdapterRef = useRef<OverlayWindowAdapter | null>(null)
+
   useEffect(() => {
     if (!adapter) {
+      initializedAdapterRef.current = null
+      return
+    }
+
+    if (initializedAdapterRef.current !== adapter) {
+      initializedAdapterRef.current = adapter
       return
     }
 

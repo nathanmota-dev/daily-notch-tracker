@@ -201,6 +201,23 @@ afterEach(() => {
 })
 
 describe("useOverlayResize", () => {
+  it("shows the overlay only after its initial size and position are applied", async () => {
+    const adapter = createAdapter()
+
+    render(<OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />)
+    await settleAsyncWork()
+
+    expect(adapter.show).toHaveBeenCalledOnce()
+    expect(adapter.setSize).toHaveBeenCalled()
+    expect(adapter.setPosition).toHaveBeenCalled()
+    expect(adapter.show.mock.invocationCallOrder[0]).toBeGreaterThan(
+      adapter.setSize.mock.invocationCallOrder[0] ?? 0,
+    )
+    expect(adapter.show.mock.invocationCallOrder[0]).toBeGreaterThan(
+      adapter.setPosition.mock.invocationCallOrder[0] ?? 0,
+    )
+  })
+
   it("resizes on mode changes while preserving the current center and top", async () => {
     const adapter = createAdapter()
     const { rerender } = render(

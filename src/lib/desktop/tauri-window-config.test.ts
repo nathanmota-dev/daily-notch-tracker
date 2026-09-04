@@ -21,7 +21,7 @@ describe("Tauri overlay window configuration", () => {
       skipTaskbar: true,
       shadow: false,
       fullscreen: false,
-      visible: true,
+      visible: false,
     })
   })
 

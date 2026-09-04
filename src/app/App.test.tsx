@@ -153,7 +153,7 @@ describe("App", () => {
     }
   })
 
-  it("keeps an idle notch visible even when its initial presentation is expanded", () => {
+  it("shows the idle notch after its initial placement", async () => {
     const adapter = createOverlayAdapter()
 
     render(
@@ -168,7 +168,7 @@ describe("App", () => {
       "data-presentation-mode",
       "expanded",
     )
-    expect(adapter.show).toHaveBeenCalledOnce()
+    await waitFor(() => expect(adapter.show).toHaveBeenCalledOnce())
     expect(adapter.hide).not.toHaveBeenCalled()
   })
 

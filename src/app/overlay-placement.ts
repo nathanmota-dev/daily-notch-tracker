@@ -32,6 +32,16 @@ function currentPosition(
   }
 }
 
+function showOverlayWindow(adapter: OverlayWindowAdapter) {
+  try {
+    const visibilityOperation = adapter.show()
+
+    void visibilityOperation.catch(() => undefined)
+  } catch {
+    // Native visibility failures should not interrupt initial placement.
+  }
+}
+
 export function startInitialOverlayPlacement(
   targetLogicalSize: OverlayLogicalSize,
   runtime: OverlayPlacementRuntime,
@@ -66,11 +76,19 @@ export function startInitialOverlayPlacement(
       runtime.operationQueue.enqueue(geometry)
       void runtime.operationQueue
         .whenIdle()
-        .then(() => runtime.finishTransition(id))
+        .then(() => {
+          if (!runtime.isActive() || id !== runtime.getTransitionId()) {
+            return
+          }
+
+          showOverlayWindow(runtime.windowAdapter)
+          runtime.finishTransition(id)
+        })
     },
     () => {
       if (runtime.isActive() && id === runtime.getTransitionId()) {
         runtime.onInitialPlacementFailure()
+        showOverlayWindow(runtime.windowAdapter)
         runtime.setIsResizing(false)
       }
     },
