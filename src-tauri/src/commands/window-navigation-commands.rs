@@ -6,6 +6,7 @@ use crate::services::{
     remember_tasks_window_origin, TasksWindowOrigin,
 };
 
+use super::window_dimensions::SETTINGS_WINDOW_DIMENSIONS;
 use super::{open_tasks_window_with_intent, open_window};
 
 #[tauri::command]
@@ -32,7 +33,7 @@ pub async fn close_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<(), 
 
 #[tauri::command]
 pub async fn open_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
-    open_window(&app, "settings", "Settings", 720.0, 640.0)
+    open_window(&app, "settings", "Settings", SETTINGS_WINDOW_DIMENSIONS)
 }
 
 #[tauri::command]

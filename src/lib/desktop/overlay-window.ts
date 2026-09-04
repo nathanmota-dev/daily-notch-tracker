@@ -3,6 +3,28 @@ import type {
   OverlayPhysicalPosition,
   OverlayPhysicalSize,
 } from "./overlay-position"
+import {
+  EXPANDED_DASHBOARD_SIZE,
+  OVERLAY_VERTICAL_GUTTER,
+  OVERLAY_WINDOW_SIZES,
+} from "./window-dimensions"
+import type { WindowSize } from "./window-dimension-types"
+
+export {
+  EXPANDED_DASHBOARD_SIZE,
+  OVERLAY_VERTICAL_GUTTER,
+  OVERLAY_WINDOW_DIMENSIONS,
+  OVERLAY_WINDOW_SIZES,
+  SETTINGS_WINDOW_DIMENSIONS,
+  TASKS_WINDOW_DIMENSIONS,
+  WINDOW_DIMENSIONS,
+} from "./window-dimensions"
+export type {
+  OverlayExpandedDimension,
+  OverlayWindowDimensionContract,
+  WindowDimensionContract,
+  WindowSize,
+} from "./window-dimension-types"
 
 import type { OverlayPresentationMode } from "./window-navigation-contracts"
 
@@ -15,25 +37,9 @@ export type {
   OverlayWorkArea,
 } from "./overlay-position"
 
-export const OVERLAY_WINDOW_SIZES = {
-  idle: { width: 204, height: 32 },
-  collapsed: { width: 360, height: 72 },
-  minimal: { width: 104, height: 72 },
-  timelineOff: { width: 360, height: 52 },
-} as const
-
-export const EXPANDED_DASHBOARD_SIZE = {
-  width: 620,
-  minHeight: 190,
-} as const
-
-export const OVERLAY_VERTICAL_GUTTER = 8
 export const OVERLAY_RESIZE_DURATION_MS = 240
 
-export type OverlayLogicalSize = {
-  width: number
-  height: number
-}
+export type OverlayLogicalSize = WindowSize
 
 export type OverlayWindowState = {
   size: OverlayPhysicalSize

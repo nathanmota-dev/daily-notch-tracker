@@ -16,7 +16,9 @@ use crate::services::{
 };
 use crate::state::AppState;
 use chrono::{Duration, Utc};
-use tauri::{Listener, WebviewUrl, WebviewWindowBuilder};
+use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
+
+use super::window_commands::tasks_window_url;
 
 fn test_app() -> tauri::App<tauri::test::MockRuntime> {
     let notification_backend = Arc::new(MockNotificationBackend::default());
@@ -348,7 +350,7 @@ fn shortcut_status_publishes_complete_snapshots_without_tray_state() {
 }
 
 #[test]
-fn window_commands_reuse_labels_and_validate_external_inputs() {
+fn window_commands_reuse_labels_and_preserve_state() {
     let app = test_app();
     let handle = app.handle().clone();
     let task_id = "11111111-1111-4111-8111-111111111111".to_owned();
@@ -378,6 +380,7 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
         }),
     ))
     .expect("tasks window should open");
+    assert!(handle.get_webview_window("tasks").is_some());
     tauri::async_runtime::block_on(open_tasks_window(
         handle.clone(),
         Some(TasksWindowIntent::List),
@@ -400,14 +403,29 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
     .expect("existing tasks window should receive a task intent");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("settings window should open");
+    let settings_window = handle
+        .get_webview_window("settings")
+        .expect("settings window should be registered");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("existing settings window should be reused");
     tauri::async_runtime::block_on(close_settings_window(handle.clone()))
         .expect("settings window should close without being destroyed");
+    assert!(
+        handle.get_webview_window("settings").is_some(),
+        "settings window should remain reusable after hiding"
+    );
+    assert_eq!(settings_window.label(), "settings");
     tauri::async_runtime::block_on(close_settings_window(handle.clone()))
         .expect("closing an already hidden settings window should be idempotent");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("hidden settings window should be reused");
+    assert_eq!(
+        handle
+            .get_webview_window("settings")
+            .expect("reopened settings window should be registered")
+            .label(),
+        "settings"
+    );
 
     assert_eq!(handle.webview_windows().len(), 2);
     assert_eq!(
@@ -427,27 +445,6 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
         tauri::async_runtime::block_on(get_snapshot(handle.clone())).expect("snapshot should load");
     assert_eq!(snapshot_after_opening.focus, snapshot_before_opening.focus);
     assert_eq!(snapshot_after_opening.tasks, snapshot_before_opening.tasks);
-
-    assert_eq!(
-        tauri::async_runtime::block_on(open_tasks_window(
-            handle.clone(),
-            Some(TasksWindowIntent::Task {
-                task_id: "invalid".to_owned(),
-            }),
-            None,
-        ))
-        .expect_err("invalid task intent should fail")
-        .code,
-        crate::domain::AppErrorCode::Validation
-    );
-    assert_eq!(
-        tauri::async_runtime::block_on(open_external_release(
-            "http://github.com/release".to_owned(),
-        ))
-        .expect_err("non-HTTPS release should fail")
-        .code,
-        crate::domain::AppErrorCode::InvalidUrl
-    );
     tauri::async_runtime::block_on(stop_focus(handle)).expect("standalone focus should stop");
 }
 
@@ -499,6 +496,31 @@ fn returning_from_settings_hides_settings_and_focuses_tasks() {
 }
 
 #[test]
+fn window_commands_reject_invalid_task_window_intent() {
+    let app = test_app();
+    let error = tauri::async_runtime::block_on(open_tasks_window(
+        app.handle().clone(),
+        Some(TasksWindowIntent::Task {
+            task_id: "invalid".to_owned(),
+        }),
+        None,
+    ))
+    .expect_err("invalid task intent should fail");
+
+    assert_eq!(error.code, crate::domain::AppErrorCode::Validation);
+}
+
+#[test]
+fn external_release_rejects_non_https_urls() {
+    let error = tauri::async_runtime::block_on(open_external_release(
+        "http://github.com/release".to_owned(),
+    ))
+    .expect_err("non-HTTPS release should fail");
+
+    assert_eq!(error.code, crate::domain::AppErrorCode::InvalidUrl);
+}
+
+#[test]
 fn reusable_windows_work_without_overlay_and_preserve_focus_scheduler() {
     let app = test_app();
     let handle = app.handle().clone();
@@ -518,10 +540,15 @@ fn reusable_windows_work_without_overlay_and_preserve_focus_scheduler() {
     .expect("Tasks should open without an overlay");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("Settings should open without an overlay");
+    assert!(handle.get_webview_window("tasks").is_some());
+    assert!(handle.get_webview_window("settings").is_some());
     tauri::async_runtime::block_on(close_tasks_window(handle.clone()))
         .expect("Tasks should hide without an overlay");
     tauri::async_runtime::block_on(close_settings_window(handle.clone()))
         .expect("Settings should hide without an overlay");
+
+    assert!(handle.get_webview_window("tasks").is_some());
+    assert!(handle.get_webview_window("settings").is_some());
 
     assert_eq!(handle.webview_windows().len(), 2);
     let snapshot = tauri::async_runtime::block_on(get_snapshot(handle.clone()))

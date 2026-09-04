@@ -38,6 +38,13 @@
   --expanded-task-row-height: 42px;
   --expanded-task-row-gap: 6px;
 
+  --surface-window-width: 800px;
+  --surface-window-height: 550px;
+  --surface-window-min-width: 760px;
+  --surface-window-min-height: 480px;
+  --surface-window-max-width: 800px;
+  --surface-window-max-height: 550px;
+
   --panel-shadow: 0 18px 48px rgb(0 0 0 / 0.34);
   --accent-glow: 0 0 28px rgb(96 165 250 / 0.28);
   --rgb-glow:
