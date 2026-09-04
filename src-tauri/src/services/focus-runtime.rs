@@ -47,6 +47,7 @@ fn complete_scheduled_focus<R: Runtime>(app: AppHandle<R>, token: u64) {
         return;
     };
 
+    super::sync_tray_menu(&app, &snapshot);
     let _ = app.emit("focus-changed", &snapshot);
     let _ = app.emit("store-changed", &snapshot);
 }

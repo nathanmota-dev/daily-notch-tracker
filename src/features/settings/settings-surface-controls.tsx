@@ -196,6 +196,11 @@ export function SettingsDiagnostics({
           {diagnostics.dataFilePath}
         </dd>
       </div>
+      <SettingsStatusRow
+        label="System tray"
+        message={diagnostics.tray.message}
+        status={diagnostics.tray.status}
+      />
     </dl>
   )
 }

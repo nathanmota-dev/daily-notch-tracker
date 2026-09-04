@@ -13,14 +13,17 @@ pub use domain::{
     AppDiagnostics, AppError, AppErrorCode, AppSnapshot, AutostartDiagnostic, CreateTaskInput,
     DomainResult, FocusSession, FocusSettings, FocusSettingsPatch, FocusSnapshot, FocusState,
     IntegrationStatus, MoveTasksInput, ShortcutDiagnostic, ShortcutStatus, StartFocusInput, Task,
-    TaskBucket, TasksWindowIntent, UpdateTaskInput, WindowPlacementSnapshot,
+    TaskBucket, TasksWindowIntent, TrayDiagnostic, UpdateTaskInput, WindowPlacementSnapshot,
 };
 pub use services::AppLifecycleState;
 pub use services::FocusScheduler;
 pub use state::AppState;
 pub use storage::{PersistedPayload, RecoveryDiagnostic, Repository, RepositoryError};
 
-use services::{focus_tasks_or_overlay, handle_run_event, handle_window_event};
+use services::{
+    focus_tasks_or_overlay, handle_run_event, handle_window_event, initialize_tray,
+    TrayRuntimeState,
+};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -41,6 +44,8 @@ pub fn run() {
                 AppState::load(Repository::new(app_data_dir)).map_err(std::io::Error::other)?;
             app.manage(Mutex::new(state));
             app.manage(FocusScheduler::new());
+            app.manage(TrayRuntimeState::default());
+            initialize_tray(app);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

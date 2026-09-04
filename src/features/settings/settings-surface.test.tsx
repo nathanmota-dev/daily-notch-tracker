@@ -29,6 +29,7 @@ function createAvailableIntegrationDiagnostics(): AppDiagnostics {
     status: "available",
     message: null,
   }
+  diagnostics.tray = { status: "available", message: null }
   return diagnostics
 }
 
@@ -83,6 +84,10 @@ describe("Settings surface", () => {
     expect(autostart).toHaveAttribute("aria-disabled", "true")
     expect(autostart).not.toBeChecked()
     expect(screen.getAllByText("Autostart requires the desktop runtime.")).toHaveLength(2)
+    expect(screen.getByText("System tray")).toBeInTheDocument()
+    expect(
+      screen.getByText("Tray integration requires the desktop runtime."),
+    ).toBeInTheDocument()
     expect(controller.getSnapshot().settings.launchAtLogin).toBe(false)
   })
 
@@ -254,7 +259,23 @@ describe("Settings surface", () => {
     const autostart = screen.getByRole("switch", { name: "Launch at login" })
     expect(autostart).toBeChecked()
     expect(autostart).not.toBeDisabled()
-    expect(screen.getAllByText("Available")).toHaveLength(2)
+    expect(screen.getAllByText("Available")).toHaveLength(3)
+  })
+
+  it("shows tray initialization errors as recoverable diagnostics", async () => {
+    const diagnostics = createDiagnostics()
+    diagnostics.tray = {
+      status: "error",
+      message: "System tray integration could not be initialized.",
+    }
+    renderSettings({ diagnostics })
+
+    await screen.findByText("0.1.0-test")
+    expect(screen.getByText("System tray")).toBeInTheDocument()
+    expect(screen.getByText("Error")).toBeInTheDocument()
+    expect(
+      screen.getByText("System tray integration could not be initialized."),
+    ).toBeInTheDocument()
   })
 
   it("calls the desktop close operation without closing the application", async () => {

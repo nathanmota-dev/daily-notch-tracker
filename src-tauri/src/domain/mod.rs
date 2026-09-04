@@ -182,11 +182,30 @@ pub struct AutostartDiagnostic {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct TrayDiagnostic {
+    pub status: IntegrationStatus,
+    pub message: Option<String>,
+}
+
+impl Default for TrayDiagnostic {
+    fn default() -> Self {
+        Self {
+            status: IntegrationStatus::Unavailable,
+            message: Some(
+                "System tray integration is unavailable in this desktop session.".to_owned(),
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AppDiagnostics {
     pub app_version: String,
     pub data_file_path: String,
     pub shortcut: ShortcutDiagnostic,
     pub autostart: AutostartDiagnostic,
+    pub tray: TrayDiagnostic,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -242,6 +261,7 @@ mod tests {
                 status: IntegrationStatus::Unavailable,
                 message: Some("not available".to_owned()),
             },
+            tray: TrayDiagnostic::default(),
         };
         let intent = TasksWindowIntent::Task {
             task_id: "11111111-1111-4111-8111-111111111111".to_owned(),
@@ -265,6 +285,7 @@ mod tests {
         assert_eq!(diagnostics_json["appVersion"], "0.1.0");
         assert_eq!(diagnostics_json["dataFilePath"], "/tmp/dailynotch.json");
         assert_eq!(diagnostics_json["autostart"]["status"], "unavailable");
+        assert_eq!(diagnostics_json["tray"]["status"], "unavailable");
         assert_eq!(intent_json["kind"], "task");
         assert_eq!(
             intent_json["taskId"],

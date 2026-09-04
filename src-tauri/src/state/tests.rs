@@ -151,11 +151,16 @@ fn empty_state_matches_the_typescript_snapshot_contract() {
 fn diagnostics_expose_the_data_path_without_persistence_details() {
     let (_test_directory, state) = loaded_state();
 
-    let diagnostics = state.diagnostics("0.1.0".to_owned());
+    let diagnostics =
+        state.diagnostics("0.1.0".to_owned(), crate::domain::TrayDiagnostic::default());
 
     assert_eq!(diagnostics.app_version, "0.1.0");
     assert!(diagnostics.data_file_path.ends_with("dailynotch.json"));
     assert_eq!(diagnostics.shortcut.status, ShortcutStatus::Unavailable);
+    assert_eq!(
+        diagnostics.tray.status,
+        crate::domain::IntegrationStatus::Unavailable
+    );
     assert_eq!(
         diagnostics.autostart.status,
         crate::domain::IntegrationStatus::Unavailable

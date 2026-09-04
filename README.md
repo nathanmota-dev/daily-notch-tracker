@@ -68,8 +68,33 @@ ignorados.
 
 Fechar `Tasks` ou `Settings` apenas oculta a janela e preserva o estado, um foco
 em andamento e seu scheduler para a próxima abertura. `Quit` é a saída explícita
-da aplicação, usada pela futura tray, e marca o processo como encerrando antes
+da aplicação pelo menu nativo do tray e marca o processo como encerrando antes
 de cancelar o scheduler e sair.
+
+### Tray e menu nativo
+
+Quando a sessão gráfica oferece suporte, o DailyNotch cria um ícone nativo com o
+menu contextual: `Open Tasks`, `Start focus` ou `Stop focus`, `Settings`, o
+status resumido do hotkey, `About / Update` com a versão instalada e
+`Quit DailyNotch`. O item de foco acompanha imediatamente os estados `idle`,
+`running` e `paused`, e usa as mesmas regras do foco acionadas pelas janelas.
+`Hotkey` e `About / Update` são informativos e permanecem desabilitados; o
+update checker ainda não faz parte deste MVP.
+
+O caminho principal é abrir o menu contextual do ícone (normalmente com o
+clique direito); nenhuma ação depende de clique esquerdo. Em X11, Wayland e
+ambientes que oferecem AppIndicator o menu usa a integração nativa disponível.
+No GNOME sem uma extensão de tray/AppIndicator, ou quando o compositor não
+oferece essa integração, o diagnóstico aparece como `Unavailable` ou `Error`,
+mas a aplicação continua utilizável pelas janelas `Tasks` e `Settings` e pelo
+overlay quando ele estiver disponível.
+
+Wayland e alguns compositores podem limitar transparência, posicionamento ou
+`always-on-top` das janelas. Nessa situação, use `Tasks` e `Settings` como
+fallback: elas são abertas sob demanda, reutilizadas pelo label e podem ser
+acessadas independentemente da existência do overlay. Falhas do ícone, do
+AppIndicator ou do ambiente gráfico não encerram o processo nem interrompem o
+timer.
 
 Uma instalação empacotada pode ser iniciada pelo menu do sistema ou por um
 launcher, sem manter um terminal aberto. No Linux, o single-instance depende de

@@ -282,6 +282,42 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
 }
 
 #[test]
+fn reusable_windows_work_without_overlay_and_preserve_focus_scheduler() {
+    let app = test_app();
+    let handle = app.handle().clone();
+
+    tauri::async_runtime::block_on(toggle_focus(handle.clone()))
+        .expect("standalone focus should start");
+    assert!(handle
+        .try_state::<FocusScheduler>()
+        .expect("scheduler should be managed")
+        .is_scheduled());
+
+    tauri::async_runtime::block_on(open_tasks_window(
+        handle.clone(),
+        Some(TasksWindowIntent::List),
+    ))
+    .expect("Tasks should open without an overlay");
+    tauri::async_runtime::block_on(open_settings_window(handle.clone()))
+        .expect("Settings should open without an overlay");
+    tauri::async_runtime::block_on(close_tasks_window(handle.clone()))
+        .expect("Tasks should hide without an overlay");
+    tauri::async_runtime::block_on(close_settings_window(handle.clone()))
+        .expect("Settings should hide without an overlay");
+
+    assert_eq!(handle.webview_windows().len(), 2);
+    let snapshot = tauri::async_runtime::block_on(get_snapshot(handle.clone()))
+        .expect("snapshot should remain available");
+    assert_eq!(snapshot.focus.state, crate::domain::FocusState::Running);
+    assert!(handle
+        .try_state::<FocusScheduler>()
+        .expect("scheduler should remain managed")
+        .is_scheduled());
+
+    tauri::async_runtime::block_on(stop_focus(handle)).expect("focus should stop");
+}
+
+#[test]
 fn due_focus_is_completed_by_the_managed_scheduler() {
     let app = test_app();
     let handle = app.handle().clone();
