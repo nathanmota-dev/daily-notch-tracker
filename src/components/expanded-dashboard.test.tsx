@@ -73,6 +73,14 @@ describe("ExpandedDashboard", () => {
     ).toHaveLength(taskCount)
   })
 
+  it("uses the same black canvas as the Tasks and Settings surfaces", () => {
+    renderFixture("expanded")
+
+    expect(
+      screen.getByRole("region", { name: "Expanded dashboard" }),
+    ).toHaveClass("bg-black")
+  })
+
   it("derives the activity intensity from the fixture session history", () => {
     renderFixture("expanded")
 

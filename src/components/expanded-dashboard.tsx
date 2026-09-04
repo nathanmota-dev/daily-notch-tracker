@@ -79,7 +79,7 @@ export function ExpandedDashboard({
     >
       <Panel
         aria-label="Expanded dashboard"
-        className="relative z-[1] min-h-[var(--expanded-dashboard-min-height)] w-full gap-0 rounded-panel bg-panel p-0 shadow-none"
+        className="relative z-[1] min-h-[var(--expanded-dashboard-min-height)] w-full gap-0 rounded-panel bg-black p-0 shadow-none"
         data-dashboard-state={snapshot.focus.state}
         data-slot="expanded-dashboard"
         role="region"
