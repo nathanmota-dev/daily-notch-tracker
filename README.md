@@ -119,8 +119,10 @@ impedem o uso de `Tasks`, `Settings` ou do tray quando essas integrações
 estiverem disponíveis. O app expõe somente o estado resumido e uma mensagem
 sanitizada; detalhes brutos do plugin e dados pessoais não atravessam o IPC.
 
-No Linux, a implementação nativa depende de X11; em Wayland, o ambiente pode
-reportar `error` mesmo quando há uma sessão gráfica. WebKitGTK e AppIndicator
+No Linux, a implementação nativa depende do backend X11 (incluindo Xwayland).
+Uma sessão Wayland pura, sem `DISPLAY`, aparece como `unavailable`; quando
+Xwayland está disponível, o atalho pode ser registrado normalmente. WebKitGTK
+e AppIndicator
 também dependem do compositor e da distribuição: limitações de transparência,
 posicionamento, tray ou menu não alteram o timer, e as janelas `Tasks` e
 `Settings` são os fallbacks oficiais.
@@ -211,7 +213,10 @@ recolher enquanto a sessão está sendo configurada.
 
 No navegador, a janela nativa não existe, mas a área compacta continua sendo
 renderizada. Em Tauri, a janela permanece `visible` e o resize acompanha os
-estados idle, recolhido e expandido.
+estados idle, recolhido e expandido. Para evitar que o tamanho natural do
+WebKitGTK force uma altura de 200 px, os limites nativos mínimo e máximo são
+fixados no tamanho programático atual; portanto, o resize manual do overlay
+continua bloqueado.
 
 Durante o desenvolvimento, o widget pode ser renderizado com uma fixture pelo
 parâmetro `?fixture=`. As opções recolhidas são `running`, `paused`, `no-task`,

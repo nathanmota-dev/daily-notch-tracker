@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Manager, Runtime};
 
 #[cfg(desktop)]
-use super::desktop_session::graphical_session_available;
+use super::desktop_session::global_shortcut_session_available;
 use super::global_shortcut_types::{
     lock_runtime_state, SharedShortcutBackend, ShortcutBackendError, ShortcutEventState,
     ShortcutRuntimeState,
@@ -77,7 +77,7 @@ impl GlobalShortcutService {
 
 #[cfg(desktop)]
 pub(crate) fn initialize_global_shortcut<R: Runtime>(app: &mut tauri::App<R>) {
-    if !graphical_session_available() {
+    if !global_shortcut_session_available() {
         let _ = crate::commands::publish_shortcut_status(
             app.handle(),
             ShortcutBackendError::Unavailable.status(),

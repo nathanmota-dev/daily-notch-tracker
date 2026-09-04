@@ -142,6 +142,7 @@ describe("Tauri overlay window adapter", () => {
       innerSize: vi.fn(async () => new PhysicalSize(360, 72)),
       innerPosition: vi.fn(async () => new PhysicalPosition(-10, 24)),
       scaleFactor: vi.fn(async () => 1.5),
+      setSizeConstraints: vi.fn(async () => undefined),
       setSize: vi.fn(async () => undefined),
       setPosition: vi.fn(async () => undefined),
       show: vi.fn(async () => undefined),
@@ -155,6 +156,8 @@ describe("Tauri overlay window adapter", () => {
 
     await adapter.setSize({ width: 620, height: 206 })
     await adapter.setPosition({ x: -140, y: 24 })
+    await adapter.setSizeConstraints?.({ width: 620, height: 206 })
+    await adapter.setSizeConstraints?.(null)
     await adapter.show()
     await adapter.hide()
 
@@ -164,6 +167,13 @@ describe("Tauri overlay window adapter", () => {
     expect(appWindow.setPosition).toHaveBeenCalledWith(
       expect.objectContaining({ type: "Physical", x: -140, y: 24 }),
     )
+    expect(appWindow.setSizeConstraints).toHaveBeenNthCalledWith(1, {
+      minWidth: 620 / 1.5,
+      minHeight: 206 / 1.5,
+      maxWidth: 620 / 1.5,
+      maxHeight: 206 / 1.5,
+    })
+    expect(appWindow.setSizeConstraints).toHaveBeenNthCalledWith(2, null)
     expect(appWindow.show).toHaveBeenCalledOnce()
     expect(appWindow.hide).toHaveBeenCalledOnce()
   })
@@ -251,6 +261,42 @@ describe("Tauri overlay window adapter", () => {
 })
 
 describe("overlay window operation queue", () => {
+  it("applies a fixed native size after each geometry without locking the old size", async () => {
+    const calls: string[] = []
+    const adapter: OverlayWindowAdapter = {
+      innerSize: vi.fn(async () => ({ width: 360, height: 72 })),
+      innerPosition: vi.fn(async () => ({ x: 0, y: 0 })),
+      scaleFactor: vi.fn(async () => 1),
+      primaryMonitor: vi.fn(async () => null),
+      setSizeConstraints: vi.fn(async (size) => {
+        calls.push(size === null ? "constraints:null" : "constraints:size")
+      }),
+      setSize: vi.fn(async () => {
+        calls.push("size")
+      }),
+      setPosition: vi.fn(async () => {
+        calls.push("position")
+      }),
+      show: vi.fn().mockResolvedValue(undefined),
+      hide: vi.fn().mockResolvedValue(undefined),
+      subscribeToDisplayChanges: vi.fn(async () => vi.fn()),
+    }
+    const queue = createOverlayWindowOperationQueue(adapter)
+
+    queue.enqueue({
+      size: { width: 204, height: 32 },
+      position: { x: 858, y: 38 },
+    })
+    await queue.whenIdle()
+
+    expect(calls).toEqual([
+      "constraints:null",
+      "size",
+      "position",
+      "constraints:size",
+    ])
+  })
+
   it("serializes operations and keeps only the newest pending geometry", async () => {
     let releaseFirstSize: (() => void) | undefined
     const firstSize = new Promise<void>((resolve) => {
