@@ -51,3 +51,34 @@ describe("Tauri overlay window configuration", () => {
     expect(defaultCapability.windows).toEqual(["overlay"])
   })
 })
+
+describe("Tauri Linux bundle configuration", () => {
+  it("enables only the AppImage and Debian targets", () => {
+    expect(tauriConfig.bundle.active).toBe(true)
+    expect(tauriConfig.bundle.targets).toEqual(["appimage", "deb"])
+  })
+
+  it("preserves the application metadata and Linux icon set", () => {
+    expect(tauriConfig).toMatchObject({
+      productName: "DailyNotch Linux",
+      identifier: "com.dailynotch.linux",
+      bundle: {
+        category: "Utility",
+        shortDescription: "A focused task tracker for Linux",
+        longDescription:
+          "DailyNotch is a local-first focus and task tracker for Linux.",
+        icon: [
+          "icons/32x32.png",
+          "icons/64x64.png",
+          "icons/128x128.png",
+          "icons/128x128@2x.png",
+          "icons/icon.png",
+        ],
+      },
+    })
+  })
+
+  it("does not bundle the multimedia framework in the AppImage", () => {
+    expect(tauriConfig.bundle.linux.appimage.bundleMediaFramework).toBe(false)
+  })
+})
