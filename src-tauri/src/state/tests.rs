@@ -747,7 +747,7 @@ fn window_placement_persistence_failure_restores_the_last_valid_value() {
 
     assert_eq!(error.code, AppErrorCode::Persistence);
     assert_eq!(state.window_placement(), Some(first.clone()));
-    assert_eq!(state.placement_revision, first.revision);
+    assert_eq!(state.window_placement.revision, first.revision);
 
     let reloaded = AppState::load(Repository::new(test_directory.path()))
         .expect("last valid placement should remain readable");

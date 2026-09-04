@@ -25,8 +25,7 @@ pub struct AppState {
     tasks: Vec<Task>,
     sessions: Vec<FocusSession>,
     settings: FocusSettings,
-    window_placement: Option<WindowPlacementSnapshot>,
-    placement_revision: u64,
+    window_placement: WindowPlacementState,
     focus: FocusSnapshot,
     shortcut_status: ShortcutStatus,
     repository: Option<Repository>,
@@ -43,13 +42,18 @@ struct MutableStateCheckpoint {
     tasks: Vec<Task>,
     sessions: Vec<FocusSession>,
     settings: FocusSettings,
-    window_placement: Option<WindowPlacementSnapshot>,
-    placement_revision: u64,
+    window_placement: WindowPlacementState,
     focus: FocusSnapshot,
     confirmed_payload: PersistedPayload,
     running_since: Option<DateTime<Utc>>,
     accumulated_focus_ms: u64,
     focus_token: u64,
+}
+
+#[derive(Clone, Debug, Default)]
+struct WindowPlacementState {
+    snapshot: Option<WindowPlacementSnapshot>,
+    revision: u64,
 }
 
 impl Default for AppState {
@@ -88,7 +92,7 @@ impl AppState {
     }
 
     pub fn window_placement(&self) -> Option<WindowPlacementSnapshot> {
-        self.window_placement.clone()
+        self.window_placement.snapshot.clone()
     }
 
     pub fn snapshot(&self) -> AppSnapshot {
@@ -165,7 +169,6 @@ impl AppState {
             sessions: self.sessions.clone(),
             settings: self.settings.clone(),
             window_placement: self.window_placement.clone(),
-            placement_revision: self.placement_revision,
             focus: self.focus.clone(),
             confirmed_payload: self.confirmed_payload.clone(),
             running_since: self.running_since,
@@ -185,7 +188,6 @@ impl AppState {
             self.sessions = checkpoint.sessions;
             self.settings = checkpoint.settings;
             self.window_placement = checkpoint.window_placement;
-            self.placement_revision = checkpoint.placement_revision;
             self.focus = checkpoint.focus;
             self.confirmed_payload = checkpoint.confirmed_payload;
             self.running_since = checkpoint.running_since;
