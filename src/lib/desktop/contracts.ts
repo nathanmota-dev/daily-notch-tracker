@@ -43,7 +43,6 @@ export type FocusSession = {
 export type FocusSettings = {
   focusMinutes: number
   notificationsEnabled: boolean
-  playSound: boolean
   showTimeline: boolean
   rainbowTimeline: boolean
   minimalMode: boolean

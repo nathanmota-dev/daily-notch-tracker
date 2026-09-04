@@ -7,7 +7,6 @@ use super::task::clamp_minutes;
 pub struct FocusSettings {
     pub focus_minutes: u32,
     pub notifications_enabled: bool,
-    pub play_sound: bool,
     pub show_timeline: bool,
     pub rainbow_timeline: bool,
     pub minimal_mode: bool,
@@ -19,7 +18,6 @@ impl Default for FocusSettings {
         Self {
             focus_minutes: 25,
             notifications_enabled: true,
-            play_sound: true,
             show_timeline: true,
             rainbow_timeline: false,
             minimal_mode: false,
@@ -33,7 +31,6 @@ impl Default for FocusSettings {
 pub struct FocusSettingsPatch {
     pub focus_minutes: Option<i64>,
     pub notifications_enabled: Option<bool>,
-    pub play_sound: Option<bool>,
     pub show_timeline: Option<bool>,
     pub rainbow_timeline: Option<bool>,
     pub minimal_mode: Option<bool>,
@@ -46,9 +43,6 @@ impl FocusSettings {
         }
         if let Some(notifications_enabled) = patch.notifications_enabled {
             self.notifications_enabled = notifications_enabled;
-        }
-        if let Some(play_sound) = patch.play_sound {
-            self.play_sound = play_sound;
         }
         if let Some(show_timeline) = patch.show_timeline {
             self.show_timeline = show_timeline;
@@ -73,7 +67,6 @@ mod tests {
             FocusSettings {
                 focus_minutes: 25,
                 notifications_enabled: true,
-                play_sound: true,
                 show_timeline: true,
                 rainbow_timeline: false,
                 minimal_mode: false,
@@ -87,12 +80,10 @@ mod tests {
         let mut settings = FocusSettings::default();
         settings.apply_patch(FocusSettingsPatch {
             focus_minutes: Some(999),
-            play_sound: Some(false),
             ..FocusSettingsPatch::default()
         });
 
         assert_eq!(settings.focus_minutes, 180);
-        assert!(!settings.play_sound);
         assert!(settings.notifications_enabled);
         assert!(settings.show_timeline);
     }
@@ -136,7 +127,6 @@ mod tests {
         let mut settings = FocusSettings::default();
         settings.apply_patch(FocusSettingsPatch {
             notifications_enabled: Some(false),
-            play_sound: Some(false),
             show_timeline: Some(false),
             rainbow_timeline: Some(true),
             minimal_mode: Some(true),
@@ -148,7 +138,6 @@ mod tests {
             FocusSettings {
                 focus_minutes: 25,
                 notifications_enabled: false,
-                play_sound: false,
                 show_timeline: false,
                 rainbow_timeline: true,
                 minimal_mode: true,
@@ -164,7 +153,7 @@ mod tests {
 
         assert_eq!(json["focusMinutes"], 25);
         assert_eq!(json["notificationsEnabled"], true);
-        assert_eq!(json["playSound"], true);
+        assert!(json.get("playSound").is_none());
         assert_eq!(json["showTimeline"], true);
         assert_eq!(json["rainbowTimeline"], false);
         assert_eq!(json["minimalMode"], false);

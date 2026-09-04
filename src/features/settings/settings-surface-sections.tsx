@@ -52,19 +52,11 @@ export function SettingsPrimarySections({
       >
         <SettingsToggleRow
           checked={settings.notificationsEnabled}
-          description="Show desktop notifications for focus transitions."
+          description="Show a desktop notification when a focus block completes."
           disabled={mutationBusy}
           label="Notifications"
           onCheckedChange={(checked) => onToggle("notificationsEnabled", checked)}
           setting="notificationsEnabled"
-        />
-        <SettingsToggleRow
-          checked={settings.playSound}
-          description="Play a sound when a focus session changes state."
-          disabled={mutationBusy}
-          label="Play sound"
-          onCheckedChange={(checked) => onToggle("playSound", checked)}
-          setting="playSound"
         />
       </SettingsSection>
 

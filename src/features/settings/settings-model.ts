@@ -15,7 +15,6 @@ export const FOCUS_MINUTES_ERROR =
 
 export type SettingsToggleKey =
   | "notificationsEnabled"
-  | "playSound"
   | "showTimeline"
   | "rainbowTimeline"
   | "minimalMode"
@@ -60,8 +59,6 @@ export function settingsTogglePatch(
   switch (key) {
     case "notificationsEnabled":
       return { notificationsEnabled: checked }
-    case "playSound":
-      return { playSound: checked }
     case "showTimeline":
       return { showTimeline: checked }
     case "rainbowTimeline":
