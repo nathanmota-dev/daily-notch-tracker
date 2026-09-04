@@ -31,6 +31,7 @@ fn complete_scheduled_focus<R: Runtime>(app: AppHandle<R>, token: u64) {
 
     let result = match state.lock() {
         Ok(mut state) => {
+            let before = state.snapshot();
             let result = state.complete_focus_if_due_at(token, Utc::now());
             let schedule = state.focus_schedule();
             match &result {
@@ -38,18 +39,19 @@ fn complete_scheduled_focus<R: Runtime>(app: AppHandle<R>, token: u64) {
                 Err(_) if schedule.is_some() => schedule_focus_retry(&app, token),
                 Ok(Some(_)) | Err(_) => {}
             }
-            result
+            result.map(|snapshot| snapshot.map(|snapshot| (before, snapshot)))
         }
         Err(_) => Err(AppError::internal("The application state is unavailable.")),
     };
 
-    let Ok(Some(snapshot)) = result else {
+    let Ok(Some((before, snapshot))) = result else {
         return;
     };
 
     super::sync_tray_menu(&app, &snapshot);
     let _ = app.emit("focus-changed", &snapshot);
     let _ = app.emit("store-changed", &snapshot);
+    super::notify_focus_completion(&app, &before, &snapshot);
 }
 
 fn schedule_focus_retry<R: Runtime>(app: &AppHandle<R>, token: u64) {

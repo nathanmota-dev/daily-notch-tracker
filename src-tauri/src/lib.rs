@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use tauri::Manager;
 
@@ -22,12 +22,14 @@ pub use storage::{PersistedPayload, RecoveryDiagnostic, Repository, RepositoryEr
 
 use services::{
     focus_tasks_or_overlay, handle_run_event, handle_window_event, initialize_global_shortcut,
-    initialize_tray, TrayRuntimeState,
+    initialize_tray, NotificationService, TauriNotificationBackend, TrayRuntimeState,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let mut builder = tauri::Builder::default().manage(AppLifecycleState::new());
+    let mut builder = tauri::Builder::default()
+        .manage(AppLifecycleState::new())
+        .plugin(tauri_plugin_notification::init());
 
     #[cfg(desktop)]
     {
@@ -44,6 +46,9 @@ pub fn run() {
                 AppState::load(Repository::new(app_data_dir)).map_err(std::io::Error::other)?;
             app.manage(Mutex::new(state));
             app.manage(FocusScheduler::new());
+            app.manage(NotificationService::new(Arc::new(
+                TauriNotificationBackend::new(app.handle().clone()),
+            )));
             app.manage(TrayRuntimeState::default());
             initialize_global_shortcut(app);
             initialize_tray(app);

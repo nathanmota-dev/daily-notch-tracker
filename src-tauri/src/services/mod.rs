@@ -14,6 +14,12 @@ mod global_shortcut;
 mod global_shortcut_adapter;
 #[path = "global-shortcut-types.rs"]
 mod global_shortcut_types;
+#[path = "notification.rs"]
+mod notification;
+#[path = "notification-adapter.rs"]
+mod notification_adapter;
+#[path = "notification-types.rs"]
+mod notification_types;
 #[path = "tray.rs"]
 mod tray;
 
@@ -30,4 +36,10 @@ pub(crate) use global_shortcut::GlobalShortcutService;
 pub(crate) use global_shortcut::{cleanup_global_shortcut, initialize_global_shortcut};
 #[cfg(test)]
 pub(crate) use global_shortcut_adapter::MockShortcutBackend;
+pub(crate) use notification::{notify_focus_completion, NotificationService};
+#[cfg(test)]
+pub(crate) use notification_adapter::MockNotificationBackend;
+pub(crate) use notification_adapter::TauriNotificationBackend;
+#[cfg(test)]
+pub(crate) use notification_types::{NotificationBackendError, NotificationPermissionState};
 pub(crate) use tray::{current_tray_diagnostic, initialize_tray, sync_tray_menu, TrayRuntimeState};

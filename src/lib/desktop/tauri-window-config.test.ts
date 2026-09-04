@@ -39,6 +39,7 @@ describe("Tauri overlay window configuration", () => {
       "core:window:allow-set-position",
       "core:window:allow-show",
       "core:window:allow-hide",
+      "notification:default",
       "global-shortcut:allow-register",
       "global-shortcut:allow-unregister",
     ])
