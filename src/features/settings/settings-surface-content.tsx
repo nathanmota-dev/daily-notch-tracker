@@ -16,38 +16,33 @@ import type {
 function SettingsHeader({ mutationBusy, onBack, onClose }: SettingsHeaderProps) {
   return (
     <header
-      className="flex min-w-0 flex-wrap items-start justify-between gap-4"
+      className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3"
       data-slot="settings-window-header"
     >
-      <div className="flex min-w-0 flex-1 items-start gap-2">
-        <BackButton
-          ariaLabel="Back to tasks"
-          className="mt-0.5"
-          disabled={mutationBusy}
-          onClick={onBack}
-          title="Back to tasks"
+      <BackButton
+        ariaLabel="Back to tasks"
+        className="mt-1 text-content hover:bg-white/[0.1] hover:text-content"
+        disabled={mutationBusy}
+        onClick={onBack}
+        title="Back to tasks"
+      />
+      <div className="flex min-w-0 items-start gap-3">
+        <SettingsIcon
+          aria-hidden="true"
+          className="mt-2.5 size-5 shrink-0 text-content"
         />
-        <div className="flex min-w-0 items-start gap-3">
-          <SettingsIcon
-            aria-hidden="true"
-            className="mt-1 size-5 shrink-0 text-accent"
-          />
-          <div className="min-w-0">
-            <p className="m-0 text-caption font-medium uppercase tracking-[0.2em] text-muted">
-              DailyNotch Linux
-            </p>
-            <h1 className="m-0 mt-1 text-[clamp(1.75rem,5vw,2.35rem)] font-bold leading-[1.05] tracking-[-0.045em] text-content">
-              Settings
-            </h1>
-            <p className="mt-2 max-w-full break-words text-body text-muted">
-              Tune focus behavior and inspect the desktop integrations.
-            </p>
-          </div>
+        <div className="min-w-0">
+          <h1 className="m-0 text-[clamp(1.75rem,5vw,2.35rem)] font-bold leading-[1.05] tracking-[-0.045em] text-content">
+            Settings
+          </h1>
+          <p className="mt-2 max-w-full break-words text-body text-muted">
+            Tune focus behavior and inspect the desktop integrations.
+          </p>
         </div>
       </div>
       <IconButton
         aria-label="Close Settings"
-        className="size-8 rounded-full bg-panel-hover p-0 text-muted hover:bg-white/[0.12] hover:text-content"
+        className="mt-1 size-8 rounded-full bg-panel-hover p-0 text-content hover:bg-white/[0.1] hover:text-content"
         disabled={mutationBusy}
         onClick={onClose}
         size="sm"
@@ -123,7 +118,7 @@ export function SettingsSurfaceContent({
 }: SettingsSurfaceContentProps) {
   return (
     <main
-      className="mx-auto h-screen min-h-[var(--surface-window-min-height)] max-h-[var(--surface-window-max-height)] min-w-0 w-full max-w-[var(--surface-window-max-width)] overflow-x-hidden overflow-y-auto rounded-[22px] border border-white/[0.18] bg-black px-5 py-[18px] pr-3 text-content max-[640px]:rounded-none max-[640px]:border-0 max-[640px]:px-4"
+      className="mx-auto h-screen min-h-[var(--surface-window-min-height)] max-h-[var(--surface-window-max-height)] min-w-0 w-full max-w-[var(--surface-window-max-width)] overflow-x-hidden overflow-y-auto rounded-[22px] border border-white/[0.14] bg-black px-5 py-[18px] pr-3 text-content max-[640px]:rounded-none max-[640px]:border-0 max-[640px]:px-4"
       data-surface="settings"
       data-slot="settings-surface"
     >

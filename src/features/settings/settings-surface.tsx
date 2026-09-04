@@ -110,8 +110,8 @@ function useSettingsDuration(
     durationSubmissionRef.current = null
   }, [])
 
-  const onCommitFocusMinutes = useCallback(() => {
-    const parsedMinutes = parseFocusMinutes(focusMinutesDraft)
+  const onCommitFocusMinutes = useCallback((value = focusMinutesDraft) => {
+    const parsedMinutes = parseFocusMinutes(value)
     if (parsedMinutes === null) {
       setDurationError(FOCUS_MINUTES_ERROR)
       return
