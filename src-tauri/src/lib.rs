@@ -13,7 +13,8 @@ pub use domain::{
     AppDiagnostics, AppError, AppErrorCode, AppSnapshot, AutostartDiagnostic, CreateTaskInput,
     DomainResult, FocusSession, FocusSettings, FocusSettingsPatch, FocusSnapshot, FocusState,
     IntegrationStatus, MoveTasksInput, ShortcutDiagnostic, ShortcutStatus, StartFocusInput, Task,
-    TaskBucket, TasksWindowIntent, TrayDiagnostic, UpdateTaskInput, WindowPlacementSnapshot,
+    TaskBucket, TasksWindowIntent, TrayDiagnostic, UpdateTaskInput, WindowMonitorSnapshot,
+    WindowPlacementSnapshot,
 };
 pub use services::AppLifecycleState;
 pub use services::FocusScheduler;
@@ -58,6 +59,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_snapshot,
+            commands::window_commands::get_window_placement,
+            commands::window_commands::save_window_placement,
             commands::add_task,
             commands::update_task,
             commands::delete_task,

@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::domain::{FocusSession, FocusSettings, Task};
+use crate::domain::{FocusSession, FocusSettings, Task, WindowPlacementSnapshot};
 
 /// The only payload version understood by the current application.
 pub const CURRENT_SCHEMA_VERSION: u32 = 1;
 
 /// The data stored in the local repository.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub struct PersistedPayload {
     pub schema_version: u32,
     #[serde(default)]
@@ -16,6 +16,8 @@ pub struct PersistedPayload {
     pub sessions: Vec<FocusSession>,
     #[serde(default)]
     pub settings: FocusSettings,
+    #[serde(default)]
+    pub extended_window_placement: Option<WindowPlacementSnapshot>,
 }
 
 impl PersistedPayload {
@@ -25,6 +27,7 @@ impl PersistedPayload {
             tasks: Vec::new(),
             sessions: Vec::new(),
             settings: FocusSettings::default(),
+            extended_window_placement: None,
         }
     }
 
@@ -33,11 +36,21 @@ impl PersistedPayload {
         sessions: Vec<FocusSession>,
         settings: FocusSettings,
     ) -> Self {
+        Self::from_parts_with_extended_window_placement(tasks, sessions, settings, None)
+    }
+
+    pub fn from_parts_with_extended_window_placement(
+        tasks: Vec<Task>,
+        sessions: Vec<FocusSession>,
+        settings: FocusSettings,
+        extended_window_placement: Option<WindowPlacementSnapshot>,
+    ) -> Self {
         Self {
             schema_version: CURRENT_SCHEMA_VERSION,
             tasks,
             sessions,
             settings,
+            extended_window_placement,
         }
     }
 
@@ -85,6 +98,26 @@ mod tests {
 
     use super::*;
 
+    fn sample_placement() -> WindowPlacementSnapshot {
+        WindowPlacementSnapshot {
+            revision: 2,
+            window_label: "overlay".to_owned(),
+            x: -1280,
+            y: 96,
+            width: 800,
+            height: 550,
+            scale_factor: 1.25,
+            monitor: crate::domain::WindowMonitorSnapshot {
+                name: Some("secondary".to_owned()),
+                x: -1920,
+                y: 0,
+                width: 1920,
+                height: 1080,
+                scale_factor: 1.25,
+            },
+        }
+    }
+
     fn sample_task() -> Task {
         Task {
             id: Uuid::parse_str("11111111-1111-4111-8111-111111111111")
@@ -129,6 +162,7 @@ mod tests {
         assert!(payload.tasks.is_empty());
         assert!(payload.sessions.is_empty());
         assert_eq!(payload.settings, FocusSettings::default());
+        assert!(payload.extended_window_placement.is_none());
     }
 
     #[test]
@@ -148,11 +182,28 @@ mod tests {
     }
 
     #[test]
-    fn payload_serialization_keeps_schema_version_and_domain_camel_case() {
-        let payload = PersistedPayload::from_parts(
+    fn payload_roundtrip_preserves_the_optional_extended_window_placement() {
+        let placement = sample_placement();
+        let payload = PersistedPayload::from_parts_with_extended_window_placement(
             vec![sample_task()],
             vec![sample_session()],
             FocusSettings::default(),
+            Some(placement.clone()),
+        );
+
+        let bytes = serde_json::to_vec(&payload).expect("payload should serialize");
+        let decoded = PersistedPayload::parse(&bytes).expect("payload should parse");
+
+        assert_eq!(decoded.extended_window_placement, Some(placement));
+    }
+
+    #[test]
+    fn payload_serialization_keeps_schema_version_and_domain_camel_case() {
+        let payload = PersistedPayload::from_parts_with_extended_window_placement(
+            vec![sample_task()],
+            vec![sample_session()],
+            FocusSettings::default(),
+            Some(sample_placement()),
         );
         let json = serde_json::to_value(payload).expect("payload should serialize");
 
@@ -166,6 +217,11 @@ mod tests {
         );
         assert_eq!(json["sessions"][0]["focusedSeconds"], 1_500);
         assert_eq!(json["settings"]["focusMinutes"], 25);
+        assert_eq!(json["extended_window_placement"]["windowLabel"], "overlay");
+        assert_eq!(
+            json["extended_window_placement"]["monitor"]["scaleFactor"],
+            1.25
+        );
     }
 
     #[test]
@@ -186,6 +242,21 @@ mod tests {
         assert!(!payload.settings.rainbow_timeline);
         assert!(!payload.settings.minimal_mode);
         assert!(!payload.settings.launch_at_login);
+    }
+
+    #[test]
+    fn legacy_payloads_without_extended_window_placement_still_load() {
+        let payload = PersistedPayload::parse(
+            br#"{
+                "schema_version": 1,
+                "tasks": [],
+                "sessions": [],
+                "settings": {}
+            }"#,
+        )
+        .expect("legacy payload should remain readable");
+
+        assert!(payload.extended_window_placement.is_none());
     }
 
     #[test]

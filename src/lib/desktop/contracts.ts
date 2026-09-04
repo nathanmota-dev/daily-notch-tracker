@@ -1,5 +1,6 @@
 import type { StartFocusInput } from "./focus-contracts"
 import type { SurfaceChangedPayload, TasksWindowOrigin } from "./window-navigation-contracts"
+import type { WindowPlacementSnapshot } from "./window-placement-contracts"
 
 export type { StartFocusInput } from "./focus-contracts"
 export type {
@@ -8,6 +9,10 @@ export type {
   SurfaceChangedPayload,
   TasksWindowOrigin,
 } from "./window-navigation-contracts"
+export type {
+  WindowMonitorSnapshot,
+  WindowPlacementSnapshot,
+} from "./window-placement-contracts"
 
 export type IsoDateString = string
 export type IsoDateTimeString = string
@@ -129,20 +134,18 @@ export type AppDiagnostics = {
   tray: TrayDiagnostic
 }
 
-export type WindowPlacementSnapshot = {
-  revision: number
-  windowLabel: SurfaceLabel
-  x: number
-  y: number
-  width: number
-  height: number
-  scaleFactor: number
-}
-
 export type DesktopCommandMap = {
   get_snapshot: {
     args: undefined
     result: AppSnapshot
+  }
+  get_window_placement: {
+    args: undefined
+    result: WindowPlacementSnapshot | null
+  }
+  save_window_placement: {
+    args: undefined
+    result: WindowPlacementSnapshot
   }
   add_task: {
     args: { input: CreateTaskInput }

@@ -2,6 +2,7 @@ import {
   getCurrentWindow,
   PhysicalPosition as TauriPhysicalPosition,
   PhysicalSize as TauriPhysicalSize,
+  availableMonitors as tauriAvailableMonitors,
   primaryMonitor as tauriPrimaryMonitor,
   type Window as TauriWindow,
 } from "@tauri-apps/api/window"
@@ -17,6 +18,8 @@ import type {
   OverlayWindowAdapter,
   OverlayWindowUnlisten,
 } from "./overlay-window"
+import { normalizeWindowMonitorSnapshot } from "./window-placement"
+import type { WindowMonitorSnapshot } from "./window-placement-contracts"
 
 type TauriWindowAdapter = Pick<
   TauriWindow,
@@ -29,11 +32,12 @@ type TauriWindowAdapter = Pick<
   | "hide"
 > &
   Partial<
-    Pick<TauriWindow, "onScaleChanged" | "setSizeConstraints">
+    Pick<TauriWindow, "onMoved" | "onScaleChanged" | "setSizeConstraints">
   >
 
 export type TauriOverlayWindowAdapterOptions = {
   monitorReader?: () => Promise<unknown>
+  monitorsReader?: () => Promise<unknown>
   displayPollIntervalMs?: number
 }
 
@@ -141,11 +145,61 @@ function createDisplayChangeSubscription(
   }
 }
 
+async function readAvailableMonitors(
+  monitorsReader: () => Promise<unknown>,
+): Promise<WindowMonitorSnapshot[]> {
+  try {
+    const monitors = await monitorsReader()
+    if (!Array.isArray(monitors)) {
+      return []
+    }
+
+    return monitors
+      .map(normalizeWindowMonitorSnapshot)
+      .filter((monitor): monitor is WindowMonitorSnapshot => monitor !== null)
+  } catch {
+    return []
+  }
+}
+
+async function subscribeToNativeWindowMoves(
+  appWindow: TauriWindowAdapter,
+  listener: (position: OverlayPhysicalPosition) => void,
+): Promise<OverlayWindowUnlisten> {
+  if (!appWindow.onMoved) {
+    return () => undefined
+  }
+
+  try {
+    const nativeUnlisten = await appWindow.onMoved(({ payload }) => {
+      try {
+        listener({ x: payload.x, y: payload.y })
+      } catch {
+        // A move notification should not break the native event listener.
+      }
+    })
+    let cleaned = false
+
+    return () => {
+      if (cleaned) {
+        return
+      }
+
+      cleaned = true
+      nativeUnlisten()
+    }
+  } catch {
+    return () => undefined
+  }
+}
+
 export function createTauriOverlayWindowAdapter(
   appWindow: TauriWindowAdapter = getCurrentWindow(),
   options: TauriOverlayWindowAdapterOptions = {},
 ): OverlayWindowAdapter {
   const monitorReader = options.monitorReader ?? (() => tauriPrimaryMonitor())
+  const monitorsReader =
+    options.monitorsReader ?? (() => tauriAvailableMonitors())
   const pollIntervalMs =
     options.displayPollIntervalMs !== undefined &&
     Number.isFinite(options.displayPollIntervalMs) &&
@@ -172,6 +226,7 @@ export function createTauriOverlayWindowAdapter(
     },
     scaleFactor: () => appWindow.scaleFactor(),
     primaryMonitor: readPrimaryMonitor,
+    availableMonitors: () => readAvailableMonitors(monitorsReader),
     setSizeConstraints: appWindow.setSizeConstraints
       ? async (size: OverlayPhysicalSize | null) => {
           if (size === null) {
@@ -198,6 +253,8 @@ export function createTauriOverlayWindowAdapter(
       ),
     show: () => appWindow.show(),
     hide: () => appWindow.hide(),
+    subscribeToWindowMoves: (listener) =>
+      subscribeToNativeWindowMoves(appWindow, listener),
     subscribeToDisplayChanges: createDisplayChangeSubscription(
       appWindow,
       readPrimaryMonitor,

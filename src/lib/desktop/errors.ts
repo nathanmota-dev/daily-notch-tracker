@@ -36,6 +36,13 @@ export class DesktopApiError extends Error {
 
 export const desktopOperationErrorCodes = {
   getSnapshot: ["command-unavailable", "internal"],
+  getWindowPlacement: ["command-unavailable", "internal"],
+  saveWindowPlacement: [
+    "persistence",
+    "integration-unavailable",
+    "command-unavailable",
+    "internal",
+  ],
   addTask: [
     "validation",
     "conflict",

@@ -24,7 +24,7 @@ impl fmt::Display for RecoveryDiagnostic {
 }
 
 /// Result of loading a repository, including an optional recovery diagnostic.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RepositoryLoad {
     pub payload: PersistedPayload,
     pub recovery_diagnostic: Option<RecoveryDiagnostic>,

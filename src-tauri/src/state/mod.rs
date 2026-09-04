@@ -8,7 +8,7 @@ use crate::domain::streak::streak_from_activity;
 use crate::domain::task::{parse_scheduled_date, sort_tasks, tasks_for_bucket};
 use crate::domain::{
     AppError, AppSnapshot, DomainResult, FocusSession, FocusSettings, FocusSnapshot,
-    ShortcutStatus, Task,
+    ShortcutStatus, Task, WindowPlacementSnapshot,
 };
 use crate::storage::{PersistedPayload, RecoveryDiagnostic, Repository};
 
@@ -25,6 +25,7 @@ pub struct AppState {
     tasks: Vec<Task>,
     sessions: Vec<FocusSession>,
     settings: FocusSettings,
+    window_placement: WindowPlacementState,
     focus: FocusSnapshot,
     shortcut_status: ShortcutStatus,
     repository: Option<Repository>,
@@ -41,11 +42,18 @@ struct MutableStateCheckpoint {
     tasks: Vec<Task>,
     sessions: Vec<FocusSession>,
     settings: FocusSettings,
+    window_placement: WindowPlacementState,
     focus: FocusSnapshot,
     confirmed_payload: PersistedPayload,
     running_since: Option<DateTime<Utc>>,
     accumulated_focus_ms: u64,
     focus_token: u64,
+}
+
+#[derive(Clone, Debug, Default)]
+struct WindowPlacementState {
+    snapshot: Option<WindowPlacementSnapshot>,
+    revision: u64,
 }
 
 impl Default for AppState {
@@ -81,6 +89,10 @@ impl AppState {
 
     pub fn recovery_diagnostic(&self) -> Option<&RecoveryDiagnostic> {
         self.recovery_diagnostic.as_ref()
+    }
+
+    pub fn window_placement(&self) -> Option<WindowPlacementSnapshot> {
+        self.window_placement.snapshot.clone()
     }
 
     pub fn snapshot(&self) -> AppSnapshot {
@@ -156,6 +168,7 @@ impl AppState {
             tasks: self.tasks.clone(),
             sessions: self.sessions.clone(),
             settings: self.settings.clone(),
+            window_placement: self.window_placement.clone(),
             focus: self.focus.clone(),
             confirmed_payload: self.confirmed_payload.clone(),
             running_since: self.running_since,
@@ -174,6 +187,7 @@ impl AppState {
             self.tasks = checkpoint.tasks;
             self.sessions = checkpoint.sessions;
             self.settings = checkpoint.settings;
+            self.window_placement = checkpoint.window_placement;
             self.focus = checkpoint.focus;
             self.confirmed_payload = checkpoint.confirmed_payload;
             self.running_since = checkpoint.running_since;

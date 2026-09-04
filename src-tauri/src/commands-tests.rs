@@ -7,7 +7,7 @@ use std::time::{Duration as StdDuration, Instant};
 use super::*;
 use crate::domain::{
     CreateTaskInput, FocusSettingsPatch, MoveTasksInput, ShortcutStatus, StartFocusInput,
-    TaskBucket, TasksWindowIntent, UpdateTaskInput,
+    TaskBucket, TasksWindowIntent, UpdateTaskInput, WindowMonitorSnapshot, WindowPlacementSnapshot,
 };
 use crate::services::{
     AutostartBackendError, AutostartService, FocusScheduler, MockAutostartBackend,
@@ -64,6 +64,26 @@ fn create_overlay_window(
     WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("index.html".into()))
         .build()
         .expect("test window should build")
+}
+
+fn sample_window_placement() -> WindowPlacementSnapshot {
+    WindowPlacementSnapshot {
+        revision: 0,
+        window_label: "overlay".to_owned(),
+        x: 240,
+        y: 120,
+        width: 800,
+        height: 550,
+        scale_factor: 1.0,
+        monitor: WindowMonitorSnapshot {
+            name: Some("primary".to_owned()),
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+            scale_factor: 1.0,
+        },
+    }
 }
 
 #[test]
@@ -214,6 +234,86 @@ fn state_commands_share_the_managed_state_and_emit_snapshots() {
     );
     tauri::async_runtime::block_on(delete_task(handle, task_id.to_string()))
         .expect("task should be deleted");
+}
+
+#[test]
+fn window_placement_commands_use_independent_state_and_sanitize_missing_windows() {
+    let app = test_app();
+    let handle = app.handle().clone();
+
+    let placement = tauri::async_runtime::block_on(get_window_placement(handle.clone()))
+        .expect("placement lookup should succeed without a native window");
+    assert!(placement.is_none());
+
+    let error = tauri::async_runtime::block_on(save_window_placement(handle))
+        .expect_err("saving placement without the overlay should fail");
+    assert_eq!(
+        error.code,
+        crate::domain::AppErrorCode::IntegrationUnavailable
+    );
+    assert_eq!(error.message, "The overlay window could not be focused.");
+
+    let app = test_app();
+    let handle = app.handle().clone();
+    let _overlay = create_overlay_window(&app);
+    let error = tauri::async_runtime::block_on(save_window_placement(handle))
+        .expect_err("minimized surface placement should not be saved");
+    assert_eq!(
+        error.code,
+        crate::domain::AppErrorCode::IntegrationUnavailable
+    );
+    assert_eq!(
+        error.message,
+        "Window placement is available only for extended surfaces."
+    );
+}
+
+#[test]
+fn window_placement_persistence_emits_only_the_placement_event() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let received = Arc::new(Mutex::new(Vec::<WindowPlacementSnapshot>::new()));
+    let received_for_listener = Arc::clone(&received);
+    let store_events = Arc::new(AtomicUsize::new(0));
+    let store_events_for_listener = Arc::clone(&store_events);
+    handle.listen_any("store-changed", move |_| {
+        store_events_for_listener.fetch_add(1, Ordering::Release);
+    });
+    handle.listen_any(
+        crate::commands::WINDOW_PLACEMENT_CHANGED_EVENT,
+        move |event| {
+            if let Ok(placement) = serde_json::from_str::<WindowPlacementSnapshot>(event.payload())
+            {
+                received_for_listener
+                    .lock()
+                    .expect("placement listener should not be poisoned")
+                    .push(placement);
+            }
+        },
+    );
+
+    let before =
+        tauri::async_runtime::block_on(get_snapshot(handle.clone())).expect("snapshot should load");
+    let saved =
+        tauri::async_runtime::block_on(crate::commands::window_commands::persist_window_placement(
+            handle.clone(),
+            sample_window_placement(),
+        ))
+        .expect("placement should persist");
+
+    assert_eq!(saved.revision, 1);
+    assert_eq!(
+        tauri::async_runtime::block_on(get_snapshot(handle)).expect("snapshot should load"),
+        before
+    );
+    assert_eq!(
+        received
+            .lock()
+            .expect("placement events should not be poisoned")
+            .clone(),
+        vec![saved]
+    );
+    assert_eq!(store_events.load(Ordering::Acquire), 0);
 }
 
 #[test]

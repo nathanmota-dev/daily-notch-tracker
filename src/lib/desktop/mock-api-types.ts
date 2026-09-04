@@ -3,6 +3,7 @@ import type {
   AppDiagnostics,
   AppSnapshot,
   DesktopEventMap,
+  WindowPlacementSnapshot,
 } from "./contracts"
 import { DesktopApiError, type DesktopApiErrorCode } from "./errors"
 import type { MockState } from "./mock-state"
@@ -17,6 +18,7 @@ export type MockDesktopFailure = DesktopApiError | DesktopApiErrorCode
 
 export type MockDesktopApiOptions = {
   snapshot?: AppSnapshot
+  windowPlacement?: WindowPlacementSnapshot | null
   diagnostics?: AppDiagnostics
   handlers?: MockDesktopApiHandlers
   failures?: Partial<

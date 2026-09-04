@@ -30,6 +30,7 @@ import {
   useOverlayResize,
   useOverlayWindowAdapter,
 } from "./use-overlay-resize"
+import { useWindowPlacement } from "./use-window-placement"
 import { useAppSnapshot } from "./use-app-snapshot"
 import { useDashboardActions } from "./use-dashboard-actions"
 import { cn } from "../lib/utils"
@@ -196,6 +197,14 @@ export function App({
     retry,
     state,
   } = useAppSnapshot(api)
+  const resolvedOverlayWindowAdapter = useOverlayWindowAdapter(
+    overlayWindowAdapter,
+  )
+  useWindowPlacement({
+    adapter: resolvedOverlayWindowAdapter,
+    api,
+    surface,
+  })
   const dashboardActions = useDashboardActions({
     api,
     applySnapshot,
@@ -224,7 +233,7 @@ export function App({
     { ...dashboardActions.callbacks, ...callbacks },
     dashboardActions.error,
     dashboardActions.busy,
-    overlayWindowAdapter,
+    resolvedOverlayWindowAdapter,
     api,
     { applySnapshot, refreshSnapshot },
     tasksIntent,

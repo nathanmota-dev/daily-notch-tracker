@@ -9,6 +9,7 @@ import type {
   TasksWindowOrigin,
   TasksWindowIntent,
   UpdateTaskInput,
+  WindowPlacementSnapshot,
 } from "./contracts"
 
 export type DesktopEventName = keyof DesktopEventMap
@@ -19,6 +20,8 @@ export type DesktopEventListener<EventName extends DesktopEventName> = (
 
 export interface DesktopApi {
   getSnapshot(): Promise<AppSnapshot>
+  getWindowPlacement(): Promise<WindowPlacementSnapshot | null>
+  saveWindowPlacement(): Promise<WindowPlacementSnapshot>
   addTask(input: CreateTaskInput): Promise<AppSnapshot>
   updateTask(input: UpdateTaskInput): Promise<AppSnapshot>
   deleteTask(taskId: string): Promise<AppSnapshot>

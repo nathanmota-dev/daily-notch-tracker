@@ -61,6 +61,7 @@ export type {
   TrayDiagnostic,
   UpdateTaskInput,
   WindowPlacementSnapshot,
+  WindowMonitorSnapshot,
 } from "./desktop/contracts"
 export {
   isSurfaceLabel,
@@ -107,3 +108,13 @@ export {
   type MockDesktopOperation,
 } from "./desktop/mock"
 export { createTauriDesktopApi, type TauriTransport } from "./desktop/tauri"
+export {
+  clampWindowPosition,
+  findWindowMonitor,
+  normalizeWindowMonitorSnapshot,
+  normalizeWindowPlacementSnapshot,
+  resolveWindowPlacement,
+  DEFAULT_EXTENDED_WINDOW_SIZE,
+  type ResolvedWindowPlacement,
+  type WindowPlacementGeometry,
+} from "./desktop/window-placement"

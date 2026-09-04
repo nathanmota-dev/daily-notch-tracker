@@ -119,7 +119,7 @@ export function adoptSnapshot(
     before.revision + 1,
     Number.isFinite(nextSnapshot.revision) ? nextSnapshot.revision : 0,
   )
-  context.state = createMockState(nextSnapshot)
+  context.state = createMockState(nextSnapshot, context.state.windowPlacement)
   emitSnapshotChange(context, operation, before, nextSnapshot)
   return cloneSnapshot(nextSnapshot)
 }

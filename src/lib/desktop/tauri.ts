@@ -86,6 +86,10 @@ export function createTauriDesktopApi(
 
   return {
     getSnapshot: () => execute("getSnapshot", "get_snapshot", undefined),
+    getWindowPlacement: () =>
+      execute("getWindowPlacement", "get_window_placement", undefined),
+    saveWindowPlacement: () =>
+      execute("saveWindowPlacement", "save_window_placement", undefined),
     addTask: (input) => execute("addTask", "add_task", { input }),
     updateTask: (input) => execute("updateTask", "update_task", { input }),
     deleteTask: (taskId) => execute("deleteTask", "delete_task", { taskId }),
