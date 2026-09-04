@@ -25,7 +25,9 @@ sudo apt install \
   libssl-dev \
   libdbus-1-dev \
   libayatana-appindicator3-dev \
-  librsvg2-dev
+  librsvg2-dev \
+  patchelf \
+  pkg-config
 ```
 
 Consulte também a documentação oficial de [pré-requisitos do Tauri](https://v2.tauri.app/start/prerequisites/).
@@ -187,8 +189,8 @@ mockado do navegador.
 
 A MVP-030 habilita somente os targets `appimage` e `deb`. O bundler do Tauri
 gera os ícones, metadados e o desktop entry do aplicativo automaticamente; não
-há um template `.desktop` mantido pelo projeto. O workflow de build e
-publicação pertence à MVP-031.
+há um template `.desktop` mantido pelo projeto. O workflow da MVP-031 roda no
+Ubuntu 22.04 x64 após pushes em `main` e também pode ser disparado manualmente.
 
 #### Baseline e dependências
 
@@ -213,7 +215,9 @@ sudo apt install \
   libssl-dev \
   libdbus-1-dev \
   libayatana-appindicator3-dev \
-  librsvg2-dev
+  librsvg2-dev \
+  patchelf \
+  pkg-config
 ```
 
 O pacote `.deb` declara as dependências de runtime necessárias para WebKitGTK,
@@ -227,8 +231,14 @@ Gere os dois artefatos a partir da raiz do repositório:
 
 ```bash
 npm ci
+npm test
+cargo test --manifest-path src-tauri/Cargo.toml --locked
 npm run tauri:build
 ```
+
+`npm run tauri:build` usa o CLI Tauri 2 instalado pelo projeto e executa o
+`beforeBuildCommand` configurado, que gera o build de produção do frontend
+antes do empacotamento.
 
 Os arquivos são gravados em:
 
@@ -236,6 +246,16 @@ Os arquivos são gravados em:
 src-tauri/target/release/bundle/appimage/*.AppImage
 src-tauri/target/release/bundle/deb/*.deb
 ```
+
+No CI, os arquivos são publicados como dois artefatos separados, com retenção
+de 14 dias:
+
+- `dailynotch-linux-appimage-ubuntu-22.04-x64-<commit>`
+- `dailynotch-linux-deb-ubuntu-22.04-x64-<commit>`
+
+O resumo do run informa os caminhos, tamanhos, hashes SHA-256 e links para
+download. Esta etapa publica artefatos do workflow; ela não cria uma GitHub
+Release nem assina os pacotes.
 
 Para executar o AppImage, torne-o executável e inicie o arquivo:
 
