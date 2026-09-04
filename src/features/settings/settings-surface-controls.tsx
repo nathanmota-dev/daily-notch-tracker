@@ -116,7 +116,7 @@ export function SettingsToggleRow({
         aria-describedby={descriptionId}
         aria-label={label}
         checked={checked}
-        className="shrink-0 data-checked:border-content data-checked:bg-content"
+        className="shrink-0 data-checked:border-accent data-checked:bg-accent"
         disabled={disabled}
         onCheckedChange={onCheckedChange}
       />

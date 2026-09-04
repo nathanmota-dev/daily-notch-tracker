@@ -73,6 +73,9 @@ describe("Settings surface", () => {
 
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument()
     expect(screen.queryByText("DailyNotch Linux")).not.toBeInTheDocument()
+    expect(
+      document.querySelector('[data-slot="settings-window-header"] > div > svg'),
+    ).toHaveClass("text-accent")
     expect(screen.getByRole("heading", { name: "Timer" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Alerts" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Appearance" })).toBeInTheDocument()
@@ -83,6 +86,9 @@ describe("Settings surface", () => {
     expect(screen.queryByRole("switch", { name: "Play sound" })).not.toBeInTheDocument()
 
     const autostart = screen.getByRole("switch", { name: "Launch at login" })
+    expect(screen.getByRole("switch", { name: "Notifications" })).toHaveClass(
+      "data-checked:bg-accent",
+    )
     expect(autostart).toHaveAttribute("aria-disabled", "true")
     expect(autostart).not.toBeChecked()
     expect(screen.getAllByText("Autostart requires the desktop runtime.")).toHaveLength(2)

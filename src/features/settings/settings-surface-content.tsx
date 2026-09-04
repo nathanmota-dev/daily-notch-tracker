@@ -29,7 +29,7 @@ function SettingsHeader({ mutationBusy, onBack, onClose }: SettingsHeaderProps) 
       <div className="flex min-w-0 items-start gap-3">
         <SettingsIcon
           aria-hidden="true"
-          className="mt-2.5 size-5 shrink-0 text-content"
+          className="mt-2.5 size-5 shrink-0 text-accent"
         />
         <div className="min-w-0">
           <h1 className="m-0 text-[clamp(1.75rem,5vw,2.35rem)] font-bold leading-[1.05] tracking-[-0.045em] text-content">
