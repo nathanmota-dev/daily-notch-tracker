@@ -109,6 +109,14 @@ impl AppError {
         }
     }
 
+    pub fn permission_denied(message: impl Into<String>) -> Self {
+        Self {
+            code: AppErrorCode::PermissionDenied,
+            message: message.into(),
+            field: None,
+        }
+    }
+
     pub fn invalid_url(message: impl Into<String>, field: impl Into<String>) -> Self {
         Self {
             code: AppErrorCode::InvalidUrl,
@@ -178,6 +186,24 @@ pub struct AutostartDiagnostic {
     pub enabled: bool,
     pub message: Option<String>,
     pub status: IntegrationStatus,
+}
+
+impl AutostartDiagnostic {
+    fn unavailable() -> Self {
+        let message = String::from("Autostart integration is unavailable in this desktop session.");
+
+        Self {
+            enabled: false,
+            status: IntegrationStatus::Unavailable,
+            message: Some(message),
+        }
+    }
+}
+
+impl Default for AutostartDiagnostic {
+    fn default() -> Self {
+        Self::unavailable()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
