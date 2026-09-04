@@ -16,10 +16,10 @@ import type {
 function SettingsHeader({ mutationBusy, onBack, onClose }: SettingsHeaderProps) {
   return (
     <header
-      className="flex items-start justify-between gap-4"
+      className="flex min-w-0 flex-wrap items-start justify-between gap-4"
       data-slot="settings-window-header"
     >
-      <div className="flex min-w-0 items-start gap-2">
+      <div className="flex min-w-0 flex-1 items-start gap-2">
         <BackButton
           ariaLabel="Back to tasks"
           className="mt-0.5"
@@ -39,7 +39,7 @@ function SettingsHeader({ mutationBusy, onBack, onClose }: SettingsHeaderProps) 
             <h1 className="m-0 mt-1 text-[clamp(1.75rem,5vw,2.35rem)] font-bold leading-[1.05] tracking-[-0.045em] text-content">
               Settings
             </h1>
-            <p className="mt-2 max-w-xl text-body text-muted">
+            <p className="mt-2 max-w-full break-words text-body text-muted">
               Tune focus behavior and inspect the desktop integrations.
             </p>
           </div>
@@ -72,16 +72,18 @@ function SettingsMutationError({
 
   return (
     <Panel
-      className="gap-3 border border-danger/30 bg-danger/5 p-4"
+      className="min-w-0 gap-3 border border-danger/30 bg-danger/5 p-4"
       data-slot="settings-mutation-error"
       role="alert"
       variant="danger"
     >
-      <div>
+      <div className="min-w-0">
         <p className="m-0 text-sm font-medium text-danger">
           Could not save this setting.
         </p>
-        <p className="mt-1 text-caption text-muted">{mutationError.message}</p>
+        <p className="mt-1 break-words text-caption text-muted">
+          {mutationError.message}
+        </p>
       </div>
       {onRetryMutation && (
         <Button
@@ -121,11 +123,11 @@ export function SettingsSurfaceContent({
 }: SettingsSurfaceContentProps) {
   return (
     <main
-      className="min-h-screen overflow-y-auto bg-canvas px-4 py-5 text-content sm:px-7 sm:py-7"
+      className="mx-auto h-screen min-h-[var(--settings-window-min-height)] max-h-[var(--settings-window-max-height)] min-w-0 w-full max-w-[var(--settings-window-max-width)] overflow-x-hidden overflow-y-auto bg-canvas px-4 py-5 text-content sm:px-7 sm:py-7"
       data-surface="settings"
       data-slot="settings-surface"
     >
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto min-w-0 w-full">
         <SettingsHeader
           mutationBusy={mutationBusy}
           onBack={onBack}

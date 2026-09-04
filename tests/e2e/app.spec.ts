@@ -314,7 +314,7 @@ test.describe("DailyNotch surface router", () => {
 
   test("keeps the Tasks window compact at reference sizes", async ({ page }) => {
     for (const size of [
-      { width: 922, height: 600 },
+      { width: 800, height: 550 },
       { width: 760, height: 480 },
     ]) {
       await page.setViewportSize(size)
@@ -342,6 +342,54 @@ test.describe("DailyNotch surface router", () => {
       expect((formBox?.y ?? 0) + (formBox?.height ?? 0)).toBeLessThanOrEqual(size.height)
       await expect(page.locator("#inline-task-title")).toBeFocused()
     }
+  })
+
+  test("stacks Tasks content without horizontal overflow in a compact viewport", async ({
+    page,
+  }) => {
+    const size = { width: 600, height: 900 }
+    await page.setViewportSize(size)
+    await loadTasksFixture(page, "expanded", "list")
+
+    const surface = page.locator('[data-surface="tasks"]')
+    const sidebar = page.locator('[data-slot="tasks-sidebar"]')
+    const content = page.locator('[data-slot="tasks-content"]')
+    const [surfaceBox, sidebarBox, contentBox, documentSize] = await Promise.all([
+      surface.boundingBox(),
+      sidebar.boundingBox(),
+      content.boundingBox(),
+      page.evaluate(() => ({
+        height: document.documentElement.scrollHeight,
+        width: document.documentElement.scrollWidth,
+      })),
+    ])
+
+    expect(surfaceBox?.width ?? 0).toBeLessThanOrEqual(size.width)
+    expect(sidebarBox?.width ?? 0).toBeLessThanOrEqual(size.width)
+    expect(contentBox?.width ?? 0).toBeLessThanOrEqual(size.width)
+    expect((sidebarBox?.y ?? 0)).toBeLessThan(contentBox?.y ?? 0)
+    expect(documentSize.width).toBeLessThanOrEqual(size.width)
+    await expect(page.getByRole("heading", { name: "Day" })).toBeVisible()
+  })
+
+  test("keeps the Tasks list scrollable at its minimum height", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 760, height: 480 })
+    await loadTasksFixture(page, "expanded-overflow", "list")
+
+    const listViewport = page.locator(
+      'section[aria-label="Tasks in selected list"]',
+    )
+    const metrics = await listViewport.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+    }))
+
+    expect(metrics.scrollHeight).toBeGreaterThan(metrics.clientHeight)
+    await expect(
+      page.locator('[data-slot="tasks-task-row"]').first(),
+    ).toBeVisible()
   })
 
   test("renders and navigates the monthly Tasks calendar", async ({ page }) => {
@@ -881,6 +929,44 @@ test.describe("DailyNotch surface router", () => {
 
     await page.getByRole("button", { name: "Close Settings" }).click()
     await expect(page.locator('[data-surface="overlay"]')).toBeVisible()
+  })
+
+  test("keeps Settings inside its responsive dimension contract", async ({
+    page,
+  }) => {
+    for (const size of [
+      { width: 720, height: 640 },
+      { width: 640, height: 480 },
+      { width: 960, height: 900 },
+    ]) {
+      await page.setViewportSize(size)
+      await page.goto("/?surface=settings")
+      await expect(page.getByRole("heading", { name: "Diagnostics" })).toBeVisible()
+
+      const surface = page.locator('[data-surface="settings"]')
+      const box = await surface.boundingBox()
+      const documentSize = await page.evaluate(() => ({
+        height: document.documentElement.scrollHeight,
+        width: document.documentElement.scrollWidth,
+      }))
+      const scrollMetrics = await surface.evaluate((element) => ({
+        clientHeight: element.clientHeight,
+        scrollHeight: element.scrollHeight,
+      }))
+
+      expect(box?.width ?? 0).toBe(Math.min(size.width, 960))
+      expect(box?.height ?? 0).toBe(Math.min(size.height, 900))
+      expect(documentSize.width).toBeLessThanOrEqual(size.width)
+      expect(documentSize.height).toBeLessThanOrEqual(size.height)
+      expect(scrollMetrics.scrollHeight).toBeGreaterThanOrEqual(
+        scrollMetrics.clientHeight,
+      )
+
+      await surface.evaluate((element) => {
+        element.scrollTop = element.scrollHeight
+      })
+      await expect(page.getByRole("heading", { name: "Diagnostics" })).toBeVisible()
+    }
   })
 
   test("returns to Tasks when the Settings back button is clicked", async ({

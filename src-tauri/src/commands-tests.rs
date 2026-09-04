@@ -12,7 +12,9 @@ use crate::domain::{
 use crate::services::{FocusScheduler, MockNotificationBackend, NotificationBackendError};
 use crate::state::AppState;
 use chrono::{Duration, Utc};
-use tauri::Listener;
+use tauri::{Listener, Manager};
+
+use super::window_commands::tasks_window_url;
 
 fn test_app() -> tauri::App<tauri::test::MockRuntime> {
     let notification_backend = Arc::new(MockNotificationBackend::default());
@@ -251,6 +253,7 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
         }),
     ))
     .expect("tasks window should open");
+    assert!(handle.get_webview_window("tasks").is_some());
     tauri::async_runtime::block_on(open_tasks_window(
         handle.clone(),
         Some(TasksWindowIntent::List),
@@ -270,14 +273,29 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
     .expect("existing tasks window should receive a task intent");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("settings window should open");
+    let settings_window = handle
+        .get_webview_window("settings")
+        .expect("settings window should be registered");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("existing settings window should be reused");
     tauri::async_runtime::block_on(close_settings_window(handle.clone()))
         .expect("settings window should close without being destroyed");
+    assert!(
+        handle.get_webview_window("settings").is_some(),
+        "settings window should remain reusable after hiding"
+    );
+    assert_eq!(settings_window.label(), "settings");
     tauri::async_runtime::block_on(close_settings_window(handle.clone()))
         .expect("closing an already hidden settings window should be idempotent");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("hidden settings window should be reused");
+    assert_eq!(
+        handle
+            .get_webview_window("settings")
+            .expect("reopened settings window should be registered")
+            .label(),
+        "settings"
+    );
 
     assert_eq!(handle.webview_windows().len(), 2);
     assert_eq!(
@@ -339,10 +357,15 @@ fn reusable_windows_work_without_overlay_and_preserve_focus_scheduler() {
     .expect("Tasks should open without an overlay");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("Settings should open without an overlay");
+    assert!(handle.get_webview_window("tasks").is_some());
+    assert!(handle.get_webview_window("settings").is_some());
     tauri::async_runtime::block_on(close_tasks_window(handle.clone()))
         .expect("Tasks should hide without an overlay");
     tauri::async_runtime::block_on(close_settings_window(handle.clone()))
         .expect("Settings should hide without an overlay");
+
+    assert!(handle.get_webview_window("tasks").is_some());
+    assert!(handle.get_webview_window("settings").is_some());
 
     assert_eq!(handle.webview_windows().len(), 2);
     let snapshot = tauri::async_runtime::block_on(get_snapshot(handle.clone()))

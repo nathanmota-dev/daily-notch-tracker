@@ -12,15 +12,15 @@ import {
   getExpandedDashboardLogicalSize,
   getOverlayTargetLogicalSize,
   logicalSizeToPhysical,
+  WINDOW_DIMENSIONS,
   type OverlayWindowAdapter,
 } from "./overlay-window"
 
 describe("overlay window dimensions", () => {
   it("uses the compact idle notch dimensions regardless of focus settings", () => {
-    expect(getCollapsedOverlayLogicalSize({ focusState: "idle" })).toEqual({
-      width: 204,
-      height: 32,
-    })
+    expect(getCollapsedOverlayLogicalSize({ focusState: "idle" })).toEqual(
+      WINDOW_DIMENSIONS.overlay.idle,
+    )
     expect(
       getOverlayTargetLogicalSize("collapsed", {
         focusState: "idle",
@@ -31,14 +31,12 @@ describe("overlay window dimensions", () => {
   })
 
   it("returns the supported collapsed dimensions", () => {
-    expect(getCollapsedOverlayLogicalSize()).toEqual({
-      width: 360,
-      height: 72,
-    })
-    expect(getCollapsedOverlayLogicalSize({ minimalMode: true })).toEqual({
-      width: 104,
-      height: 72,
-    })
+    expect(getCollapsedOverlayLogicalSize()).toEqual(
+      WINDOW_DIMENSIONS.overlay.collapsed,
+    )
+    expect(getCollapsedOverlayLogicalSize({ minimalMode: true })).toEqual(
+      WINDOW_DIMENSIONS.overlay.minimal,
+    )
     expect(getCollapsedOverlayLogicalSize({ showTimeline: false })).toEqual({
       width: 360,
       height: 52,

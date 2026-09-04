@@ -31,8 +31,8 @@ export function SettingsSection({
       >
         {title}
       </h2>
-      <p className="mt-1.5 text-caption text-muted">{description}</p>
-      <div className="mt-4 divide-y divide-border">{children}</div>
+      <p className="mt-1.5 break-words text-caption text-muted">{description}</p>
+      <div className="mt-4 min-w-0 divide-y divide-border">{children}</div>
     </section>
   )
 }
@@ -49,7 +49,7 @@ export function SettingsToggleRow({
 
   return (
     <div
-      className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+      className="flex min-w-0 flex-wrap items-start justify-between gap-4 py-3 first:pt-0 last:pb-0 max-[640px]:flex-col"
       data-setting={setting}
       data-slot="settings-toggle-row"
     >
@@ -63,6 +63,7 @@ export function SettingsToggleRow({
         aria-describedby={descriptionId}
         aria-label={label}
         checked={checked}
+        className="shrink-0"
         disabled={disabled}
         onCheckedChange={onCheckedChange}
       />
@@ -77,15 +78,15 @@ export function SettingsStatusRow({
 }: SettingsStatusRowProps) {
   return (
     <div
-      className="flex items-start justify-between gap-4 border-t border-border py-3 last:pb-0"
+      className="flex min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2 border-t border-border py-3 last:pb-0 max-[640px]:flex-col"
       data-status={status}
       data-slot="settings-status-row"
     >
-      <span className="text-sm text-muted">{label}</span>
-      <span className="text-right text-sm text-content">
+      <span className="min-w-0 max-w-full text-sm text-muted">{label}</span>
+      <span className="min-w-0 max-w-full break-words text-right text-sm text-content max-[640px]:text-left">
         <span className="font-medium">{getStatusLabel(status)}</span>
         {message && (
-          <span className="mt-1 block max-w-[18rem] text-caption text-muted">
+          <span className="mt-1 block max-w-full break-words text-caption text-muted">
             {message}
           </span>
         )}
@@ -104,7 +105,7 @@ export function SettingsDurationControl({
 
   return (
     <div
-      className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0"
+      className="flex min-w-0 flex-wrap items-start justify-between gap-4 py-3 first:pt-0 last:pb-0 max-[640px]:flex-col"
       data-slot="settings-duration-control"
     >
       <div className="min-w-0">
@@ -127,7 +128,7 @@ export function SettingsDurationControl({
         aria-describedby={error ? errorId : undefined}
         aria-invalid={Boolean(error)}
         aria-label="Focus duration (minutes)"
-        className="h-9 w-24 rounded-control border border-border bg-canvas px-2.5 text-right text-sm text-content outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/50"
+        className="h-9 w-24 shrink-0 rounded-control border border-border bg-canvas px-2.5 text-right text-sm text-content outline-none transition-colors focus:border-ring focus:ring-2 focus:ring-ring/50 max-[640px]:w-full max-[640px]:text-left"
         data-slot="settings-focus-minutes"
         id="settings-focus-minutes"
         inputMode="numeric"
@@ -170,7 +171,7 @@ export function SettingsDiagnostics({
   if (diagnosticsError || !diagnostics) {
     return (
       <Panel
-        className="gap-3 border border-danger/30 bg-danger/5 p-3"
+        className="min-w-0 gap-3 border border-danger/30 bg-danger/5 p-3"
         data-slot="settings-diagnostics-error"
         variant="danger"
       >
@@ -185,13 +186,15 @@ export function SettingsDiagnostics({
   }
 
   return (
-    <dl className="divide-y divide-border" data-slot="settings-diagnostics-details">
-      <div className="grid gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
-        <dt className="text-sm text-muted">Application version</dt>
-        <dd className="m-0 text-sm text-content">{diagnostics.appVersion}</dd>
+    <dl className="min-w-0 divide-y divide-border" data-slot="settings-diagnostics-details">
+      <div className="grid min-w-0 gap-1 py-3 first:pt-0 last:pb-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+        <dt className="min-w-0 text-sm text-muted">Application version</dt>
+        <dd className="m-0 min-w-0 break-words text-sm text-content">
+          {diagnostics.appVersion}
+        </dd>
       </div>
-      <div className="grid gap-1 py-3 last:pb-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
-        <dt className="text-sm text-muted">Data file</dt>
+      <div className="grid min-w-0 gap-1 py-3 last:pb-0 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-4">
+        <dt className="min-w-0 text-sm text-muted">Data file</dt>
         <dd className="m-0 break-all font-mono text-xs text-content">
           {diagnostics.dataFilePath}
         </dd>

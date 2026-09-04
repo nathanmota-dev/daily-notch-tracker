@@ -1,26 +1,26 @@
 use std::sync::Mutex;
 
-use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, Runtime, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder,
-};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 use crate::domain::{
     parse_task_id, AppDiagnostics, AppError, AppSnapshot, CreateTaskInput, FocusSettingsPatch,
     MoveTasksInput, StartFocusInput, TasksWindowIntent, UpdateTaskInput,
 };
 use crate::services::{
-    close_reusable_window, current_tray_diagnostic, notify_focus_completion, show_and_focus_window,
-    sync_focus_scheduler, sync_tray_menu,
+    close_reusable_window, current_tray_diagnostic, notify_focus_completion, sync_focus_scheduler,
+    sync_tray_menu,
 };
 use crate::state::AppState;
 
 #[path = "window-placement.rs"]
 mod window_placement;
 use window_placement::calculate_tasks_window_position;
+#[path = "window-dimensions.rs"]
+mod window_dimensions;
+use window_dimensions::SETTINGS_WINDOW_DIMENSIONS;
 #[path = "window-commands.rs"]
 mod window_commands;
-use window_commands::{is_allowed_release_url, open_window};
+use window_commands::{is_allowed_release_url, open_tasks_window_with_intent, open_window};
 #[path = "global-shortcut.rs"]
 mod global_shortcut;
 pub(crate) use global_shortcut::publish_shortcut_status;
@@ -29,10 +29,6 @@ const STORE_EVENTS: &[&str] = &["store-changed"];
 const SETTINGS_EVENTS: &[&str] = &["store-changed", "settings-changed"];
 const FOCUS_EVENTS: &[&str] = &["focus-changed"];
 const TASKS_WINDOW_INTENT_EVENT: &str = "tasks-window-intent";
-const TASKS_WINDOW_WIDTH: f64 = 800.0;
-const TASKS_WINDOW_HEIGHT: f64 = 550.0;
-const TASKS_WINDOW_MIN_WIDTH: f64 = 760.0;
-const TASKS_WINDOW_MIN_HEIGHT: f64 = 480.0;
 
 #[tauri::command]
 pub fn greet(name: &str) -> String {
@@ -174,7 +170,7 @@ pub async fn close_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<(), 
 
 #[tauri::command]
 pub async fn open_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
-    open_window(&app, "settings", "Settings", 720.0, 640.0)
+    open_window(&app, "settings", "Settings", SETTINGS_WINDOW_DIMENSIONS)
 }
 
 #[tauri::command]
@@ -261,85 +257,6 @@ fn validate_tasks_window_intent(intent: Option<&TasksWindowIntent>) -> Result<()
     };
 
     parse_task_id(task_id, "intent.taskId").map(|_| ())
-}
-
-fn open_tasks_window_with_intent<R: Runtime>(
-    app: &AppHandle<R>,
-    intent: &TasksWindowIntent,
-) -> Result<(), AppError> {
-    let existing_window = app.get_webview_window("tasks");
-    let is_existing_window = existing_window.is_some();
-    let window = match existing_window {
-        Some(window) => window,
-        None => WebviewWindowBuilder::new(
-            app,
-            "tasks",
-            WebviewUrl::App(tasks_window_url(intent).into()),
-        )
-        .title("Tasks")
-        .inner_size(TASKS_WINDOW_WIDTH, TASKS_WINDOW_HEIGHT)
-        .min_inner_size(TASKS_WINDOW_MIN_WIDTH, TASKS_WINDOW_MIN_HEIGHT)
-        .resizable(true)
-        .decorations(false)
-        .transparent(true)
-        .shadow(false)
-        .skip_taskbar(true)
-        .visible(false)
-        .build()
-        .map_err(|_| {
-            AppError::integration_unavailable("The desktop window could not be opened.")
-        })?,
-    };
-
-    position_tasks_window_below_overlay(app, &window)?;
-    show_and_focus_window(&window)?;
-
-    if is_existing_window {
-        window
-            .emit(TASKS_WINDOW_INTENT_EVENT, intent.clone())
-            .map_err(|_| {
-                AppError::integration_unavailable("The Tasks window could not receive its intent.")
-            })?;
-    }
-
-    Ok(())
-}
-
-fn position_tasks_window_below_overlay<R: Runtime>(
-    app: &AppHandle<R>,
-    tasks_window: &WebviewWindow<R>,
-) -> Result<(), AppError> {
-    let Some(overlay_window) = app.get_webview_window("overlay") else {
-        return Ok(());
-    };
-    let (Ok(overlay_position), Ok(overlay_size), Ok(tasks_size)) = (
-        overlay_window.outer_position(),
-        overlay_window.outer_size(),
-        tasks_window.outer_size(),
-    ) else {
-        return Ok(());
-    };
-    let work_area = overlay_window
-        .current_monitor()
-        .ok()
-        .flatten()
-        .map(|monitor| *monitor.work_area());
-    let position =
-        calculate_tasks_window_position(overlay_position, overlay_size, tasks_size, work_area);
-
-    tasks_window
-        .set_position(PhysicalPosition::new(position.x, position.y))
-        .map_err(|_| AppError::integration_unavailable("The Tasks window could not be positioned."))
-}
-
-fn tasks_window_url(intent: &TasksWindowIntent) -> String {
-    let intent_query = match intent {
-        TasksWindowIntent::List => "list".to_owned(),
-        TasksWindowIntent::Add => "add".to_owned(),
-        TasksWindowIntent::Task { task_id } => format!("task&taskId={task_id}"),
-    };
-
-    format!("index.html?surface=tasks&intent={intent_query}")
 }
 
 #[cfg(test)]

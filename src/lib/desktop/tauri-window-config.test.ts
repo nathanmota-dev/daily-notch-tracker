@@ -2,6 +2,7 @@ import tauriConfig from "../../../src-tauri/tauri.conf.json"
 import defaultCapability from "../../../src-tauri/capabilities/default.json"
 import settingsCapability from "../../../src-tauri/capabilities/settings.json"
 import tasksCapability from "../../../src-tauri/capabilities/tasks.json"
+import { WINDOW_DIMENSIONS } from "./window-dimensions"
 
 const [overlayWindow] = tauriConfig.app.windows
 
@@ -13,8 +14,8 @@ describe("Tauri overlay window configuration", () => {
 
   it("configures the compact transparent window behavior", () => {
     expect(overlayWindow).toMatchObject({
-      width: 204,
-      height: 32,
+      width: WINDOW_DIMENSIONS.overlay.idle.width,
+      height: WINDOW_DIMENSIONS.overlay.idle.height,
       decorations: false,
       transparent: true,
       alwaysOnTop: true,
