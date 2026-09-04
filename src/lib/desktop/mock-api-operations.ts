@@ -189,6 +189,7 @@ function createMockSystemOperations(
   | "closeTasksWindow"
   | "openSettingsWindow"
   | "closeSettingsWindow"
+  | "returnToTasksWindow"
   | "openExternalRelease"
 > {
   const handlers = context.options.handlers
@@ -202,21 +203,24 @@ function createMockSystemOperations(
             : context.diagnostics,
         ),
       ),
-    openTasksWindow: (intent) =>
+    openTasksWindow: (intent, origin) =>
       runMockOperation(context, "openTasksWindow", async () => {
+        context.state.tasksWindowOrigin = origin ?? null
         if (handlers?.openTasksWindow) {
-          await handlers.openTasksWindow(intent)
+          await handlers.openTasksWindow(intent, origin)
           return
         }
         navigateBrowserToTasks(intent ?? { kind: "list" })
       }),
     closeTasksWindow: () =>
       runMockOperation(context, "closeTasksWindow", async () => {
+        const origin = context.state.tasksWindowOrigin
+        context.state.tasksWindowOrigin = null
         if (handlers?.closeTasksWindow) {
           await handlers.closeTasksWindow()
           return
         }
-        navigateBrowserToOverlay()
+        navigateBrowserToOverlay(origin?.presentationMode)
       }),
     openSettingsWindow: () =>
       runMockOperation(context, "openSettingsWindow", async () => {
@@ -232,7 +236,17 @@ function createMockSystemOperations(
           await handlers.closeSettingsWindow()
           return
         }
-        navigateBrowserToOverlay()
+        navigateBrowserToOverlay(
+          context.state.tasksWindowOrigin?.presentationMode,
+        )
+      }),
+    returnToTasksWindow: () =>
+      runMockOperation(context, "returnToTasksWindow", async () => {
+        if (handlers?.returnToTasksWindow) {
+          await handlers.returnToTasksWindow()
+          return
+        }
+        navigateBrowserToTasks({ kind: "list" })
       }),
     openExternalRelease: (url) =>
       runMockOperation(context, "openExternalRelease", async () => {

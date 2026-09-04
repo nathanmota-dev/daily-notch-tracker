@@ -23,12 +23,14 @@ pub use storage::{PersistedPayload, RecoveryDiagnostic, Repository, RepositoryEr
 use services::{
     focus_tasks_or_overlay, handle_run_event, handle_window_event, initialize_global_shortcut,
     initialize_tray, NotificationService, TauriNotificationBackend, TrayRuntimeState,
+    WindowNavigationState,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default()
         .manage(AppLifecycleState::new())
+        .manage(WindowNavigationState::new())
         .plugin(tauri_plugin_notification::init());
 
     #[cfg(desktop)]
@@ -69,10 +71,11 @@ pub fn run() {
             commands::update_settings,
             commands::get_app_diagnostics,
             commands::set_autostart,
-            commands::open_tasks_window,
-            commands::close_tasks_window,
-            commands::open_settings_window,
-            commands::close_settings_window,
+            commands::window_navigation_commands::open_tasks_window,
+            commands::window_navigation_commands::close_tasks_window,
+            commands::window_navigation_commands::open_settings_window,
+            commands::window_navigation_commands::close_settings_window,
+            commands::window_navigation_commands::return_to_tasks_window,
             commands::open_external_release,
         ])
         .build(tauri::generate_context!())

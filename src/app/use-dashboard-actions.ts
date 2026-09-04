@@ -4,6 +4,7 @@ import {
   type AppSnapshot,
   type DesktopApi,
   type DesktopApiError,
+  type TasksWindowOrigin,
   type TasksWindowIntent,
 } from "../lib/desktopApi"
 import { getLocalDateString } from "../lib/local-date"
@@ -14,9 +15,9 @@ import { useDesktopMutations } from "./use-desktop-mutations"
 type DashboardActionCallbacks = {
   onToggleTask: (taskId: string, isDone: boolean) => void
   onToggleFocus: (taskId: string) => void
-  onAddTask: () => void
-  onOpenTasks: () => void
-  onOpenTask: (taskId: string) => void
+  onAddTask: (origin?: TasksWindowOrigin) => void
+  onOpenTasks: (origin?: TasksWindowOrigin) => void
+  onOpenTask: (taskId: string, origin?: TasksWindowOrigin) => void
   onReorder: (taskIds: string[]) => void
   focusSessionPicker: FocusSessionPickerProps
 }
@@ -69,23 +70,25 @@ export function useDashboardActions({
   )
 
   const openTasksWindow = useCallback(
-    (intent: TasksWindowIntent) => {
-      void runMutation("openTasksWindow", () => api.openTasksWindow(intent))
+    (intent: TasksWindowIntent, origin?: TasksWindowOrigin) => {
+      void runMutation("openTasksWindow", () =>
+        api.openTasksWindow(intent, origin),
+      )
     },
     [api, runMutation],
   )
 
-  const onAddTask = useCallback(() => {
-    openTasksWindow({ kind: "add" })
+  const onAddTask = useCallback((origin?: TasksWindowOrigin) => {
+    openTasksWindow({ kind: "add" }, origin)
   }, [openTasksWindow])
 
-  const onOpenTasks = useCallback(() => {
-    openTasksWindow({ kind: "list" })
+  const onOpenTasks = useCallback((origin?: TasksWindowOrigin) => {
+    openTasksWindow({ kind: "list" }, origin)
   }, [openTasksWindow])
 
   const onOpenTask = useCallback(
-    (taskId: string) => {
-      openTasksWindow({ kind: "task", taskId })
+    (taskId: string, origin?: TasksWindowOrigin) => {
+      openTasksWindow({ kind: "task", taskId }, origin)
     },
     [openTasksWindow],
   )

@@ -18,6 +18,9 @@ describe("browser window intents", () => {
       "?surface=tasks&intent=add",
     )
     expect(overlaySurfaceSearch()).toBe("?surface=overlay")
+    expect(overlaySurfaceSearch("expanded")).toBe(
+      "?surface=overlay&presentation=expanded",
+    )
     expect(settingsSurfaceSearch()).toBe("?surface=settings")
   })
 })

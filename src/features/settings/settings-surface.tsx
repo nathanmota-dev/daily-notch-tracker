@@ -184,10 +184,9 @@ export function SettingsSurface({
   }, [api, runSettingsMutation])
 
   const handleBack = useCallback(() => {
-    runSettingsMutation("returnToTasks", async () => {
-      await api.closeSettingsWindow()
-      await api.openTasksWindow({ kind: "list" })
-    })
+    runSettingsMutation("returnToTasksWindow", () =>
+      api.returnToTasksWindow(),
+    )
   }, [api, runSettingsMutation])
 
   const shortcutStatus = snapshot.shortcutStatus

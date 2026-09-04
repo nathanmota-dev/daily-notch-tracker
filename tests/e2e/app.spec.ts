@@ -767,7 +767,7 @@ test.describe("DailyNotch surface router", () => {
     await expect(dialog).toHaveCount(0)
   })
 
-  test("opens Tasks from the expanded overlay and returns to the overlay", async ({
+  test("returns from Settings to Tasks without losing the expanded overlay", async ({
     page,
   }) => {
     await page.goto("/?surface=overlay&fixture=expanded")
@@ -775,6 +775,16 @@ test.describe("DailyNotch surface router", () => {
     await page.getByRole("button", { name: "Open Tasks" }).click()
     await expect(page.locator('[data-surface="tasks"]')).toBeVisible()
     await expect(page.getByRole("heading", { name: "Day" })).toBeVisible()
+
+    await page.getByRole("button", { name: "Settings" }).click()
+    await expect(page.locator('[data-surface="settings"]')).toBeVisible()
+    await page.getByRole("switch", { name: "Show timeline" }).click()
+    await expect(
+      page.getByRole("switch", { name: "Show timeline" }),
+    ).not.toBeChecked()
+
+    await page.getByRole("button", { name: "Back to tasks" }).click()
+    await expect(page.locator('[data-surface="tasks"]')).toBeVisible()
 
     await page.getByRole("button", { name: "Close Tasks" }).click()
     await expect(page.locator('[data-surface="overlay"]')).toBeVisible()
@@ -883,13 +893,17 @@ test.describe("DailyNotch surface router", () => {
     await expect(page.locator('[data-surface="overlay"]')).toBeVisible()
   })
 
-  test("returns to Tasks when the Settings back button is clicked", async ({
+  test("returns to Tasks after changing a Settings preference", async ({
     page,
   }) => {
     await page.goto("/?surface=tasks")
     await page.getByRole("button", { name: "Settings" }).click()
 
     await expect(page.locator('[data-surface="settings"]')).toBeVisible()
+    await page.getByRole("switch", { name: "Show timeline" }).click()
+    await expect(
+      page.getByRole("switch", { name: "Show timeline" }),
+    ).not.toBeChecked()
     await page.getByRole("button", { name: "Back to tasks" }).click()
 
     await expect(page.locator('[data-surface="tasks"]')).toBeVisible()

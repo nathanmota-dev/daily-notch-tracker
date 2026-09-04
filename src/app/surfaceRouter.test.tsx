@@ -5,6 +5,7 @@ import {
   createMockDesktopApi,
 } from "../lib/desktopApi"
 import {
+  resolvePresentationMode,
   resolveSurfaceLabel,
 } from "./surfaceResolver"
 import { SurfaceRouter } from "./surfaceRouter"
@@ -41,6 +42,27 @@ describe("resolveSurfaceLabel", () => {
     },
   ])("falls back to overlay for an invalid source", (context) => {
     expect(resolveSurfaceLabel(context)).toBe(context.expected)
+  })
+})
+
+describe("resolvePresentationMode", () => {
+  it("reads the expanded browser presentation", () => {
+    expect(
+      resolvePresentationMode({
+        runtime: "browser",
+        search: "?surface=overlay&presentation=expanded",
+      }),
+    ).toBe("expanded")
+  })
+
+  it("falls back for an invalid browser presentation", () => {
+    expect(
+      resolvePresentationMode({
+        fallback: "expanded",
+        runtime: "browser",
+        search: "?surface=overlay&presentation=unknown",
+      }),
+    ).toBe("expanded")
   })
 })
 
@@ -113,6 +135,19 @@ describe("SurfaceRouter", () => {
       "data-presentation-mode",
       "expanded",
     )
+  })
+
+  it("restores the browser presentation from the navigation query", async () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/?surface=overlay&presentation=expanded",
+    )
+
+    render(<SurfaceRouter api={createMockDesktopApi().api} />)
+
+    expect(await screen.findByRole("region", { name: "Expanded dashboard" }))
+      .toBeInTheDocument()
   })
 
   it("preserves the selected surface when snapshot loading fails", async () => {

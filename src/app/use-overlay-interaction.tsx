@@ -15,6 +15,7 @@ import {
   resolveOverlayWindowAdapter,
 } from "./use-overlay-resize"
 import type {
+  DesktopApi,
   FocusState,
 } from "../lib/desktopApi"
 import type {
@@ -26,6 +27,7 @@ export const OVERLAY_COLLAPSE_DELAY_MS = 400
 
 export type UseOverlayInteractionOptions = {
   adapter?: OverlayWindowAdapter | null
+  api?: DesktopApi
   focusState?: FocusState
   initialPresentationMode?: OverlayPresentationMode
 }
@@ -119,8 +121,61 @@ function useOverlayVisibilityEffect(
   }, [adapter, focusState])
 }
 
+function useOverlayPresentationRestoreEffect(
+  api: DesktopApi | undefined,
+  collapseState: CollapseState,
+) {
+  useEffect(() => {
+    if (!api) {
+      return
+    }
+
+    let active = true
+    let unlisten: (() => void) | null = null
+
+    void api
+      .subscribe("overlay-presentation-restored", (mode) => {
+        if (!active) {
+          return
+        }
+
+        collapseState.clearTimer()
+        collapseState.pointerInsideRef.current = false
+        collapseState.setPresentationMode(mode)
+      })
+      .then((nextUnlisten) => {
+        if (!active) {
+          nextUnlisten()
+          return
+        }
+
+        unlisten = nextUnlisten
+      })
+      .catch(() => undefined)
+
+    return () => {
+      active = false
+      unlisten?.()
+    }
+  }, [api, collapseState])
+}
+
+function useOverlayInteractionLifecycleEffect(collapseState: CollapseState) {
+  useEffect(() => {
+    collapseState.activeRef.current = true
+
+    return () => {
+      collapseState.activeRef.current = false
+      collapseState.pointerInsideRef.current = false
+      collapseState.holdsRef.current = 0
+      collapseState.clearTimer()
+    }
+  }, [collapseState])
+}
+
 export function useOverlayInteraction({
   adapter,
+  api,
   focusState = "idle",
   initialPresentationMode = "collapsed",
 }: UseOverlayInteractionOptions = {}): OverlayInteraction {
@@ -161,6 +216,8 @@ export function useOverlayInteraction({
     scheduleOverlayCollapse(collapseState)
   }, [collapseState])
 
+  useOverlayPresentationRestoreEffect(api, collapseState)
+
   const onPointerEnter = useCallback(() => {
     pointerInsideRef.current = true
     clearCollapseTimer()
@@ -198,16 +255,7 @@ export function useOverlayInteraction({
     }
   }, [collapseState, clearCollapseTimer, scheduleCollapse])
 
-  useEffect(() => {
-    activeRef.current = true
-
-    return () => {
-      activeRef.current = false
-      pointerInsideRef.current = false
-      holdsRef.current = 0
-      clearCollapseTimer()
-    }
-  }, [clearCollapseTimer])
+  useOverlayInteractionLifecycleEffect(collapseState)
 
   useOverlayVisibilityEffect(resolvedAdapter, focusState)
 

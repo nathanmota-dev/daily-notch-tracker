@@ -2,9 +2,11 @@ import { act, fireEvent, render, screen } from "@testing-library/react"
 import { useEffect } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
+import type { OverlayWindowAdapter } from "../lib/desktop/overlay-window"
 import {
-  type OverlayWindowAdapter,
-} from "../lib/desktop/overlay-window"
+  createMockDesktopApi,
+  type DesktopApi,
+} from "../lib/desktopApi"
 import {
   OVERLAY_COLLAPSE_DELAY_MS,
   OverlayInteractionProvider,
@@ -58,12 +60,14 @@ function ManualHold({
 
 function InteractionHarness({
   adapter,
+  api,
   firstHold = false,
   focusState = "running",
   initialPresentationMode = "collapsed",
   secondHold = false,
 }: {
   adapter?: OverlayWindowAdapter | null
+  api?: DesktopApi
   firstHold?: boolean
   focusState?: "idle" | "running" | "paused"
   initialPresentationMode?: "collapsed" | "expanded"
@@ -71,6 +75,7 @@ function InteractionHarness({
 }) {
   const interaction = useOverlayInteraction({
     adapter,
+    api,
     focusState,
     initialPresentationMode,
   })
@@ -125,6 +130,25 @@ describe("useOverlayInteraction", () => {
     expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
 
     fireEvent.pointerEnter(surface)
+
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("restores the presentation mode from the desktop lifecycle", async () => {
+    const controller = createMockDesktopApi()
+    render(<InteractionHarness api={controller.api} />)
+    const surface = screen.getByRole("main")
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    fireEvent.pointerEnter(surface)
+    fireEvent.pointerLeave(surface)
+    expect(vi.getTimerCount()).toBe(1)
+
+    act(() => controller.emit("overlay-presentation-restored", "expanded"))
 
     expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
     expect(vi.getTimerCount()).toBe(0)

@@ -10,15 +10,17 @@ use crate::domain::{
     TaskBucket, TasksWindowIntent, UpdateTaskInput,
 };
 use crate::services::{FocusScheduler, MockNotificationBackend, NotificationBackendError};
+use crate::services::{OverlayPresentationMode, TasksWindowOrigin, WindowNavigationState};
 use crate::state::AppState;
 use chrono::{Duration, Utc};
-use tauri::Listener;
+use tauri::{Listener, WebviewUrl, WebviewWindowBuilder};
 
 fn test_app() -> tauri::App<tauri::test::MockRuntime> {
     let notification_backend = Arc::new(MockNotificationBackend::default());
     tauri::test::mock_builder()
         .manage(Mutex::new(AppState::default()))
         .manage(FocusScheduler::new())
+        .manage(WindowNavigationState::new())
         .manage(Arc::clone(&notification_backend))
         .manage(crate::services::NotificationService::new(
             notification_backend,
@@ -34,6 +36,15 @@ fn wait_for_focus_events(focus_events: &AtomicUsize, store_events: &AtomicUsize)
     {
         std::thread::sleep(StdDuration::from_millis(5));
     }
+}
+
+fn create_window(
+    app: &tauri::App<tauri::test::MockRuntime>,
+    label: &str,
+) -> tauri::WebviewWindow<tauri::test::MockRuntime> {
+    WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+        .build()
+        .expect("test window should build")
 }
 
 #[test]
@@ -249,16 +260,21 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
         Some(TasksWindowIntent::Task {
             task_id: task_id.clone(),
         }),
+        Some(TasksWindowOrigin {
+            presentation_mode: OverlayPresentationMode::Expanded,
+        }),
     ))
     .expect("tasks window should open");
     tauri::async_runtime::block_on(open_tasks_window(
         handle.clone(),
         Some(TasksWindowIntent::List),
+        None,
     ))
     .expect("existing tasks window should be reused");
     tauri::async_runtime::block_on(open_tasks_window(
         handle.clone(),
         Some(TasksWindowIntent::Add),
+        None,
     ))
     .expect("existing tasks window should receive an add intent");
     tauri::async_runtime::block_on(open_tasks_window(
@@ -266,6 +282,7 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
         Some(TasksWindowIntent::Task {
             task_id: task_id.clone(),
         }),
+        None,
     ))
     .expect("existing tasks window should receive a task intent");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
@@ -304,6 +321,7 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
             Some(TasksWindowIntent::Task {
                 task_id: "invalid".to_owned(),
             }),
+            None,
         ))
         .expect_err("invalid task intent should fail")
         .code,
@@ -321,6 +339,53 @@ fn window_commands_reuse_labels_and_validate_external_inputs() {
 }
 
 #[test]
+fn returning_from_settings_hides_settings_and_focuses_tasks() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let overlay = create_window(&app, "overlay");
+
+    crate::services::show_and_focus_window(&overlay).expect("overlay should be shown and focused");
+    tauri::async_runtime::block_on(open_tasks_window(
+        handle.clone(),
+        Some(TasksWindowIntent::List),
+        Some(TasksWindowOrigin {
+            presentation_mode: OverlayPresentationMode::Expanded,
+        }),
+    ))
+    .expect("tasks should open from the overlay");
+    tauri::async_runtime::block_on(open_settings_window(handle.clone()))
+        .expect("settings should open");
+
+    tauri::async_runtime::block_on(return_to_tasks_window(handle.clone()))
+        .expect("settings should return to tasks");
+
+    let navigation = handle
+        .try_state::<WindowNavigationState>()
+        .expect("navigation state should be managed")
+        .snapshot()
+        .expect("navigation state should be readable");
+    assert_eq!(
+        navigation.focused_window,
+        Some(crate::services::ManagedWindowLabel::Tasks)
+    );
+    assert!(navigation
+        .visible_windows
+        .contains(&crate::services::ManagedWindowLabel::Overlay));
+    assert!(navigation
+        .visible_windows
+        .contains(&crate::services::ManagedWindowLabel::Tasks));
+    assert!(!navigation
+        .visible_windows
+        .contains(&crate::services::ManagedWindowLabel::Settings));
+    assert_eq!(
+        navigation.tasks_window_origin,
+        Some(TasksWindowOrigin {
+            presentation_mode: OverlayPresentationMode::Expanded,
+        })
+    );
+}
+
+#[test]
 fn reusable_windows_work_without_overlay_and_preserve_focus_scheduler() {
     let app = test_app();
     let handle = app.handle().clone();
@@ -335,6 +400,7 @@ fn reusable_windows_work_without_overlay_and_preserve_focus_scheduler() {
     tauri::async_runtime::block_on(open_tasks_window(
         handle.clone(),
         Some(TasksWindowIntent::List),
+        None,
     ))
     .expect("Tasks should open without an overlay");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))

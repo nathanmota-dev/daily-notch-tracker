@@ -4,6 +4,10 @@ import type {
   OverlayPhysicalSize,
 } from "./overlay-position"
 
+import type { OverlayPresentationMode } from "./window-navigation-contracts"
+
+export type { OverlayPresentationMode } from "./window-navigation-contracts"
+
 export type {
   OverlayDisplayMetrics,
   OverlayPhysicalPosition,
@@ -25,8 +29,6 @@ export const EXPANDED_DASHBOARD_SIZE = {
 
 export const OVERLAY_VERTICAL_GUTTER = 8
 export const OVERLAY_RESIZE_DURATION_MS = 240
-
-export type OverlayPresentationMode = "collapsed" | "expanded"
 
 export type OverlayLogicalSize = {
   width: number
