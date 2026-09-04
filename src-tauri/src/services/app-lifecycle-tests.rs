@@ -9,6 +9,7 @@ use tauri::{Manager, RunEvent, WebviewUrl, WebviewWindow, WebviewWindowBuilder, 
 
 use super::*;
 use crate::domain::FocusState;
+use crate::services::{GlobalShortcutService, MockShortcutBackend};
 use crate::state::AppState;
 
 fn test_app() -> tauri::App<tauri::test::MockRuntime> {
@@ -16,6 +17,19 @@ fn test_app() -> tauri::App<tauri::test::MockRuntime> {
         .manage(Mutex::new(AppState::default()))
         .manage(AppLifecycleState::new())
         .manage(FocusScheduler::new())
+        .on_window_event(handle_window_event)
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .expect("mock app should build")
+}
+
+fn test_app_with_shortcut(
+    backend: Arc<MockShortcutBackend>,
+) -> tauri::App<tauri::test::MockRuntime> {
+    tauri::test::mock_builder()
+        .manage(Mutex::new(AppState::default()))
+        .manage(AppLifecycleState::new())
+        .manage(FocusScheduler::new())
+        .manage(GlobalShortcutService::new(backend))
         .on_window_event(handle_window_event)
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .expect("mock app should build")
@@ -267,6 +281,45 @@ fn exit_cleanup_is_idempotent() {
     cleanup_before_exit(&handle);
     assert!(scheduler.is_scheduled());
     scheduler.cancel();
+}
+
+#[test]
+fn exit_cleanup_unregisters_the_shortcut_once() {
+    let backend = Arc::new(MockShortcutBackend::default());
+    let app = test_app_with_shortcut(backend.clone());
+    let handle = app.handle().clone();
+    handle
+        .state::<GlobalShortcutService>()
+        .register()
+        .expect("shortcut should register");
+
+    cleanup_before_exit(&handle);
+    cleanup_before_exit(&handle);
+
+    assert_eq!(backend.unregister_calls(), 1);
+}
+
+#[test]
+fn shortcut_cleanup_failure_does_not_keep_scheduler_running() {
+    let backend = Arc::new(MockShortcutBackend::default());
+    let app = test_app_with_shortcut(backend.clone());
+    let handle = app.handle().clone();
+    handle
+        .state::<GlobalShortcutService>()
+        .register()
+        .expect("shortcut should register");
+    backend.set_unregister_error(Some(
+        crate::services::global_shortcut_types::ShortcutBackendError::Failed,
+    ));
+
+    let scheduler = handle
+        .try_state::<FocusScheduler>()
+        .expect("focus scheduler should be managed");
+    scheduler.schedule(Utc::now() + Duration::hours(1), || {});
+    cleanup_before_exit(&handle);
+
+    assert_eq!(backend.unregister_calls(), 1);
+    assert!(!scheduler.is_scheduled());
 }
 
 #[test]

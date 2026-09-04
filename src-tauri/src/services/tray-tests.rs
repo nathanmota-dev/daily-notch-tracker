@@ -1,5 +1,7 @@
 use super::*;
 use crate::domain::ShortcutStatus;
+#[cfg(target_os = "linux")]
+use crate::services::desktop_session::graphical_session_available_for;
 use crate::state::AppState;
 use std::sync::{Arc, Mutex};
 
