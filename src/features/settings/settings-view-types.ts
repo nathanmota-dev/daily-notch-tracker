@@ -23,6 +23,7 @@ export type SettingsSurfaceProps = {
 export type SettingsMutationRunner = (
   operation: string,
   mutation: SnapshotMutation,
+  onError?: (error: DesktopApiError) => void,
 ) => void
 
 export type SettingsSectionProps = {

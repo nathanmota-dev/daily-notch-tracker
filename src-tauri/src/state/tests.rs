@@ -40,6 +40,14 @@ fn loaded_state() -> (TestDirectory, AppState) {
     (test_directory, state)
 }
 
+fn default_diagnostics(state: &AppState) -> crate::domain::AppDiagnostics {
+    state.diagnostics(
+        "0.1.0".to_owned(),
+        crate::domain::AutostartDiagnostic::default(),
+        crate::domain::TrayDiagnostic::default(),
+    )
+}
+
 fn date(year: i32, month: u32, day: u32) -> NaiveDate {
     NaiveDate::from_ymd_opt(year, month, day).expect("test date should be valid")
 }
@@ -150,9 +158,7 @@ fn empty_state_matches_the_typescript_snapshot_contract() {
 #[test]
 fn diagnostics_expose_the_data_path_without_persistence_details() {
     let (_test_directory, state) = loaded_state();
-
-    let diagnostics =
-        state.diagnostics("0.1.0".to_owned(), crate::domain::TrayDiagnostic::default());
+    let diagnostics = default_diagnostics(&state);
 
     assert_eq!(diagnostics.app_version, "0.1.0");
     assert!(diagnostics.data_file_path.ends_with("dailynotch.json"));
@@ -166,6 +172,24 @@ fn diagnostics_expose_the_data_path_without_persistence_details() {
         crate::domain::IntegrationStatus::Unavailable
     );
     assert!(!diagnostics.autostart.enabled);
+}
+
+#[test]
+fn diagnostics_preserve_the_effective_autostart_state_received_from_the_service() {
+    let (_test_directory, state) = loaded_state();
+    let autostart = crate::domain::AutostartDiagnostic {
+        enabled: true,
+        status: crate::domain::IntegrationStatus::Available,
+        message: None,
+    };
+
+    let diagnostics = state.diagnostics(
+        "0.1.0".to_owned(),
+        autostart.clone(),
+        crate::domain::TrayDiagnostic::default(),
+    );
+
+    assert_eq!(diagnostics.autostart, autostart);
 }
 
 #[test]
@@ -218,8 +242,7 @@ fn shortcut_diagnostics_use_sanitized_messages_for_runtime_failures() {
         .set_shortcut_status(ShortcutStatus::Error)
         .expect("shortcut status should update");
 
-    let diagnostics =
-        state.diagnostics("0.1.0".to_owned(), crate::domain::TrayDiagnostic::default());
+    let diagnostics = default_diagnostics(&state);
 
     assert_eq!(
         diagnostics.shortcut.message.as_deref(),

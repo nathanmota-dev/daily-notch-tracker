@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use super::AppState;
 use crate::domain::{
     AppDiagnostics, AppError, AppSnapshot, AutostartDiagnostic, DomainResult, FocusSnapshot,
-    IntegrationStatus, ShortcutDiagnostic, ShortcutStatus, TrayDiagnostic,
+    ShortcutDiagnostic, ShortcutStatus, TrayDiagnostic,
 };
 use crate::storage::{PersistedPayload, RecoveryDiagnostic, Repository};
 
@@ -76,7 +76,12 @@ impl AppState {
             .map(|repository| repository.path().to_path_buf())
     }
 
-    pub fn diagnostics(&self, app_version: String, tray: TrayDiagnostic) -> AppDiagnostics {
+    pub fn diagnostics(
+        &self,
+        app_version: String,
+        autostart: AutostartDiagnostic,
+        tray: TrayDiagnostic,
+    ) -> AppDiagnostics {
         AppDiagnostics {
             app_version,
             data_file_path: self.data_file_path().map_or_else(
@@ -87,11 +92,7 @@ impl AppState {
                 status: self.shortcut_status,
                 message: shortcut_message(self.shortcut_status),
             },
-            autostart: AutostartDiagnostic {
-                enabled: false,
-                status: IntegrationStatus::Unavailable,
-                message: Some("Autostart integration is not available yet.".to_owned()),
-            },
+            autostart,
             tray,
         }
     }

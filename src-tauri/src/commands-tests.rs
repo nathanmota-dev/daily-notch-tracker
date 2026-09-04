@@ -9,7 +9,10 @@ use crate::domain::{
     CreateTaskInput, FocusSettingsPatch, MoveTasksInput, ShortcutStatus, StartFocusInput,
     TaskBucket, TasksWindowIntent, UpdateTaskInput,
 };
-use crate::services::{FocusScheduler, MockNotificationBackend, NotificationBackendError};
+use crate::services::{
+    AutostartBackendError, AutostartService, FocusScheduler, MockAutostartBackend,
+    MockNotificationBackend, NotificationBackendError,
+};
 use crate::state::AppState;
 use chrono::{Duration, Utc};
 use tauri::{Listener, Manager};
@@ -25,6 +28,22 @@ fn test_app() -> tauri::App<tauri::test::MockRuntime> {
         .manage(crate::services::NotificationService::new(
             notification_backend,
         ))
+        .build(tauri::test::mock_context(tauri::test::noop_assets()))
+        .expect("mock app should build")
+}
+
+fn test_app_with_autostart_backend(
+    backend: Arc<MockAutostartBackend>,
+) -> tauri::App<tauri::test::MockRuntime> {
+    let notification_backend = Arc::new(MockNotificationBackend::default());
+    tauri::test::mock_builder()
+        .manage(Mutex::new(AppState::default()))
+        .manage(FocusScheduler::new())
+        .manage(Arc::clone(&notification_backend))
+        .manage(crate::services::NotificationService::new(
+            notification_backend,
+        ))
+        .manage(AutostartService::new(backend))
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .expect("mock app should build")
 }
@@ -189,6 +208,100 @@ fn state_commands_share_the_managed_state_and_emit_snapshots() {
     );
     tauri::async_runtime::block_on(delete_task(handle, task_id.to_string()))
         .expect("task should be deleted");
+}
+
+#[test]
+fn autostart_commands_confirm_effective_state_without_persisting_or_emitting() {
+    let backend = Arc::new(MockAutostartBackend::default());
+    let app = test_app_with_autostart_backend(Arc::clone(&backend));
+    let handle = app.handle().clone();
+    let store_events = Arc::new(AtomicUsize::new(0));
+    let store_events_for_listener = Arc::clone(&store_events);
+    handle.listen_any("store-changed", move |_| {
+        store_events_for_listener.fetch_add(1, Ordering::Release);
+    });
+
+    let before =
+        tauri::async_runtime::block_on(get_snapshot(handle.clone())).expect("snapshot should load");
+    let enabled_snapshot = tauri::async_runtime::block_on(set_autostart(handle.clone(), true))
+        .expect("autostart should enable");
+    let enabled_diagnostics = tauri::async_runtime::block_on(get_app_diagnostics(handle.clone()))
+        .expect("diagnostics should load");
+
+    assert_eq!(enabled_snapshot, before);
+    assert!(enabled_diagnostics.autostart.enabled);
+    assert_eq!(
+        enabled_diagnostics.autostart.status,
+        crate::domain::IntegrationStatus::Available
+    );
+    assert!(!enabled_snapshot.settings.launch_at_login);
+    assert_eq!(backend.enable_calls(), 1);
+    assert_eq!(backend.is_enabled_calls(), 2);
+
+    let disabled_snapshot = tauri::async_runtime::block_on(set_autostart(handle.clone(), false))
+        .expect("autostart should disable");
+    let disabled_diagnostics = tauri::async_runtime::block_on(get_app_diagnostics(handle))
+        .expect("diagnostics should load");
+
+    assert_eq!(disabled_snapshot, before);
+    assert!(!disabled_diagnostics.autostart.enabled);
+    assert_eq!(backend.disable_calls(), 1);
+    assert_eq!(store_events.load(Ordering::Acquire), 0);
+}
+
+#[test]
+fn autostart_commands_map_permission_failures_to_sanitized_errors() {
+    let backend = Arc::new(MockAutostartBackend::default());
+    backend.set_enable_error(Some(AutostartBackendError::PermissionDenied));
+    let app = test_app_with_autostart_backend(backend);
+    let handle = app.handle().clone();
+
+    let error = tauri::async_runtime::block_on(set_autostart(handle, true))
+        .expect_err("permission failure should be returned");
+
+    assert_eq!(error.code, crate::domain::AppErrorCode::PermissionDenied);
+    assert_eq!(
+        error.message,
+        "Autostart permission was denied by the desktop session."
+    );
+}
+
+#[test]
+fn autostart_commands_map_generic_operation_failures_to_integration_errors() {
+    let backend = Arc::new(MockAutostartBackend::with_enabled(true));
+    backend.set_disable_error(Some(AutostartBackendError::Failed));
+    let app = test_app_with_autostart_backend(backend);
+
+    let error = tauri::async_runtime::block_on(set_autostart(app.handle().clone(), false))
+        .expect_err("generic operation failure should be returned");
+
+    assert_eq!(
+        error.code,
+        crate::domain::AppErrorCode::IntegrationUnavailable
+    );
+    assert_eq!(
+        error.message,
+        "Autostart could not be updated in this desktop session."
+    );
+}
+
+#[test]
+fn autostart_diagnostics_map_generic_read_failures_to_error_status() {
+    let backend = Arc::new(MockAutostartBackend::default());
+    backend.set_is_enabled_error(Some(AutostartBackendError::Failed));
+    let app = test_app_with_autostart_backend(backend);
+
+    let diagnostics = tauri::async_runtime::block_on(get_app_diagnostics(app.handle().clone()))
+        .expect("diagnostics should remain available");
+
+    assert_eq!(
+        diagnostics.autostart.status,
+        crate::domain::IntegrationStatus::Error
+    );
+    assert_eq!(
+        diagnostics.autostart.message.as_deref(),
+        Some("Autostart status could not be read from the desktop session.")
+    );
 }
 
 #[test]

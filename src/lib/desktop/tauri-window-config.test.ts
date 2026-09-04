@@ -55,11 +55,11 @@ describe("Tauri overlay window configuration", () => {
     expect(tasksCapability.permissions).toEqual(["core:default"])
   })
 
-  it("keeps Settings isolated with only the default capability", () => {
+  it("keeps Settings isolated with the autostart capability only", () => {
     expect(tauriConfig.app.windows.some((window) => window.label === "settings")).toBe(
       false,
     )
     expect(settingsCapability.windows).toEqual(["settings"])
-    expect(settingsCapability.permissions).toEqual(["core:default"])
+    expect(settingsCapability.permissions).toEqual(["core:default", "autostart:default"])
   })
 })

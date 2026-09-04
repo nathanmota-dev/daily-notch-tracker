@@ -3,5 +3,5 @@
   "identifier": "settings",
   "description": "Capability for the DailyNotch settings window",
   "windows": ["settings"],
-  "permissions": ["core:default"]
+  "permissions": ["core:default", "autostart:default"]
 }

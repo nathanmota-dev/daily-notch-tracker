@@ -133,6 +133,28 @@ uma sessão D-Bus do usuário; ambientes desktop normalmente fornecem essa sess�
 automaticamente, mas uma execução fora dela precisa disponibilizar
 `DBUS_SESSION_BUS_ADDRESS` e um session bus funcional.
 
+### Autostart no Linux
+
+O controle `Launch at login` usa o plugin oficial de autostart do Tauri. Ao
+ativar, ele cria a entrada XDG `dailynotch.desktop` no diretório de autostart
+do usuário (normalmente `~/.config/autostart/`); ao desativar, a entrada é
+removida. O launcher recebe `--autostart`, e o processo iniciado por ele cria
+somente o overlay e o tray. `Tasks` e `Settings` continuam sendo abertas sob
+demanda, e o single-instance evita processos duplicados.
+
+O nome estável da entrada é `dailynotch`. Em um AppImage, o launcher usa o
+caminho da imagem informado pelo runtime; em um pacote `.deb`, usa o executável
+instalado. Assim, o campo `Exec` permanece apontando para o artefato correto
+quando o bundle Linux estiver habilitado. O bundle permanece desativado neste
+scaffold até a etapa MVP-030.
+
+O toggle mostra o estado efetivo retornado por `is_enabled`, mesmo que o campo
+legado `settings.launchAtLogin` tenha outro valor. A operação de autostart não
+altera esse campo, não grava o arquivo local e não emite eventos de store. Se a
+sessão gráfica, o diretório XDG ou as permissões não estiverem disponíveis, o
+diagnóstico informa a falha de forma sanitizada; o app manual continua podendo
+usar o overlay, o tray e as janelas sob demanda.
+
 Se o arquivo ainda não existir, o diretório é criado e o app começa com um
 payload vazio. JSON inválido ou um `schema_version` desconhecido inicia um
 estado vazio recuperável, preserva o arquivo original e registra um diagnóstico
@@ -141,8 +163,9 @@ interno. Antes da primeira gravação desse estado recuperado, o backend cria
 `get_app_diagnostics` expõe somente a versão, o caminho real do arquivo e o
 estado resumido das integrações; títulos, notas e erros brutos de persistência
 não atravessam o IPC. O status do atalho global é runtime-only e não é salvo no
-arquivo local; o autostart permanece `unavailable` até que sua integração seja
-adicionada. O comando temporário `greet`
+arquivo local; o estado efetivo do autostart é consultado no backend nativo a
+cada leitura de diagnostics e também não é salvo no arquivo. O comando
+temporário `greet`
 continua coberto pelo teste Rust do scaffold, mas não é registrado na aplicação.
 
 Ao executar somente a UI no navegador, o shell usa um snapshot mockado,
