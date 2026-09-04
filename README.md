@@ -8,6 +8,7 @@ TypeScript, Tailwind CSS, Vitest, Tauri 2 e Rust.
 - Node.js 20.19+ (o ambiente atual usa Node 24)
 - npm
 - Rust e Cargo
+- Ubuntu 22.04 x64 é a baseline de build e validação desta MVP
 - Dependências de sistema do Tauri/WebKitGTK no Ubuntu
 
 No Ubuntu, instale as dependências antes do primeiro build desktop:
@@ -20,6 +21,7 @@ sudo apt install \
   curl \
   wget \
   file \
+  libxdo-dev \
   libssl-dev \
   libdbus-1-dev \
   libayatana-appindicator3-dev \
@@ -143,8 +145,7 @@ da mesma janela, e o single-instance evita processos duplicados.
 O nome estável da entrada é `dailynotch`. Em um AppImage, o launcher usa o
 caminho da imagem informado pelo runtime; em um pacote `.deb`, usa o executável
 instalado. Assim, o campo `Exec` permanece apontando para o artefato correto
-quando o bundle Linux estiver habilitado. O bundle permanece desativado neste
-scaffold até a etapa MVP-030.
+nos dois formatos.
 
 O toggle mostra o estado efetivo retornado por `is_enabled`, mesmo que o campo
 legado `settings.launchAtLogin` tenha outro valor. A operação de autostart não
@@ -181,6 +182,102 @@ npm run test:e2e
 
 O teste sobe o servidor Vite automaticamente e valida o shell com o snapshot
 mockado do navegador.
+
+### Distribuição Linux
+
+A MVP-030 habilita somente os targets `appimage` e `deb`. O bundler do Tauri
+gera os ícones, metadados e o desktop entry do aplicativo automaticamente; não
+há um template `.desktop` mantido pelo projeto. O workflow de build e
+publicação pertence à MVP-031.
+
+#### Baseline e dependências
+
+Ubuntu 22.04 x64 é a baseline escolhida para gerar e validar os artefatos. Ela
+fornece os pacotes WebKitGTK 4.1 necessários ao Tauri 2. Sistemas mais novos
+podem produzir artefatos que exigem uma versão mais recente de glibc; para
+suportar uma distribuição mais antiga, gere o bundle na base mais antiga que
+você pretende suportar.
+
+Além de Node.js 20.19+, npm e Rust/Cargo, instale as dependências Linux
+descritas em [Pré-requisitos do Tauri](https://v2.tauri.app/start/prerequisites/):
+
+```bash
+sudo apt update
+sudo apt install \
+  libwebkit2gtk-4.1-dev \
+  build-essential \
+  curl \
+  wget \
+  file \
+  libxdo-dev \
+  libssl-dev \
+  libdbus-1-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev
+```
+
+O pacote `.deb` declara as dependências de runtime necessárias para WebKitGTK,
+GTK e AppIndicator. O AppImage é executável sem instalação, mas ainda depende
+de uma base Linux compatível e pode ser afetado por diferenças de glibc,
+WebKitGTK ou compositor.
+
+#### Build e execução
+
+Gere os dois artefatos a partir da raiz do repositório:
+
+```bash
+npm ci
+npm run tauri:build
+```
+
+Os arquivos são gravados em:
+
+```text
+src-tauri/target/release/bundle/appimage/*.AppImage
+src-tauri/target/release/bundle/deb/*.deb
+```
+
+Para executar o AppImage, torne-o executável e inicie o arquivo:
+
+```bash
+chmod +x src-tauri/target/release/bundle/appimage/*.AppImage
+src-tauri/target/release/bundle/appimage/*.AppImage
+```
+
+Para instalar o `.deb` e iniciar a versão empacotada pelo menu do sistema:
+
+```bash
+sudo apt install ./src-tauri/target/release/bundle/deb/*.deb
+```
+
+O desktop entry instalado aparece como `DailyNotch Linux`. Em ambientes sem
+menu gráfico, o executável instalado pode ser iniciado pelo nome `dailynotch`.
+Para remover somente o pacote e preservar os dados locais, use o gerenciador
+de pacotes, por exemplo:
+
+```bash
+package_name="$(dpkg-deb -f src-tauri/target/release/bundle/deb/*.deb Package)"
+sudo apt remove "$package_name"
+```
+
+Remover o `.deb` não apaga silenciosamente `dailynotch.json`. O arquivo fica
+fora do pacote em `app_data_dir()/dailynotch.json`; no Linux, o caminho padrão
+é `~/.local/share/com.dailynotch.linux/dailynotch.json` (ou o diretório
+correspondente definido por `XDG_DATA_HOME`). O caminho efetivo também aparece
+em Settings > Diagnostics. Upgrade, reinstalação e troca do AppImage preservam
+esse arquivo; apague-o somente como uma ação explícita de remoção dos dados do
+usuário.
+
+O controle `Launch at login` cria `~/.config/autostart/dailynotch.desktop`.
+Depois de ativá-lo, verifique o `Exec` gerado: no AppImage ele aponta para o
+caminho da imagem e no `.deb` para o executável instalado. O autostart inicia
+somente o overlay e o tray; o single-instance evita processos duplicados.
+
+O tray, a transparência, o posicionamento e o `always-on-top` dependem da
+sessão gráfica. X11 oferece o caminho mais previsível; em Wayland puro,
+Xwayland ou ambientes sem AppIndicator, o tray e o atalho global podem ficar
+`Unavailable`/`Error`, e o compositor pode limitar a janela. Essas limitações
+não interrompem o timer nem impedem o uso das views `Tasks` e `Settings`.
 
 ## Contrato desktop
 
@@ -378,9 +475,8 @@ lint, typecheck, clippy, o quality gate e os benchmarks sem alterar suas regras.
 └── vite.config.ts
 ```
 
-O bundle está temporariamente desativado no scaffold inicial. O ícone Linux
-base já está em `src-tauri/icons/icon.png`; AppImage e `.deb` entram na etapa
-de release.
+Os ícones Linux do bundle ficam em `src-tauri/icons/` nos tamanhos
+`32x32.png`, `64x64.png`, `128x128.png`, `128x128@2x.png` e `icon.png`.
 
 ## Licença
 
