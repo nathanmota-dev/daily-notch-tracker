@@ -13,6 +13,7 @@ import {
 } from "../../lib/desktopApi"
 import { getLocalDateString } from "../../lib/local-date"
 import { App } from "../../app/App"
+import { SurfaceRouter } from "../../app/surfaceRouter"
 import {
   finishPointerTaskDrag,
   mockSortableRects,
@@ -608,23 +609,29 @@ describe("Tasks surface", () => {
   it("routes initial and transient list, add, and task intents", async () => {
     const task = createTask("intent-task", "Intent task")
     const snapshot = createSnapshot([task])
-    const { controller } = renderStandaloneTasks(snapshot, {
-      search: "?surface=tasks&intent=add",
-    })
+    window.history.replaceState({}, "", "/?surface=tasks&intent=add")
+    const controller = createMockDesktopApi({ snapshot })
+
+    render(<SurfaceRouter api={controller.api} />)
 
     expect(await screen.findByRole("form", { name: "Create task" })).toBeInTheDocument()
     expect(screen.getByLabelText("Title")).toHaveFocus()
 
     await act(async () => {
-      controller.emit("tasks-window-intent", {
-        kind: "task",
-        taskId: task.id,
+      controller.emit("surface-changed", {
+        surface: "tasks",
+        intent: { kind: "task", taskId: task.id },
+        presentationMode: null,
       })
     })
     expect(await screen.findByRole("heading", { name: "Edit task" })).toBeInTheDocument()
 
     await act(async () => {
-      controller.emit("tasks-window-intent", { kind: "list" })
+      controller.emit("surface-changed", {
+        surface: "tasks",
+        intent: { kind: "list" },
+        presentationMode: null,
+      })
     })
     expect(await screen.findByRole("heading", { name: "Tasks" })).toBeInTheDocument()
   })

@@ -1,11 +1,12 @@
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow"
-
 import {
   isSurfaceLabel,
   type OverlayPresentationMode,
   type SurfaceLabel,
 } from "../lib/desktopApi"
 import { isTauriRuntime } from "../lib/desktop/tauri"
+import {
+  parseTasksWindowIntent,
+} from "../lib/desktop/window-intent"
 import { OVERLAY_PRESENTATION_QUERY_PARAMETER } from "../lib/desktop/window-navigation-contracts"
 
 export const SURFACE_QUERY_PARAMETER = "surface"
@@ -23,24 +24,63 @@ export function resolveSurfaceLabel({
   search = "",
   windowLabel,
 }: SurfaceResolutionContext): SurfaceLabel {
-  const candidate =
-    runtime === "tauri"
-      ? windowLabel
-      : new URLSearchParams(search).get(SURFACE_QUERY_PARAMETER)
+  if (runtime === "tauri") {
+    void windowLabel
+    return DEFAULT_SURFACE
+  }
+
+  const candidate = new URLSearchParams(search).get(SURFACE_QUERY_PARAMETER)
 
   return isSurfaceLabel(candidate) ? candidate : DEFAULT_SURFACE
 }
 
 export function getRuntimeSurfaceLabel(): SurfaceLabel {
-  if (isTauriRuntime()) {
-    return resolveSurfaceLabel({
-      runtime: "tauri",
-      windowLabel: getCurrentWebviewWindow().label,
-    })
-  }
-
   return resolveSurfaceLabel({
-    runtime: "browser",
+    runtime: isTauriRuntime() ? "tauri" : "browser",
+    search: typeof window === "undefined" ? "" : window.location.search,
+  })
+}
+
+export type SurfaceStateResolutionContext = SurfaceResolutionContext & {
+  fallbackPresentationMode?: OverlayPresentationMode
+}
+
+export type RuntimeSurfaceState = {
+  surface: SurfaceLabel
+  intent: ReturnType<typeof parseTasksWindowIntent> | null
+  presentationMode: OverlayPresentationMode | null
+}
+
+export function resolveRuntimeSurfaceState({
+  fallbackPresentationMode = DEFAULT_PRESENTATION_MODE,
+  runtime,
+  search = "",
+  windowLabel,
+}: SurfaceStateResolutionContext): RuntimeSurfaceState {
+  const surface = resolveSurfaceLabel({ runtime, search, windowLabel })
+
+  return {
+    surface,
+    intent: surface === "tasks" ? parseTasksWindowIntent(search) : null,
+    presentationMode:
+      surface === "overlay"
+        ? resolvePresentationMode({
+            fallback: fallbackPresentationMode,
+            runtime,
+            search,
+          })
+        : null,
+  }
+}
+
+export function getRuntimeSurfaceState(
+  fallbackPresentationMode = DEFAULT_PRESENTATION_MODE,
+): RuntimeSurfaceState {
+  const runtime = isTauriRuntime() ? "tauri" : "browser"
+
+  return resolveRuntimeSurfaceState({
+    fallbackPresentationMode,
+    runtime,
     search: typeof window === "undefined" ? "" : window.location.search,
   })
 }

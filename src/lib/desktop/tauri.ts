@@ -13,6 +13,7 @@ import type {
   StartFocusInput,
 } from "./contracts"
 import { normalizeDesktopApiError } from "./errors"
+import { isSurfaceChangedPayload } from "./window-navigation-contracts"
 
 export interface TauriTransport {
   invoke(command: string, args?: Record<string, unknown>): Promise<unknown>
@@ -72,6 +73,10 @@ export function createTauriDesktopApi(
   ): Promise<DesktopUnlisten> {
     try {
       return await transport.listen(eventName, (payload) => {
+        if (eventName === "surface-changed" && !isSurfaceChangedPayload(payload)) {
+          return
+        }
+
         listener(payload as DesktopEventMap[EventName])
       })
     } catch (error) {

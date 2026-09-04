@@ -50,6 +50,8 @@ export type {
   ShortcutDiagnostic,
   ShortcutStatus,
   StartFocusInput,
+  SurfaceChangedEvent,
+  SurfaceChangedPayload,
   SurfaceLabel,
   Task,
   TaskBucket,
@@ -60,7 +62,15 @@ export type {
   UpdateTaskInput,
   WindowPlacementSnapshot,
 } from "./desktop/contracts"
-export { isSurfaceLabel, SURFACE_LABELS } from "./desktop/contracts"
+export {
+  isSurfaceLabel,
+  SURFACE_LABELS,
+} from "./desktop/contracts"
+export {
+  isOverlayPresentationMode,
+  isSurfaceChangedPayload,
+  isTasksWindowIntent,
+} from "./desktop/window-navigation-contracts"
 export {
   DesktopApiError,
   desktopOperationErrorCodes,

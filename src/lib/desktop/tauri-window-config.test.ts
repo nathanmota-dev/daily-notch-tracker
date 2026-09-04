@@ -1,7 +1,5 @@
 import tauriConfig from "../../../src-tauri/tauri.conf.json"
 import defaultCapability from "../../../src-tauri/capabilities/default.json"
-import settingsCapability from "../../../src-tauri/capabilities/settings.json"
-import tasksCapability from "../../../src-tauri/capabilities/tasks.json"
 import { WINDOW_DIMENSIONS } from "./window-dimensions"
 
 const [overlayWindow] = tauriConfig.app.windows
@@ -42,24 +40,14 @@ describe("Tauri overlay window configuration", () => {
       "core:window:allow-show",
       "core:window:allow-hide",
       "notification:default",
+      "autostart:default",
       "global-shortcut:allow-register",
       "global-shortcut:allow-unregister",
     ])
   })
 
-  it("keeps Tasks isolated and created only on demand", () => {
-    expect(tauriConfig.app.windows.some((window) => window.label === "tasks")).toBe(
-      false,
-    )
-    expect(tasksCapability.windows).toEqual(["tasks"])
-    expect(tasksCapability.permissions).toEqual(["core:default"])
-  })
-
-  it("keeps Settings isolated with the autostart capability only", () => {
-    expect(tauriConfig.app.windows.some((window) => window.label === "settings")).toBe(
-      false,
-    )
-    expect(settingsCapability.windows).toEqual(["settings"])
-    expect(settingsCapability.permissions).toEqual(["core:default", "autostart:default"])
+  it("uses only the overlay capability for every native surface view", () => {
+    expect(tauriConfig.app.security.capabilities).toEqual(["default"])
+    expect(defaultCapability.windows).toEqual(["overlay"])
   })
 })

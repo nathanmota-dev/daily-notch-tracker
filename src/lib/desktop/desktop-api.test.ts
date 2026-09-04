@@ -124,6 +124,37 @@ describe("createTauriDesktopApi", () => {
     expect(unlisten).toHaveBeenCalledOnce()
   })
 
+  it("drops invalid native surface payloads before they reach listeners", async () => {
+    let emit: ((payload: unknown) => void) | undefined
+    const api = createTauriDesktopApi({
+      invoke: vi.fn(async () => createSnapshot()),
+      listen: vi.fn(async (_eventName, listener) => {
+        emit = listener
+        return vi.fn()
+      }),
+    })
+    const listener = vi.fn()
+
+    await api.subscribe("surface-changed", listener)
+    emit?.({
+      surface: "tasks",
+      intent: { kind: "task", taskId: "" },
+      presentationMode: null,
+    })
+    emit?.({
+      surface: "tasks",
+      intent: { kind: "list" },
+      presentationMode: null,
+    })
+
+    expect(listener).toHaveBeenCalledOnce()
+    expect(listener).toHaveBeenCalledWith({
+      surface: "tasks",
+      intent: { kind: "list" },
+      presentationMode: null,
+    })
+  })
+
   it("normalizes commands that the Rust backend does not expose yet", async () => {
     const api = createTauriDesktopApi({
       invoke: vi.fn(async () => {

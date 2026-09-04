@@ -232,13 +232,12 @@ function createMockSystemOperations(
       }),
     closeSettingsWindow: () =>
       runMockOperation(context, "closeSettingsWindow", async () => {
+        context.state.tasksWindowOrigin = null
         if (handlers?.closeSettingsWindow) {
           await handlers.closeSettingsWindow()
           return
         }
-        navigateBrowserToOverlay(
-          context.state.tasksWindowOrigin?.presentationMode,
-        )
+        navigateBrowserToOverlay()
       }),
     returnToTasksWindow: () =>
       runMockOperation(context, "returnToTasksWindow", async () => {

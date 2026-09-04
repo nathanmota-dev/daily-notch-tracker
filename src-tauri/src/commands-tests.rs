@@ -11,14 +11,13 @@ use crate::domain::{
 };
 use crate::services::{
     AutostartBackendError, AutostartService, FocusScheduler, MockAutostartBackend,
-    MockNotificationBackend, NotificationBackendError, OverlayPresentationMode, TasksWindowOrigin,
-    WindowNavigationState,
+    MockNotificationBackend, NotificationBackendError, OverlayPresentationMode,
+    SurfaceChangedPayload, SurfaceLabel, TasksWindowOrigin, WindowNavigationState,
+    SURFACE_CHANGED_EVENT,
 };
 use crate::state::AppState;
 use chrono::{Duration, Utc};
 use tauri::{Listener, Manager, WebviewUrl, WebviewWindowBuilder};
-
-use super::window_commands::tasks_window_url;
 
 fn test_app() -> tauri::App<tauri::test::MockRuntime> {
     let notification_backend = Arc::new(MockNotificationBackend::default());
@@ -59,11 +58,10 @@ fn wait_for_focus_events(focus_events: &AtomicUsize, store_events: &AtomicUsize)
     }
 }
 
-fn create_window(
+fn create_overlay_window(
     app: &tauri::App<tauri::test::MockRuntime>,
-    label: &str,
 ) -> tauri::WebviewWindow<tauri::test::MockRuntime> {
-    WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
+    WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("index.html".into()))
         .build()
         .expect("test window should build")
 }
@@ -93,20 +91,17 @@ fn task_window_intent_rejects_an_invalid_task_id() {
 }
 
 #[test]
-fn task_window_intents_are_encoded_for_new_window_urls() {
+fn surface_changed_payload_serializes_the_native_view_contract() {
+    let payload =
+        SurfaceChangedPayload::new(SurfaceLabel::Tasks, Some(TasksWindowIntent::Add), None);
+
     assert_eq!(
-        tasks_window_url(&TasksWindowIntent::List),
-        "index.html?surface=tasks&intent=list"
-    );
-    assert_eq!(
-        tasks_window_url(&TasksWindowIntent::Add),
-        "index.html?surface=tasks&intent=add"
-    );
-    assert_eq!(
-        tasks_window_url(&TasksWindowIntent::Task {
-            task_id: "11111111-1111-4111-8111-111111111111".to_owned(),
-        }),
-        "index.html?surface=tasks&intent=task&taskId=11111111-1111-4111-8111-111111111111"
+        serde_json::to_value(payload).expect("surface payload should serialize"),
+        serde_json::json!({
+            "surface": "tasks",
+            "intent": { "kind": "add" },
+            "presentationMode": null,
+        })
     );
 }
 
@@ -350,26 +345,22 @@ fn shortcut_status_publishes_complete_snapshots_without_tray_state() {
 }
 
 #[test]
-fn window_commands_reuse_labels_and_preserve_state() {
+fn window_commands_change_one_native_window_and_emit_surface_transitions() {
     let app = test_app();
     let handle = app.handle().clone();
+    let _overlay = create_overlay_window(&app);
     let task_id = "11111111-1111-4111-8111-111111111111".to_owned();
-    let received_intents = Arc::new(Mutex::new(Vec::<TasksWindowIntent>::new()));
-    let received_intents_clone = Arc::clone(&received_intents);
-    handle.listen_any(TASKS_WINDOW_INTENT_EVENT, move |event| {
-        if let Ok(intent) = serde_json::from_str::<TasksWindowIntent>(event.payload()) {
-            received_intents_clone
+    let received = Arc::new(Mutex::new(Vec::<SurfaceChangedPayload>::new()));
+    let received_for_listener = Arc::clone(&received);
+    handle.listen_any(SURFACE_CHANGED_EVENT, move |event| {
+        if let Ok(payload) = serde_json::from_str::<SurfaceChangedPayload>(event.payload()) {
+            received_for_listener
                 .lock()
-                .expect("intent listener should not be poisoned")
-                .push(intent);
+                .expect("surface listener should not be poisoned")
+                .push(payload);
         }
     });
 
-    tauri::async_runtime::block_on(toggle_focus(handle.clone()))
-        .expect("standalone focus should start");
-    let snapshot_before_opening =
-        tauri::async_runtime::block_on(get_snapshot(handle.clone())).expect("snapshot should load");
-
     tauri::async_runtime::block_on(open_tasks_window(
         handle.clone(),
         Some(TasksWindowIntent::Task {
@@ -379,120 +370,74 @@ fn window_commands_reuse_labels_and_preserve_state() {
             presentation_mode: OverlayPresentationMode::Expanded,
         }),
     ))
-    .expect("tasks window should open");
-    assert!(handle.get_webview_window("tasks").is_some());
-    tauri::async_runtime::block_on(open_tasks_window(
-        handle.clone(),
-        Some(TasksWindowIntent::List),
-        None,
-    ))
-    .expect("existing tasks window should be reused");
-    tauri::async_runtime::block_on(open_tasks_window(
-        handle.clone(),
-        Some(TasksWindowIntent::Add),
-        None,
-    ))
-    .expect("existing tasks window should receive an add intent");
-    tauri::async_runtime::block_on(open_tasks_window(
-        handle.clone(),
-        Some(TasksWindowIntent::Task {
-            task_id: task_id.clone(),
-        }),
-        None,
-    ))
-    .expect("existing tasks window should receive a task intent");
+    .expect("tasks view should open");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
-        .expect("settings window should open");
-    let settings_window = handle
-        .get_webview_window("settings")
-        .expect("settings window should be registered");
-    tauri::async_runtime::block_on(open_settings_window(handle.clone()))
-        .expect("existing settings window should be reused");
-    tauri::async_runtime::block_on(close_settings_window(handle.clone()))
-        .expect("settings window should close without being destroyed");
-    assert!(
-        handle.get_webview_window("settings").is_some(),
-        "settings window should remain reusable after hiding"
-    );
-    assert_eq!(settings_window.label(), "settings");
-    tauri::async_runtime::block_on(close_settings_window(handle.clone()))
-        .expect("closing an already hidden settings window should be idempotent");
-    tauri::async_runtime::block_on(open_settings_window(handle.clone()))
-        .expect("hidden settings window should be reused");
-    assert_eq!(
-        handle
-            .get_webview_window("settings")
-            .expect("reopened settings window should be registered")
-            .label(),
-        "settings"
-    );
+        .expect("settings view should open");
+    tauri::async_runtime::block_on(return_to_tasks_window(handle.clone()))
+        .expect("tasks view should return");
+    tauri::async_runtime::block_on(close_tasks_window(handle.clone()))
+        .expect("tasks view should close");
 
-    assert_eq!(handle.webview_windows().len(), 2);
+    assert!(handle.get_webview_window("overlay").is_some());
+    assert!(handle.get_webview_window("tasks").is_none());
+    assert!(handle.get_webview_window("settings").is_none());
+    assert_eq!(handle.webview_windows().len(), 1);
     assert_eq!(
-        received_intents
+        received
             .lock()
-            .expect("intent listener should not be poisoned")
+            .expect("surface payloads should not be poisoned")
             .clone(),
         vec![
-            TasksWindowIntent::List,
-            TasksWindowIntent::Add,
-            TasksWindowIntent::Task {
-                task_id: task_id.clone(),
-            },
+            SurfaceChangedPayload::new(
+                SurfaceLabel::Tasks,
+                Some(TasksWindowIntent::Task { task_id }),
+                None,
+            ),
+            SurfaceChangedPayload::new(SurfaceLabel::Settings, None, None),
+            SurfaceChangedPayload::new(SurfaceLabel::Tasks, Some(TasksWindowIntent::List), None,),
+            SurfaceChangedPayload::new(
+                SurfaceLabel::Overlay,
+                None,
+                Some(OverlayPresentationMode::Expanded),
+            ),
         ]
     );
-    let snapshot_after_opening =
-        tauri::async_runtime::block_on(get_snapshot(handle.clone())).expect("snapshot should load");
-    assert_eq!(snapshot_after_opening.focus, snapshot_before_opening.focus);
-    assert_eq!(snapshot_after_opening.tasks, snapshot_before_opening.tasks);
-    tauri::async_runtime::block_on(stop_focus(handle)).expect("standalone focus should stop");
-}
-
-#[test]
-fn returning_from_settings_hides_settings_and_focuses_tasks() {
-    let app = test_app();
-    let handle = app.handle().clone();
-    let overlay = create_window(&app, "overlay");
-
-    crate::services::show_and_focus_window(&overlay).expect("overlay should be shown and focused");
-    tauri::async_runtime::block_on(open_tasks_window(
-        handle.clone(),
-        Some(TasksWindowIntent::List),
-        Some(TasksWindowOrigin {
-            presentation_mode: OverlayPresentationMode::Expanded,
-        }),
-    ))
-    .expect("tasks should open from the overlay");
-    tauri::async_runtime::block_on(open_settings_window(handle.clone()))
-        .expect("settings should open");
-
-    tauri::async_runtime::block_on(return_to_tasks_window(handle.clone()))
-        .expect("settings should return to tasks");
 
     let navigation = handle
         .try_state::<WindowNavigationState>()
         .expect("navigation state should be managed")
         .snapshot()
         .expect("navigation state should be readable");
-    assert_eq!(
-        navigation.focused_window,
-        Some(crate::services::ManagedWindowLabel::Tasks)
-    );
-    assert!(navigation
-        .visible_windows
-        .contains(&crate::services::ManagedWindowLabel::Overlay));
-    assert!(navigation
-        .visible_windows
-        .contains(&crate::services::ManagedWindowLabel::Tasks));
-    assert!(!navigation
-        .visible_windows
-        .contains(&crate::services::ManagedWindowLabel::Settings));
-    assert_eq!(
-        navigation.tasks_window_origin,
+    assert_eq!(navigation.active_surface, SurfaceLabel::Overlay);
+    assert_eq!(navigation.presentation_origin, None);
+}
+
+#[test]
+fn closing_settings_returns_to_the_overlay_without_restoring_tasks_origin() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let _overlay = create_overlay_window(&app);
+
+    tauri::async_runtime::block_on(open_tasks_window(
+        handle.clone(),
+        Some(TasksWindowIntent::List),
         Some(TasksWindowOrigin {
             presentation_mode: OverlayPresentationMode::Expanded,
-        })
-    );
+        }),
+    ))
+    .expect("tasks view should open");
+    tauri::async_runtime::block_on(open_settings_window(handle.clone()))
+        .expect("settings view should open");
+    tauri::async_runtime::block_on(close_settings_window(handle.clone()))
+        .expect("settings view should close");
+
+    let navigation = handle
+        .try_state::<WindowNavigationState>()
+        .expect("navigation state should be managed")
+        .snapshot()
+        .expect("navigation state should be readable");
+    assert_eq!(navigation.active_surface, SurfaceLabel::Overlay);
+    assert_eq!(navigation.presentation_origin, None);
 }
 
 #[test]
@@ -521,9 +466,10 @@ fn external_release_rejects_non_https_urls() {
 }
 
 #[test]
-fn reusable_windows_work_without_overlay_and_preserve_focus_scheduler() {
+fn surface_views_preserve_focus_scheduler_in_the_single_window() {
     let app = test_app();
     let handle = app.handle().clone();
+    let _overlay = create_overlay_window(&app);
 
     tauri::async_runtime::block_on(toggle_focus(handle.clone()))
         .expect("standalone focus should start");
@@ -537,20 +483,16 @@ fn reusable_windows_work_without_overlay_and_preserve_focus_scheduler() {
         Some(TasksWindowIntent::List),
         None,
     ))
-    .expect("Tasks should open without an overlay");
+    .expect("Tasks view should open");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
-        .expect("Settings should open without an overlay");
-    assert!(handle.get_webview_window("tasks").is_some());
-    assert!(handle.get_webview_window("settings").is_some());
+        .expect("Settings view should open");
     tauri::async_runtime::block_on(close_tasks_window(handle.clone()))
-        .expect("Tasks should hide without an overlay");
+        .expect("Tasks view should close");
     tauri::async_runtime::block_on(close_settings_window(handle.clone()))
-        .expect("Settings should hide without an overlay");
+        .expect("Settings view should close");
 
-    assert!(handle.get_webview_window("tasks").is_some());
-    assert!(handle.get_webview_window("settings").is_some());
-
-    assert_eq!(handle.webview_windows().len(), 2);
+    assert!(handle.get_webview_window("overlay").is_some());
+    assert_eq!(handle.webview_windows().len(), 1);
     let snapshot = tauri::async_runtime::block_on(get_snapshot(handle.clone()))
         .expect("snapshot should remain available");
     assert_eq!(snapshot.focus.state, crate::domain::FocusState::Running);

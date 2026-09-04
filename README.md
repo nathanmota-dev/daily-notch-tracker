@@ -59,17 +59,18 @@ persistidos.
 
 ### Ciclo de vida no desktop
 
-Ao iniciar, somente o overlay do notch é criado e fica disponível; as janelas
-`Tasks` e `Settings` são abertas sob demanda. O aplicativo usa single-instance:
-se um segundo launch for solicitado, esse processo é encerrado e a primeira
-instância traz `Tasks` para frente quando a janela já existe; caso contrário,
-traz o overlay para frente. Os argumentos e o diretório do segundo launch são
+Ao iniciar, somente uma WebviewWindow nativa, com label `overlay`, é criada.
+`Tasks`, `Settings` e o próprio Overlay são views do mesmo webview; os comandos
+de navegação redimensionam essa janela e emitem o evento tipado
+`surface-changed`. O aplicativo usa single-instance: se um segundo launch for
+solicitado, esse processo é encerrado e a primeira instância traz a janela
+`overlay` para frente. Os argumentos e o diretório do segundo launch são
 ignorados.
 
-Fechar `Tasks` ou `Settings` apenas oculta a janela e preserva o estado, um foco
-em andamento e seu scheduler para a próxima abertura. `Quit` é a saída explícita
-da aplicação pelo menu nativo do tray e marca o processo como encerrando antes
-de cancelar o scheduler e sair.
+Fechar `Tasks` ou `Settings` retorna à view `overlay`, preservando o estado, um
+foco em andamento e seu scheduler. `Quit` é a saída explícita da aplicação pelo
+menu nativo do tray e marca o processo como encerrando antes de cancelar o
+scheduler e sair.
 
 ### Tray e menu nativo
 
@@ -86,15 +87,12 @@ clique direito); nenhuma ação depende de clique esquerdo. Em X11, Wayland e
 ambientes que oferecem AppIndicator o menu usa a integração nativa disponível.
 No GNOME sem uma extensão de tray/AppIndicator, ou quando o compositor não
 oferece essa integração, o diagnóstico aparece como `Unavailable` ou `Error`,
-mas a aplicação continua utilizável pelas janelas `Tasks` e `Settings` e pelo
-overlay quando ele estiver disponível.
+mas a aplicação continua utilizável pelas views `Tasks`, `Settings` e `Overlay`
+quando a janela nativa estiver disponível.
 
 Wayland e alguns compositores podem limitar transparência, posicionamento ou
-`always-on-top` das janelas. Nessa situação, use `Tasks` e `Settings` como
-fallback: elas são abertas sob demanda, reutilizadas pelo label e podem ser
-acessadas independentemente da existência do overlay. Falhas do ícone, do
-AppIndicator ou do ambiente gráfico não encerram o processo nem interrompem o
-timer.
+`always-on-top` da janela. Falhas do ícone, do AppIndicator ou do ambiente
+gráfico não encerram o processo nem interrompem o timer.
 
 ### Atalho global
 
@@ -115,7 +113,7 @@ estados:
 
 O registro é tentado novamente em uma nova inicialização. Falhas do atalho são
 não fatais: não encerram o focus engine, não cancelam o scheduler e não
-impedem o uso de `Tasks`, `Settings` ou do tray quando essas integrações
+impedem o uso das views `Tasks`, `Settings` ou do tray quando essas integrações
 estiverem disponíveis. O app expõe somente o estado resumido e uma mensagem
 sanitizada; detalhes brutos do plugin e dados pessoais não atravessam o IPC.
 
@@ -124,8 +122,8 @@ Uma sessão Wayland pura, sem `DISPLAY`, aparece como `unavailable`; quando
 Xwayland está disponível, o atalho pode ser registrado normalmente. WebKitGTK
 e AppIndicator
 também dependem do compositor e da distribuição: limitações de transparência,
-posicionamento, tray ou menu não alteram o timer, e as janelas `Tasks` e
-`Settings` são os fallbacks oficiais.
+posicionamento, tray ou menu não alteram o timer, e as views `Tasks` e
+`Settings` continuam disponíveis na janela única.
 
 Uma instalação empacotada pode ser iniciada pelo menu do sistema ou por um
 launcher, sem manter um terminal aberto. No Linux, o single-instance depende de
@@ -139,8 +137,8 @@ O controle `Launch at login` usa o plugin oficial de autostart do Tauri. Ao
 ativar, ele cria a entrada XDG `dailynotch.desktop` no diretório de autostart
 do usuário (normalmente `~/.config/autostart/`); ao desativar, a entrada é
 removida. O launcher recebe `--autostart`, e o processo iniciado por ele cria
-somente o overlay e o tray. `Tasks` e `Settings` continuam sendo abertas sob
-demanda, e o single-instance evita processos duplicados.
+somente a janela `overlay` e o tray. `Tasks` e `Settings` continuam sendo views
+da mesma janela, e o single-instance evita processos duplicados.
 
 O nome estável da entrada é `dailynotch`. Em um AppImage, o launcher usa o
 caminho da imagem informado pelo runtime; em um pacote `.deb`, usa o executável
@@ -195,8 +193,10 @@ Cada mutação bem-sucedida retorna e emite um `AppSnapshot` completo com uma
 `revision` monotônica. Tarefas emitem `store-changed`, settings emitem
 `store-changed` e `settings-changed`, e as transições mínimas de foco emitem
 `focus-changed`. Todas as superfícies assinam esses eventos e
-`shortcut-changed`; revisões duplicadas ou atrasadas são ignoradas. O evento
-`window-placement-changed` já faz parte do contrato para a integração futura.
+`shortcut-changed`; revisões duplicadas ou atrasadas são ignoradas. A troca de
+view nativa usa `surface-changed`, com `surface`, `intent` e
+`presentationMode`; o evento `window-placement-changed` já faz parte do
+contrato para a integração futura.
 
 Componentes React não devem importar `invoke` ou `listen` diretamente. O ESLint
 protege essa fronteira para que payloads e erros sejam normalizados em um único
@@ -204,10 +204,11 @@ lugar.
 
 ## Superfícies
 
-O bundle compartilhado seleciona a superfície pelo label da janela Tauri:
-`overlay`, `tasks` ou `settings`. No navegador, a mesma seleção pode ser
-testada com `?surface=overlay`, `?surface=tasks` ou `?surface=settings`; sem o
-parâmetro, o shell usa `overlay`.
+O bundle compartilhado renderiza `overlay`, `tasks` ou `settings` como views. No
+Tauri, a única janela nativa tem label `overlay`; o backend publica
+`surface-changed` para trocar a view e ajustar o tamanho. No navegador, a mesma
+seleção pode ser testada com `?surface=overlay`, `?surface=tasks` ou
+`?surface=settings`; sem o parâmetro, o shell usa `overlay`.
 
 ### Posicionamento do overlay
 
@@ -268,24 +269,19 @@ interrompidas, e o streak pode terminar hoje ou ontem. A grade é limitada ao
 dia atual e não mostra dados futuros. O resize ancorado da janela Tauri
 acompanha as mudanças de apresentação, e o drag-and-drop do resumo já reordena
 o bucket do dia.
-A janela completa `Tasks` e a janela `Settings` são abertas sob demanda por
-comandos Rust, reutilizando a janela existente pelo label e trazendo-a para
-frente sem criar duplicatas. `Settings` permite ajustar a duração padrão de
-foco, alertas, timeline, RGB e modo mínimo; alterações são persistidas pelo
-Rust e refletidas nas outras superfícies sem reiniciar o app. A seção de
-diagnostics mostra somente a versão, o caminho do arquivo local e o estado
+A view `Tasks` usa a mesma janela nativa com tamanho de conteúdo preferido de
+800 x 550 px, tamanho mínimo de 760 x 480 px e limites máximos de 800 x 550 px.
+A view `Settings` compartilha esse contrato. Ambas preenchem o webview e têm
+seus próprios cabeçalhos e rolagem; os comandos de abrir, fechar e voltar apenas
+trocam a view e redimensionam a janela única. `Settings` permite ajustar a
+duração padrão de foco, alertas, timeline, RGB e modo mínimo; alterações são
+persistidas pelo Rust e refletidas nas outras views sem reiniciar o app. A seção
+de diagnostics mostra somente a versão, o caminho do arquivo local e o estado
 resumido de atalhos e autostart. Quando uma integração ainda não está
 disponível, o controle fica desabilitado e a mensagem pode ser novamente
 carregada; o estado salvo de preferência não é tratado como confirmação de
 autostart efetivo. `Tasks` é a superfície funcional descrita abaixo.
 
-A janela `Tasks` é criada sob demanda com tamanho inicial de 800 x 550 px,
-permite redimensionamento e respeita o tamanho mínimo de 760 x 480 px. Ela é
-transparente e sem decorações nativas; o cabeçalho fornece o botão de fechar.
-Ao abrir, fica centralizada em relação ao dashboard e posicionada 8 px abaixo,
-com ajuste à área de trabalho do monitor quando essa métrica está disponível.
-Fechar a janela apenas a oculta para que o processo, o estado compartilhado e
-um foco em andamento continuem ativos; ao reabrir, a mesma janela é reutilizada.
 A seção estrutural `Calendar` reutiliza o seletor de data atual. A lista mantém
 as tarefas visíveis durante a criação inline, mostra duração/data e oferece
 ações diretas de foco, edição e exclusão. Eventos ainda não são exibidos porque
@@ -305,9 +301,9 @@ Na janela `Tasks`, o CRUD é persistido pelo Rust: a lista separa os buckets
 concluídas e envia a permutação completa do bucket ao reordenar pelo handle.
 O formulário também permite editar título, notas, duração, data e conclusão,
 além de iniciar, pausar e retomar o foco da tarefa selecionada. Os intents
-`list`, `add` e `task` chegam pela URL na abertura da janela e por
-`tasks-window-intent` quando ela já existe; são transitórios e não entram no
-arquivo persistido. Concluir a tarefa ativa finaliza sua sessão como concluída,
+`list`, `add` e `task` chegam pela query string no preview web e, no desktop,
+como o campo `intent` do evento `surface-changed`; são transitórios e não entram
+no arquivo persistido. Concluir a tarefa ativa finaliza sua sessão como concluída,
 soma o tempo e marca a tarefa como feita na mesma mutação atômica. Excluir a
 tarefa ativa finaliza a sessão como interrompida e, quando houver tempo válido,
 preserva o registro como sessão standalone sem atribuí-lo à tarefa removida.

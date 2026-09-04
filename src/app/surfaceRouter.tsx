@@ -3,6 +3,7 @@ import type { ComponentType } from "react"
 import {
   desktopApi,
   type DesktopApi,
+  type TasksWindowIntent,
   type SurfaceLabel,
 } from "../lib/desktopApi"
 import type { ExpandedDashboardCallbacks } from "../components/expanded-dashboard"
@@ -15,6 +16,7 @@ import {
 type SurfaceComponentProps = {
   api: DesktopApi
   presentationMode: PresentationMode
+  tasksIntent?: TasksWindowIntent
 } & Partial<ExpandedDashboardCallbacks>
 
 type SurfaceComponent = ComponentType<SurfaceComponentProps>
@@ -34,8 +36,8 @@ function OverlaySurface({
   )
 }
 
-function TasksSurface({ api }: SurfaceComponentProps) {
-  return <App api={api} surface="tasks" />
+function TasksSurface({ api, tasksIntent }: SurfaceComponentProps) {
+  return <App api={api} surface="tasks" tasksIntent={tasksIntent} />
 }
 
 function SettingsSurface({ api }: SurfaceComponentProps) {
@@ -60,15 +62,28 @@ export function SurfaceRouter({
   surface,
   ...callbacks
 }: SurfaceRouterProps) {
-  const runtimeSurface = useRuntimeSurface()
+  const runtimeSurface = useRuntimeSurface({
+    api,
+    enabled: surface === undefined,
+    fallbackPresentationMode: presentationMode,
+  })
   const runtimePresentationMode = useRuntimePresentationMode(presentationMode)
-  const resolvedSurface = surface ?? runtimeSurface
+  const resolvedSurface = surface ?? runtimeSurface.surface
+  const resolvedPresentationMode =
+    surface === undefined
+      ? runtimeSurface.presentationMode ?? runtimePresentationMode
+      : runtimePresentationMode
+  const tasksIntent =
+    surface === undefined && resolvedSurface === "tasks"
+      ? runtimeSurface.intent ?? { kind: "list" as const }
+      : undefined
   const Surface = surfaceComponents[resolvedSurface]
 
   return (
     <Surface
       api={api}
-      presentationMode={runtimePresentationMode}
+      presentationMode={resolvedPresentationMode}
+      tasksIntent={tasksIntent}
       {...callbacks}
     />
   )

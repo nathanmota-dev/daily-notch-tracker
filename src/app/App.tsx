@@ -17,6 +17,7 @@ import {
   type DesktopApiError,
   type OverlayPresentationMode,
   type SurfaceLabel,
+  type TasksWindowIntent,
 } from "../lib/desktopApi"
 import {
   type OverlayWindowAdapter,
@@ -42,6 +43,7 @@ type AppProps = {
   overlayWindowAdapter?: OverlayWindowAdapter | null
   surface?: SurfaceLabel
   presentationMode?: PresentationMode
+  tasksIntent?: TasksWindowIntent
 } & PresentationCallbacks
 
 type AppShellProps = {
@@ -134,6 +136,7 @@ function renderSurface(
   overlayWindowAdapter?: OverlayWindowAdapter | null,
   api?: DesktopApi,
   snapshotOptions?: SurfaceRenderOptions,
+  tasksIntent?: TasksWindowIntent,
 ) {
   if (surface === "overlay") {
     return (
@@ -157,6 +160,7 @@ function renderSurface(
           applySnapshot={snapshotOptions.applySnapshot}
           refreshSnapshot={snapshotOptions.refreshSnapshot}
           snapshot={snapshot}
+          initialIntent={tasksIntent}
         />
       )
     }
@@ -183,6 +187,7 @@ export function App({
   overlayWindowAdapter,
   presentationMode = "collapsed",
   surface = "overlay",
+  tasksIntent,
   ...callbacks
 }: AppProps) {
   const {
@@ -222,5 +227,6 @@ export function App({
     overlayWindowAdapter,
     api,
     { applySnapshot, refreshSnapshot },
+    tasksIntent,
   )
 }

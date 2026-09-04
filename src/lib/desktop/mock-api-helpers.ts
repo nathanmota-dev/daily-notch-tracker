@@ -11,6 +11,7 @@ import {
 import {
   cloneDesktopValue,
 } from "./fixtures"
+import { isSurfaceChangedPayload } from "./window-navigation-contracts"
 import {
   cloneSnapshot,
   createMockState,
@@ -46,6 +47,10 @@ export function emitMockEvent<EventName extends DesktopEventName>(
   eventName: EventName,
   payload: DesktopEventMap[EventName],
 ) {
+  if (eventName === "surface-changed" && !isSurfaceChangedPayload(payload)) {
+    return
+  }
+
   const eventListeners = context.listeners.get(eventName)
   if (!eventListeners) {
     return
