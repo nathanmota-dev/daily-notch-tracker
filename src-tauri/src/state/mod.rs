@@ -8,7 +8,7 @@ use crate::domain::streak::streak_from_activity;
 use crate::domain::task::{parse_scheduled_date, sort_tasks, tasks_for_bucket};
 use crate::domain::{
     AppError, AppSnapshot, DomainResult, FocusSession, FocusSettings, FocusSnapshot,
-    ShortcutStatus, Task,
+    ShortcutStatus, Task, WindowPlacementSnapshot,
 };
 use crate::storage::{PersistedPayload, RecoveryDiagnostic, Repository};
 
@@ -25,6 +25,8 @@ pub struct AppState {
     tasks: Vec<Task>,
     sessions: Vec<FocusSession>,
     settings: FocusSettings,
+    window_placement: Option<WindowPlacementSnapshot>,
+    placement_revision: u64,
     focus: FocusSnapshot,
     shortcut_status: ShortcutStatus,
     repository: Option<Repository>,
@@ -41,6 +43,8 @@ struct MutableStateCheckpoint {
     tasks: Vec<Task>,
     sessions: Vec<FocusSession>,
     settings: FocusSettings,
+    window_placement: Option<WindowPlacementSnapshot>,
+    placement_revision: u64,
     focus: FocusSnapshot,
     confirmed_payload: PersistedPayload,
     running_since: Option<DateTime<Utc>>,
@@ -81,6 +85,10 @@ impl AppState {
 
     pub fn recovery_diagnostic(&self) -> Option<&RecoveryDiagnostic> {
         self.recovery_diagnostic.as_ref()
+    }
+
+    pub fn window_placement(&self) -> Option<WindowPlacementSnapshot> {
+        self.window_placement.clone()
     }
 
     pub fn snapshot(&self) -> AppSnapshot {
@@ -156,6 +164,8 @@ impl AppState {
             tasks: self.tasks.clone(),
             sessions: self.sessions.clone(),
             settings: self.settings.clone(),
+            window_placement: self.window_placement.clone(),
+            placement_revision: self.placement_revision,
             focus: self.focus.clone(),
             confirmed_payload: self.confirmed_payload.clone(),
             running_since: self.running_since,
@@ -174,6 +184,8 @@ impl AppState {
             self.tasks = checkpoint.tasks;
             self.sessions = checkpoint.sessions;
             self.settings = checkpoint.settings;
+            self.window_placement = checkpoint.window_placement;
+            self.placement_revision = checkpoint.placement_revision;
             self.focus = checkpoint.focus;
             self.confirmed_payload = checkpoint.confirmed_payload;
             self.running_since = checkpoint.running_since;

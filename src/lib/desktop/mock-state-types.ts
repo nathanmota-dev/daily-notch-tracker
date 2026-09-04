@@ -1,4 +1,8 @@
-import type { AppSnapshot, TasksWindowOrigin } from "./contracts"
+import type {
+  AppSnapshot,
+  TasksWindowOrigin,
+  WindowPlacementSnapshot,
+} from "./contracts"
 
 export type MockState = {
   snapshot: AppSnapshot
@@ -7,4 +11,5 @@ export type MockState = {
   runningSince: number | null
   accumulatedFocusMs: number
   tasksWindowOrigin: TasksWindowOrigin | null
+  windowPlacement: WindowPlacementSnapshot | null
 }

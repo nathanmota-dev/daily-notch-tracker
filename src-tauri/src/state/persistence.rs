@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use super::AppState;
 use crate::domain::{
     AppDiagnostics, AppError, AppSnapshot, AutostartDiagnostic, DomainResult, FocusSnapshot,
-    ShortcutDiagnostic, ShortcutStatus, TrayDiagnostic,
+    ShortcutDiagnostic, ShortcutStatus, TrayDiagnostic, WindowPlacementSnapshot,
 };
 use crate::storage::{PersistedPayload, RecoveryDiagnostic, Repository};
 
@@ -20,6 +20,11 @@ impl AppState {
             tasks: payload.tasks,
             sessions: payload.sessions,
             settings: payload.settings,
+            placement_revision: payload
+                .extended_window_placement
+                .as_ref()
+                .map_or(0, |placement| placement.revision),
+            window_placement: payload.extended_window_placement,
             focus: FocusSnapshot::default(),
             shortcut_status: ShortcutStatus::default(),
             repository,
@@ -57,10 +62,11 @@ impl AppState {
     }
 
     fn current_payload(&self) -> PersistedPayload {
-        PersistedPayload::from_parts(
+        PersistedPayload::from_parts_with_extended_window_placement(
             self.tasks.clone(),
             self.sessions.clone(),
             self.settings.clone(),
+            self.window_placement.clone(),
         )
     }
 
@@ -68,6 +74,48 @@ impl AppState {
         self.tasks = self.confirmed_payload.tasks.clone();
         self.sessions = self.confirmed_payload.sessions.clone();
         self.settings = self.confirmed_payload.settings.clone();
+        self.window_placement = self.confirmed_payload.extended_window_placement.clone();
+        self.placement_revision = self
+            .window_placement
+            .as_ref()
+            .map_or(0, |placement| placement.revision);
+    }
+
+    pub(crate) fn save_window_placement(
+        &mut self,
+        mut placement: WindowPlacementSnapshot,
+    ) -> DomainResult<WindowPlacementSnapshot> {
+        if !placement.is_valid() {
+            return Err(AppError::validation_without_field(
+                "The window placement is invalid.",
+            ));
+        }
+        if self.placement_revision == u64::MAX {
+            return Err(AppError::internal(
+                "The window placement revision is exhausted.",
+            ));
+        }
+
+        let previous_placement = self.window_placement.clone();
+        let previous_revision = self.placement_revision;
+        placement.revision = previous_revision + 1;
+        self.window_placement = Some(placement.clone());
+
+        let payload = self.current_payload();
+        let persistence_failed = match self.repository.as_mut() {
+            Some(repository) => repository.save(&payload).is_err(),
+            None => false,
+        };
+
+        if persistence_failed {
+            self.window_placement = previous_placement;
+            self.placement_revision = previous_revision;
+            return Err(AppError::persistence("Unable to persist local data."));
+        }
+
+        self.confirmed_payload = payload;
+        self.placement_revision = placement.revision;
+        Ok(placement)
     }
 
     pub fn data_file_path(&self) -> Option<PathBuf> {

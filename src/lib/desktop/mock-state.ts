@@ -1,4 +1,4 @@
-import type { AppSnapshot } from "./contracts"
+import type { AppSnapshot, WindowPlacementSnapshot } from "./contracts"
 import {
   overlaySurfaceSearch,
   settingsSurfaceSearch,
@@ -26,7 +26,10 @@ export {
   updateMockSettings,
 } from "./mock-state-focus"
 
-export function createMockState(snapshot: AppSnapshot): MockState {
+export function createMockState(
+  snapshot: AppSnapshot,
+  windowPlacement: WindowPlacementSnapshot | null = null,
+): MockState {
   const taskIdNumbers = snapshot.tasks
     .map((task) => /^mock-task-(\d+)$/.exec(task.id)?.[1])
     .filter((value): value is string => value !== undefined)
@@ -55,6 +58,7 @@ export function createMockState(snapshot: AppSnapshot): MockState {
           )
         : 0,
     tasksWindowOrigin: null,
+    windowPlacement: windowPlacement ? structuredClone(windowPlacement) : null,
   }
 }
 

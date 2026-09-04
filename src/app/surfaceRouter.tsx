@@ -7,6 +7,7 @@ import {
   type SurfaceLabel,
 } from "../lib/desktopApi"
 import type { ExpandedDashboardCallbacks } from "../components/expanded-dashboard"
+import type { OverlayWindowAdapter } from "../lib/desktop/overlay-window"
 import { App, type PresentationMode } from "./App"
 import {
   useRuntimePresentationMode,
@@ -17,18 +18,21 @@ type SurfaceComponentProps = {
   api: DesktopApi
   presentationMode: PresentationMode
   tasksIntent?: TasksWindowIntent
+  overlayWindowAdapter?: OverlayWindowAdapter | null
 } & Partial<ExpandedDashboardCallbacks>
 
 type SurfaceComponent = ComponentType<SurfaceComponentProps>
 
 function OverlaySurface({
   api,
+  overlayWindowAdapter,
   presentationMode,
   ...callbacks
 }: SurfaceComponentProps) {
   return (
     <App
       api={api}
+      overlayWindowAdapter={overlayWindowAdapter}
       presentationMode={presentationMode}
       surface="overlay"
       {...callbacks}
@@ -36,12 +40,25 @@ function OverlaySurface({
   )
 }
 
-function TasksSurface({ api, tasksIntent }: SurfaceComponentProps) {
-  return <App api={api} surface="tasks" tasksIntent={tasksIntent} />
+function TasksSurface({ api, overlayWindowAdapter, tasksIntent }: SurfaceComponentProps) {
+  return (
+    <App
+      api={api}
+      overlayWindowAdapter={overlayWindowAdapter}
+      surface="tasks"
+      tasksIntent={tasksIntent}
+    />
+  )
 }
 
-function SettingsSurface({ api }: SurfaceComponentProps) {
-  return <App api={api} surface="settings" />
+function SettingsSurface({ api, overlayWindowAdapter }: SurfaceComponentProps) {
+  return (
+    <App
+      api={api}
+      overlayWindowAdapter={overlayWindowAdapter}
+      surface="settings"
+    />
+  )
 }
 
 const surfaceComponents: Record<SurfaceLabel, SurfaceComponent> = {
@@ -54,10 +71,12 @@ export type SurfaceRouterProps = {
   api?: DesktopApi
   surface?: SurfaceLabel
   presentationMode?: PresentationMode
+  overlayWindowAdapter?: OverlayWindowAdapter | null
 } & Partial<ExpandedDashboardCallbacks>
 
 export function SurfaceRouter({
   api = desktopApi,
+  overlayWindowAdapter,
   presentationMode = "collapsed",
   surface,
   ...callbacks
@@ -82,6 +101,7 @@ export function SurfaceRouter({
   return (
     <Surface
       api={api}
+      overlayWindowAdapter={overlayWindowAdapter}
       presentationMode={resolvedPresentationMode}
       tasksIntent={tasksIntent}
       {...callbacks}

@@ -26,7 +26,10 @@ export function createMockDesktopApi(
 ): MockDesktopApiController {
   const context: MockDesktopApiContext = {
     options,
-    state: createMockState(options.snapshot ?? createEmptyAppSnapshot()),
+    state: createMockState(
+      options.snapshot ?? createEmptyAppSnapshot(),
+      options.windowPlacement ?? null,
+    ),
     diagnostics: cloneDesktopValue(
       options.diagnostics ?? createBrowserDiagnostics(),
     ),
@@ -38,7 +41,7 @@ export function createMockDesktopApi(
     emit: (eventName, payload) => emitMockEvent(context, eventName, payload),
     getSnapshot: () => cloneSnapshot(context.state.snapshot),
     setSnapshot: (snapshot: AppSnapshot) => {
-      context.state = createMockState(snapshot)
+      context.state = createMockState(snapshot, context.state.windowPlacement)
     },
   }
 }

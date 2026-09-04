@@ -32,6 +32,10 @@ impl WindowNavigationState {
         self.with_snapshot(|snapshot| snapshot.presentation_origin)
     }
 
+    pub(crate) fn active_surface(&self) -> Result<SurfaceLabel, AppError> {
+        self.with_snapshot(|snapshot| snapshot.active_surface)
+    }
+
     #[cfg(test)]
     pub(crate) fn snapshot(&self) -> Result<WindowNavigationSnapshot, AppError> {
         self.with_snapshot(|snapshot| snapshot.clone())

@@ -4,6 +4,7 @@ import type {
   DesktopEventName,
   DesktopUnlisten,
 } from "./api"
+import { DesktopApiError } from "./errors"
 import { cloneDesktopValue } from "./fixtures"
 import {
   addMockTask,
@@ -25,6 +26,7 @@ import {
 } from "./mock-state"
 import {
   configuredFailure,
+  emitMockEvent,
   normalizeStartFocusInput,
   runMockOperation,
   runSnapshotOperation,
@@ -33,6 +35,44 @@ import type {
   AnyEventListener,
   MockDesktopApiContext,
 } from "./mock-api-types"
+
+function createMockWindowPlacementOperations(
+  context: MockDesktopApiContext,
+): Pick<DesktopApi, "getWindowPlacement" | "saveWindowPlacement"> {
+  const handlers = context.options.handlers
+
+  return {
+    getWindowPlacement: () =>
+      runMockOperation(context, "getWindowPlacement", async () =>
+        cloneDesktopValue(
+          handlers?.getWindowPlacement
+            ? await handlers.getWindowPlacement()
+            : context.state.windowPlacement,
+        ),
+      ),
+    saveWindowPlacement: () =>
+      runMockOperation(context, "saveWindowPlacement", async () => {
+        const placement = handlers?.saveWindowPlacement
+          ? await handlers.saveWindowPlacement()
+          : context.state.windowPlacement
+            ? {
+                ...context.state.windowPlacement,
+                revision: context.state.windowPlacement.revision + 1,
+              }
+            : (() => {
+                throw new DesktopApiError({
+                  operation: "saveWindowPlacement",
+                  code: "integration-unavailable",
+                  message: "Window placement requires the desktop runtime.",
+                })
+              })()
+
+        context.state.windowPlacement = cloneDesktopValue(placement)
+        emitMockEvent(context, "window-placement-changed", placement)
+        return cloneDesktopValue(placement)
+      }),
+  }
+}
 
 function createMockTaskOperations(context: MockDesktopApiContext): Pick<
   DesktopApi,
@@ -282,6 +322,7 @@ async function subscribeToMockEvent<EventName extends DesktopEventName>(
 
 export function createMockApi(context: MockDesktopApiContext): DesktopApi {
   return {
+    ...createMockWindowPlacementOperations(context),
     ...createMockSnapshotOperations(context),
     ...createMockSystemOperations(context),
     subscribe: (eventName, listener) =>

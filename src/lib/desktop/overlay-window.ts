@@ -9,6 +9,7 @@ import {
   OVERLAY_WINDOW_SIZES,
 } from "./window-dimensions"
 import type { WindowSize } from "./window-dimension-types"
+import type { WindowMonitorSnapshot } from "./window-placement-contracts"
 
 export {
   EXPANDED_DASHBOARD_SIZE,
@@ -36,6 +37,10 @@ export type {
   OverlayPhysicalSize,
   OverlayWorkArea,
 } from "./overlay-position"
+export type {
+  WindowMonitorSnapshot,
+  WindowPlacementSnapshot,
+} from "./window-placement-contracts"
 
 export const OVERLAY_RESIZE_DURATION_MS = 240
 
@@ -67,6 +72,10 @@ export interface OverlayWindowAdapter {
   setPosition(position: OverlayPhysicalPosition): Promise<void>
   show(): Promise<void>
   hide(): Promise<void>
+  availableMonitors?: () => Promise<WindowMonitorSnapshot[]>
+  subscribeToWindowMoves?: (
+    listener: (position: OverlayPhysicalPosition) => void,
+  ) => Promise<OverlayWindowUnlisten>
   subscribeToDisplayChanges(
     listener: () => void,
   ): Promise<OverlayWindowUnlisten>

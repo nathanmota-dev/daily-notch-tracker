@@ -10,6 +10,8 @@ pub mod session;
 pub mod settings;
 pub mod streak;
 pub mod task;
+#[path = "window-placement.rs"]
+pub mod window_placement;
 
 pub use focus::{
     validate_duration_seconds, StartFocusInput, MAX_FOCUS_DURATION_SECONDS,
@@ -26,6 +28,7 @@ pub use task::{
     clamp_minutes, parse_scheduled_date, parse_task_id, CreateTaskInput, MoveTasksInput, Task,
     TaskBucket, UpdateTaskInput,
 };
+pub use window_placement::{WindowMonitorSnapshot, WindowPlacementSnapshot};
 
 pub type DomainResult<T> = Result<T, AppError>;
 
@@ -245,18 +248,6 @@ pub enum TasksWindowIntent {
     },
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WindowPlacementSnapshot {
-    pub revision: u64,
-    pub window_label: String,
-    pub x: i32,
-    pub y: i32,
-    pub width: u32,
-    pub height: u32,
-    pub scale_factor: f64,
-}
-
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSnapshot {
@@ -300,6 +291,14 @@ mod tests {
             width: 360,
             height: 72,
             scale_factor: 1.25,
+            monitor: WindowMonitorSnapshot {
+                name: Some("primary".to_owned()),
+                x: 0,
+                y: 0,
+                width: 1920,
+                height: 1080,
+                scale_factor: 1.25,
+            },
         };
 
         let diagnostics_json =
@@ -319,5 +318,6 @@ mod tests {
         );
         assert_eq!(placement_json["windowLabel"], "overlay");
         assert_eq!(placement_json["scaleFactor"], 1.25);
+        assert_eq!(placement_json["monitor"]["name"], "primary");
     }
 }
