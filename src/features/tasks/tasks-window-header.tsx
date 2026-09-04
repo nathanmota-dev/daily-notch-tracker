@@ -13,7 +13,10 @@ export function TasksWindowHeader({
       className="flex min-h-7 shrink-0 items-center justify-between gap-3"
       data-slot="tasks-window-header"
     >
-      <div className="flex min-w-0 items-center gap-2">
+      <div
+        className="flex min-w-0 cursor-move select-none items-center gap-2"
+        data-tauri-drag-region="deep"
+      >
         <ListIcon aria-hidden="true" className="size-4 shrink-0 text-content" />
         <h1 className="m-0 truncate text-[1rem] font-semibold leading-none tracking-[-0.02em] text-content">
           Tasks

@@ -26,7 +26,10 @@ function SettingsHeader({ mutationBusy, onBack, onClose }: SettingsHeaderProps) 
         onClick={onBack}
         title="Back to tasks"
       />
-      <div className="flex min-w-0 items-start gap-3">
+      <div
+        className="flex min-w-0 cursor-move select-none items-start gap-3"
+        data-tauri-drag-region="deep"
+      >
         <SettingsIcon
           aria-hidden="true"
           className="mt-2.5 size-5 shrink-0 text-accent"
@@ -118,7 +121,7 @@ export function SettingsSurfaceContent({
 }: SettingsSurfaceContentProps) {
   return (
     <main
-      className="mx-auto h-screen min-h-[var(--surface-window-min-height)] max-h-[var(--surface-window-max-height)] min-w-0 w-full max-w-[var(--surface-window-max-width)] overflow-x-hidden overflow-y-auto rounded-[22px] border border-white/[0.14] bg-black px-5 py-[18px] pr-3 text-content max-[640px]:rounded-none max-[640px]:border-0 max-[640px]:px-4"
+      className="mx-auto h-screen min-h-[var(--surface-window-min-height)] max-h-[var(--surface-window-max-height)] min-w-0 w-full max-w-[var(--surface-window-max-width)] overflow-x-hidden overflow-y-auto rounded-[22px] border border-white/[0.18] bg-black px-5 py-[18px] pr-3 text-content max-[640px]:rounded-none max-[640px]:border-0 max-[640px]:px-4"
       data-surface="settings"
       data-slot="settings-surface"
     >
