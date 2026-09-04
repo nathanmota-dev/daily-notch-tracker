@@ -148,7 +148,13 @@ describe("useOverlayInteraction", () => {
     fireEvent.pointerLeave(surface)
     expect(vi.getTimerCount()).toBe(1)
 
-    act(() => controller.emit("overlay-presentation-restored", "expanded"))
+    act(() =>
+      controller.emit("surface-changed", {
+        surface: "overlay",
+        intent: null,
+        presentationMode: "expanded",
+      }),
+    )
 
     expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
     expect(vi.getTimerCount()).toBe(0)
@@ -260,6 +266,31 @@ describe("useOverlayInteraction", () => {
     unmount()
 
     expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it("cleans up an asynchronously registered listener after unmount", async () => {
+    let resolveCleanup: ((cleanup: () => void) => void) | undefined
+    const cleanup = vi.fn()
+    const baseApi = createMockDesktopApi().api
+    const api = {
+      ...baseApi,
+      subscribe: vi.fn(
+        () =>
+          new Promise<() => void>((resolve) => {
+            resolveCleanup = resolve
+          }),
+      ),
+    } as DesktopApi
+    const { unmount } = render(<InteractionHarness api={api} />)
+
+    unmount()
+
+    await act(async () => {
+      resolveCleanup?.(cleanup)
+      await Promise.resolve()
+    })
+
+    expect(cleanup).toHaveBeenCalledOnce()
   })
 
   it("keeps the idle notch visible and shows it for active sessions", () => {

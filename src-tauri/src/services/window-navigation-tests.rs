@@ -1,82 +1,58 @@
-use super::super::window_navigation_types::{
-    ManagedWindowLabel, OverlayPresentationMode, TasksWindowOrigin,
-};
+use super::super::window_navigation_types::{OverlayPresentationMode, SurfaceLabel};
 use super::WindowNavigationState;
 
 #[test]
-fn navigation_state_tracks_visible_and_focused_windows() {
+fn navigation_state_starts_on_the_overlay_without_an_origin() {
     let state = WindowNavigationState::new();
-
-    state
-        .register_visible_window("overlay")
-        .expect("overlay should be registered");
-    state
-        .record_shown_and_focused("tasks")
-        .expect("tasks should be focused");
-    state
-        .record_shown_and_focused("settings")
-        .expect("settings should be focused");
 
     let snapshot = state
         .snapshot()
         .expect("navigation state should be readable");
-    assert_eq!(snapshot.focused_window, Some(ManagedWindowLabel::Settings));
-    assert!(snapshot
-        .visible_windows
-        .contains(&ManagedWindowLabel::Overlay));
-    assert!(snapshot
-        .visible_windows
-        .contains(&ManagedWindowLabel::Tasks));
-    assert!(snapshot
-        .visible_windows
-        .contains(&ManagedWindowLabel::Settings));
+
+    assert_eq!(snapshot.active_surface, SurfaceLabel::Overlay);
+    assert_eq!(snapshot.presentation_origin, None);
 }
 
 #[test]
-fn navigation_state_clears_focus_when_a_window_is_hidden() {
+fn navigation_state_tracks_the_active_surface_and_origin() {
     let state = WindowNavigationState::new();
-    state
-        .record_shown_and_focused("tasks")
-        .expect("tasks should be focused");
 
     state
-        .record_hidden("tasks")
-        .expect("tasks should be hidden");
+        .transition_to(SurfaceLabel::Tasks, Some(OverlayPresentationMode::Expanded))
+        .expect("tasks surface should be recorded");
+    state
+        .transition_to(
+            SurfaceLabel::Settings,
+            Some(OverlayPresentationMode::Expanded),
+        )
+        .expect("settings surface should be recorded");
 
     let snapshot = state
         .snapshot()
         .expect("navigation state should be readable");
-    assert_eq!(snapshot.focused_window, None);
-    assert!(!snapshot
-        .visible_windows
-        .contains(&ManagedWindowLabel::Tasks));
+
+    assert_eq!(snapshot.active_surface, SurfaceLabel::Settings);
+    assert_eq!(
+        snapshot.presentation_origin,
+        Some(OverlayPresentationMode::Expanded)
+    );
 }
 
 #[test]
-fn navigation_state_remembers_overlay_presentation_origin() {
+fn navigation_state_clears_the_origin_when_returning_to_the_overlay() {
     let state = WindowNavigationState::new();
-    let origin = TasksWindowOrigin {
-        presentation_mode: OverlayPresentationMode::Expanded,
-    };
 
     state
-        .remember_tasks_origin(Some(origin))
-        .expect("tasks origin should be stored");
-
-    assert_eq!(
-        state
-            .tasks_window_origin()
-            .expect("tasks origin should be readable"),
-        Some(origin)
-    );
-
+        .transition_to(SurfaceLabel::Tasks, Some(OverlayPresentationMode::Expanded))
+        .expect("tasks surface should be recorded");
     state
-        .clear_tasks_window_origin()
-        .expect("tasks origin should be cleared");
-    assert_eq!(
-        state
-            .tasks_window_origin()
-            .expect("tasks origin should be readable"),
-        None
-    );
+        .transition_to(SurfaceLabel::Overlay, None)
+        .expect("overlay surface should be recorded");
+
+    let snapshot = state
+        .snapshot()
+        .expect("navigation state should be readable");
+
+    assert_eq!(snapshot.active_surface, SurfaceLabel::Overlay);
+    assert_eq!(snapshot.presentation_origin, None);
 }

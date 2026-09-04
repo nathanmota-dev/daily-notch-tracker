@@ -21,9 +21,9 @@ pub use state::AppState;
 pub use storage::{PersistedPayload, RecoveryDiagnostic, Repository, RepositoryError};
 
 use services::{
-    focus_tasks_or_overlay, handle_run_event, handle_window_event, initialize_autostart,
-    initialize_global_shortcut, initialize_tray, NotificationService, TauriNotificationBackend,
-    TrayRuntimeState, WindowNavigationState,
+    focus_overlay, handle_run_event, initialize_autostart, initialize_global_shortcut,
+    initialize_tray, NotificationService, TauriNotificationBackend, TrayRuntimeState,
+    WindowNavigationState,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -36,12 +36,11 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            let _ = focus_tasks_or_overlay(app);
+            let _ = focus_overlay(app);
         }));
     }
 
     builder
-        .on_window_event(handle_window_event)
         .setup(|app| {
             let app_data_dir = app.path().app_data_dir()?;
             let state =

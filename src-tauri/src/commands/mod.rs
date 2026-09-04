@@ -12,14 +12,11 @@ use crate::services::{
 };
 use crate::state::AppState;
 
-#[path = "window-placement.rs"]
-mod window_placement;
-use window_placement::calculate_content_window_position;
 #[path = "window-commands.rs"]
 mod window_commands;
 #[path = "window-dimensions.rs"]
 mod window_dimensions;
-use window_commands::{is_allowed_release_url, open_tasks_window_with_intent, open_window};
+use window_commands::is_allowed_release_url;
 #[path = "global-shortcut.rs"]
 mod global_shortcut;
 pub(crate) use global_shortcut::publish_shortcut_status;
@@ -33,7 +30,6 @@ pub use window_navigation_commands::{
 const STORE_EVENTS: &[&str] = &["store-changed"];
 const SETTINGS_EVENTS: &[&str] = &["store-changed", "settings-changed"];
 const FOCUS_EVENTS: &[&str] = &["focus-changed"];
-const TASKS_WINDOW_INTENT_EVENT: &str = "tasks-window-intent";
 
 #[tauri::command]
 pub fn greet(name: &str) -> String {

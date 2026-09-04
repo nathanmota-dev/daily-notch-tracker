@@ -2,7 +2,30 @@ import type {
   OverlayPresentationMode,
   TasksWindowIntent,
 } from "./contracts"
-import { OVERLAY_PRESENTATION_QUERY_PARAMETER } from "./window-navigation-contracts"
+import {
+  isTasksWindowIntent,
+  OVERLAY_PRESENTATION_QUERY_PARAMETER,
+} from "./window-navigation-contracts"
+
+export { isTasksWindowIntent }
+
+export function parseTasksWindowIntent(search = ""): TasksWindowIntent {
+  const params = new URLSearchParams(search)
+  const kind = params.get("intent")
+
+  if (kind === "add") {
+    return { kind: "add" }
+  }
+
+  if (kind === "task") {
+    const taskId = params.get("taskId")?.trim()
+    if (taskId) {
+      return { kind: "task", taskId }
+    }
+  }
+
+  return { kind: "list" }
+}
 
 export function serializeTasksWindowIntent(intent: TasksWindowIntent) {
   switch (intent.kind) {

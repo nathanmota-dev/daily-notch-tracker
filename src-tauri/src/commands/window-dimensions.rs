@@ -26,8 +26,20 @@ pub(super) const CONTENT_WINDOW_DIMENSIONS: WindowDimensionContract = WindowDime
     },
 };
 
-pub(super) const TASKS_WINDOW_DIMENSIONS: WindowDimensionContract = CONTENT_WINDOW_DIMENSIONS;
-pub(super) const SETTINGS_WINDOW_DIMENSIONS: WindowDimensionContract = CONTENT_WINDOW_DIMENSIONS;
+pub(super) const OVERLAY_WINDOW_DIMENSIONS: WindowDimensionContract = WindowDimensionContract {
+    preferred: WindowSize {
+        width: 204.0,
+        height: 32.0,
+    },
+    minimum: WindowSize {
+        width: 204.0,
+        height: 32.0,
+    },
+    maximum: WindowSize {
+        width: 204.0,
+        height: 32.0,
+    },
+};
 
 #[cfg(test)]
 mod tests {
@@ -41,13 +53,13 @@ mod tests {
     }
 
     #[test]
-    fn tasks_dimensions_fit_inside_their_limits() {
-        assert_dimensions_fit_limits(std::hint::black_box(TASKS_WINDOW_DIMENSIONS));
+    fn content_dimensions_fit_inside_their_limits() {
+        assert_dimensions_fit_limits(std::hint::black_box(CONTENT_WINDOW_DIMENSIONS));
     }
 
     #[test]
-    fn tasks_dimensions_match_the_frontend_contract() {
-        let dimensions = std::hint::black_box(TASKS_WINDOW_DIMENSIONS);
+    fn content_dimensions_match_the_frontend_contract() {
+        let dimensions = std::hint::black_box(CONTENT_WINDOW_DIMENSIONS);
         assert_eq!(
             dimensions,
             WindowDimensionContract {
@@ -68,15 +80,28 @@ mod tests {
     }
 
     #[test]
-    fn settings_dimensions_fit_inside_their_limits() {
-        assert_dimensions_fit_limits(std::hint::black_box(SETTINGS_WINDOW_DIMENSIONS));
+    fn overlay_dimensions_fit_inside_their_limits() {
+        assert_dimensions_fit_limits(std::hint::black_box(OVERLAY_WINDOW_DIMENSIONS));
     }
 
     #[test]
-    fn settings_dimensions_match_the_tasks_contract() {
+    fn overlay_dimensions_match_the_initial_window_contract() {
         assert_eq!(
-            std::hint::black_box(SETTINGS_WINDOW_DIMENSIONS),
-            std::hint::black_box(TASKS_WINDOW_DIMENSIONS)
+            std::hint::black_box(OVERLAY_WINDOW_DIMENSIONS),
+            WindowDimensionContract {
+                preferred: WindowSize {
+                    width: 204.0,
+                    height: 32.0,
+                },
+                minimum: WindowSize {
+                    width: 204.0,
+                    height: 32.0,
+                },
+                maximum: WindowSize {
+                    width: 204.0,
+                    height: 32.0,
+                },
+            }
         );
     }
 }

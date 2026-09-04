@@ -18,6 +18,7 @@ import type {
   DesktopApi,
   FocusState,
 } from "../lib/desktopApi"
+import { isSurfaceChangedPayload } from "../lib/desktopApi"
 import type {
   OverlayPresentationMode,
   OverlayWindowAdapter,
@@ -38,6 +39,14 @@ export type OverlayInteraction = {
   onPointerEnter: () => void
   onPointerLeave: () => void
   acquireHold: () => () => void
+}
+
+function safelyUnlisten(unlisten: () => void) {
+  try {
+    unlisten()
+  } catch {
+    return
+  }
 }
 
 const OverlayInteractionContext = createContext<OverlayInteraction | null>(
@@ -134,18 +143,22 @@ function useOverlayPresentationRestoreEffect(
     let unlisten: (() => void) | null = null
 
     void api
-      .subscribe("overlay-presentation-restored", (mode) => {
-        if (!active) {
+      .subscribe("surface-changed", (payload) => {
+        if (!active || !isSurfaceChangedPayload(payload)) {
+          return
+        }
+
+        if (payload.surface !== "overlay") {
           return
         }
 
         collapseState.clearTimer()
         collapseState.pointerInsideRef.current = false
-        collapseState.setPresentationMode(mode)
+        collapseState.setPresentationMode(payload.presentationMode ?? "collapsed")
       })
       .then((nextUnlisten) => {
         if (!active) {
-          nextUnlisten()
+          safelyUnlisten(nextUnlisten)
           return
         }
 
@@ -155,7 +168,9 @@ function useOverlayPresentationRestoreEffect(
 
     return () => {
       active = false
-      unlisten?.()
+      if (unlisten) {
+        safelyUnlisten(unlisten)
+      }
     }
   }, [api, collapseState])
 }

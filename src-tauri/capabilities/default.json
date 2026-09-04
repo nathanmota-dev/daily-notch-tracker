@@ -11,6 +11,7 @@
     "core:window:allow-show",
     "core:window:allow-hide",
     "notification:default",
+    "autostart:default",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister"
   ]

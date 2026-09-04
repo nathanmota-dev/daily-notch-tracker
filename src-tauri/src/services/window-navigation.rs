@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use crate::domain::AppError;
 
 use super::window_navigation_types::{
-    ManagedWindowLabel, TasksWindowOrigin, WindowNavigationSnapshot,
+    OverlayPresentationMode, SurfaceLabel, WindowNavigationSnapshot,
 };
 
 #[derive(Debug, Default)]
@@ -16,71 +16,25 @@ impl WindowNavigationState {
         Self::default()
     }
 
-    pub(crate) fn remember_tasks_origin(
+    pub(crate) fn transition_to(
         &self,
-        origin: Option<TasksWindowOrigin>,
-    ) -> Result<(), AppError> {
+        surface: SurfaceLabel,
+        presentation_origin: Option<OverlayPresentationMode>,
+    ) -> Result<WindowNavigationSnapshot, AppError> {
         self.with_snapshot(|snapshot| {
-            snapshot.tasks_window_origin = origin;
+            snapshot.active_surface = surface;
+            snapshot.presentation_origin = presentation_origin;
+            snapshot.clone()
         })
     }
 
-    pub(crate) fn record_shown_and_focused(&self, label: &str) -> Result<(), AppError> {
-        self.record_visible(label, true)
-    }
-
-    pub(crate) fn record_focused(&self, label: &str) -> Result<(), AppError> {
-        self.record_visible(label, true)
-    }
-
-    pub(crate) fn record_hidden(&self, label: &str) -> Result<(), AppError> {
-        self.with_window_label(label, |snapshot, label| {
-            snapshot.visible_windows.remove(&label);
-            if snapshot.focused_window == Some(label) {
-                snapshot.focused_window = None;
-            }
-        })
-    }
-
-    pub(crate) fn tasks_window_origin(&self) -> Result<Option<TasksWindowOrigin>, AppError> {
-        self.with_snapshot(|snapshot| snapshot.tasks_window_origin)
-    }
-
-    pub(crate) fn clear_tasks_window_origin(&self) -> Result<(), AppError> {
-        self.with_snapshot(|snapshot| {
-            snapshot.tasks_window_origin = None;
-        })
+    pub(crate) fn presentation_origin(&self) -> Result<Option<OverlayPresentationMode>, AppError> {
+        self.with_snapshot(|snapshot| snapshot.presentation_origin)
     }
 
     #[cfg(test)]
     pub(crate) fn snapshot(&self) -> Result<WindowNavigationSnapshot, AppError> {
         self.with_snapshot(|snapshot| snapshot.clone())
-    }
-
-    #[cfg(test)]
-    pub(crate) fn register_visible_window(&self, label: &str) -> Result<(), AppError> {
-        self.record_visible(label, false)
-    }
-
-    fn record_visible(&self, label: &str, focused: bool) -> Result<(), AppError> {
-        self.with_window_label(label, |snapshot, label| {
-            snapshot.visible_windows.insert(label);
-            if focused {
-                snapshot.focused_window = Some(label);
-            }
-        })
-    }
-
-    fn with_window_label(
-        &self,
-        label: &str,
-        update: impl FnOnce(&mut WindowNavigationSnapshot, ManagedWindowLabel),
-    ) -> Result<(), AppError> {
-        let Some(label) = ManagedWindowLabel::from_label(label) else {
-            return Ok(());
-        };
-
-        self.with_snapshot(|snapshot| update(snapshot, label))
     }
 
     fn with_snapshot<T>(

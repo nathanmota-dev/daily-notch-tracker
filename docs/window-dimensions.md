@@ -1,8 +1,8 @@
 # Window dimensions
 
-DailyNotch keeps one small overlay window and creates the Tasks and Settings
-surfaces only when they are opened. The dimensions below are the shared
-contract for the frontend layout and the Tauri window builders.
+DailyNotch keeps one native `overlay` window. Tasks and Settings are views in
+that webview, and the dimensions below are the shared contract for the frontend
+layout and the Tauri surface transitions.
 
 ## Contract
 
@@ -19,12 +19,12 @@ The collapsed overlay also supports the 360 × 52 timeline-off state and the
 transparent 8 px gutter above and below the dashboard; the visible dashboard
 itself has a 190 px minimum height.
 
-Tasks and Settings share the same logical-pixel contract in both CSS and
-Tauri. Their content windows are resizable within the native minimum and
-maximum bounds. The frontend fills the available viewport, clamps it to those
-bounds, and keeps overflow inside the surface instead of allowing the document
-to grow horizontally. Settings scrolls its content vertically within that
-shared 800 × 550 surface.
+Tasks and Settings share the same logical-pixel contract in both CSS and Tauri.
+Changing either view resizes the single native window within the content
+minimum and maximum bounds. The frontend fills the available viewport, clamps
+it to those bounds, and keeps overflow inside the surface instead of allowing
+the document to grow horizontally. Settings scrolls its content vertically
+within that shared 800 × 550 surface.
 
 ## Scrolling and responsive layout
 
@@ -35,8 +35,8 @@ shared 800 × 550 surface.
 - Settings uses a vertically scrolling viewport. Status messages, diagnostics
   paths, toggles, and the duration input wrap or stack below 640 px. Horizontal
   overflow is blocked so long integration messages remain readable.
-- Closing Tasks or Settings hides the existing window. Reopening it reuses the
-  same label and webview, preserving the current lifecycle and focus behavior.
+- Closing Tasks or Settings switches the single webview back to the Overlay;
+  the current lifecycle and focus behavior are preserved.
 
 ## Overlay scale and placement
 
@@ -50,7 +50,7 @@ the existing monitor and work-area calculations.
 
 X11 and Wayland may report different scale factors, monitor origins, and
 window-manager decorations. Tasks and Settings therefore use Tauri's logical
-inner-size constraints, while the overlay retains its physical DPI-aware
-resize path. The overlay adapter treats native resize or positioning failures
+inner-size constraints for the content views, while the overlay retains its
+physical DPI-aware resize path. The overlay adapter treats native resize or positioning failures
 as recoverable so a compositor limitation does not make the React surface
 unusable.

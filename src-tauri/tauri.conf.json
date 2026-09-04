@@ -28,7 +28,7 @@
     ],
     "security": {
       "csp": null,
-      "capabilities": ["default", "tasks", "settings"]
+      "capabilities": ["default"]
     }
   },
   "bundle": {

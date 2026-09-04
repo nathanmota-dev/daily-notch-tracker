@@ -13,10 +13,10 @@ import { SurfaceRouter } from "./surfaceRouter"
 const surfaceLabels = ["overlay", "tasks", "settings"] as const
 
 describe("resolveSurfaceLabel", () => {
-  it.each(surfaceLabels)("accepts the %s Tauri label", (label) => {
+  it.each(surfaceLabels)("uses overlay for a %s Tauri label", (label) => {
     expect(
       resolveSurfaceLabel({ runtime: "tauri", windowLabel: label }),
-    ).toBe(label)
+    ).toBe("overlay")
   })
 
   it("reads a valid browser query string", () => {

@@ -35,11 +35,7 @@ mod window_navigation_types;
 
 pub use app_lifecycle::request_quit;
 pub use app_lifecycle::AppLifecycleState;
-pub(crate) use app_lifecycle::{
-    close_reusable_window, close_tasks_window_and_restore, focus_tasks_or_overlay,
-    handle_run_event, handle_window_event, hide_reusable_window, remember_tasks_window_origin,
-    show_and_focus_window,
-};
+pub(crate) use app_lifecycle::{focus_overlay, handle_run_event};
 #[cfg(test)]
 pub(crate) use autostart::AutostartService;
 pub(crate) use autostart::{
@@ -64,6 +60,7 @@ pub(crate) use notification_adapter::TauriNotificationBackend;
 pub(crate) use notification_types::{NotificationBackendError, NotificationPermissionState};
 pub(crate) use tray::{current_tray_diagnostic, initialize_tray, sync_tray_menu, TrayRuntimeState};
 pub(crate) use window_navigation::WindowNavigationState;
-pub(crate) use window_navigation_types::TasksWindowOrigin;
-#[cfg(test)]
-pub(crate) use window_navigation_types::{ManagedWindowLabel, OverlayPresentationMode};
+pub(crate) use window_navigation_types::{
+    OverlayPresentationMode, SurfaceChangedPayload, SurfaceLabel, TasksWindowOrigin,
+    SURFACE_CHANGED_EVENT,
+};

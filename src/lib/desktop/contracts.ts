@@ -1,12 +1,11 @@
 import type { StartFocusInput } from "./focus-contracts"
-import type {
-  OverlayPresentationMode,
-  TasksWindowOrigin,
-} from "./window-navigation-contracts"
+import type { SurfaceChangedPayload, TasksWindowOrigin } from "./window-navigation-contracts"
 
 export type { StartFocusInput } from "./focus-contracts"
 export type {
   OverlayPresentationMode,
+  SurfaceChangedEvent,
+  SurfaceChangedPayload,
   TasksWindowOrigin,
 } from "./window-navigation-contracts"
 
@@ -231,7 +230,6 @@ export type DesktopEventMap = {
   "focus-changed": AppSnapshot
   "settings-changed": AppSnapshot
   "shortcut-changed": AppSnapshot
-  "tasks-window-intent": TasksWindowIntent
+  "surface-changed": SurfaceChangedPayload
   "window-placement-changed": WindowPlacementSnapshot
-  "overlay-presentation-restored": OverlayPresentationMode
 }
