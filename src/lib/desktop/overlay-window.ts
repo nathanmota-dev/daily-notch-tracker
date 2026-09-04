@@ -50,6 +50,11 @@ export interface OverlayWindowAdapter {
   innerPosition(): Promise<OverlayPhysicalPosition>
   scaleFactor(): Promise<number>
   primaryMonitor(): Promise<OverlayDisplayMetrics | null>
+  /**
+   * Constrains the native window to the last applied physical size without
+   * relying on GTK's `resizable: false` natural-size behavior.
+   */
+  setSizeConstraints?: (size: OverlayPhysicalSize | null) => Promise<void>
   setSize(size: OverlayPhysicalSize): Promise<void>
   setPosition(position: OverlayPhysicalPosition): Promise<void>
   show(): Promise<void>
@@ -240,6 +245,14 @@ export function createOverlayWindowOperationQueue(
       const geometry = pending
       pending = null
 
+      if (adapter.setSizeConstraints) {
+        try {
+          await adapter.setSizeConstraints(null)
+        } catch {
+          // A native capability failure should not break the React surface.
+        }
+      }
+
       try {
         await adapter.setSize(geometry.size)
       } catch {
@@ -250,6 +263,14 @@ export function createOverlayWindowOperationQueue(
         await adapter.setPosition(geometry.position)
       } catch {
         // A native position failure should not break the React surface.
+      }
+
+      if (adapter.setSizeConstraints) {
+        try {
+          await adapter.setSizeConstraints(geometry.size)
+        } catch {
+          // A native capability failure should not break the React surface.
+        }
       }
     }
 

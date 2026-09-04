@@ -28,7 +28,9 @@ type TauriWindowAdapter = Pick<
   | "show"
   | "hide"
 > &
-  Partial<Pick<TauriWindow, "onScaleChanged">>
+  Partial<
+    Pick<TauriWindow, "onScaleChanged" | "setSizeConstraints">
+  >
 
 export type TauriOverlayWindowAdapterOptions = {
   monitorReader?: () => Promise<unknown>
@@ -170,6 +172,24 @@ export function createTauriOverlayWindowAdapter(
     },
     scaleFactor: () => appWindow.scaleFactor(),
     primaryMonitor: readPrimaryMonitor,
+    setSizeConstraints: appWindow.setSizeConstraints
+      ? async (size: OverlayPhysicalSize | null) => {
+          if (size === null) {
+            return appWindow.setSizeConstraints!(null)
+          }
+
+          const scaleFactor = await appWindow.scaleFactor()
+          const safeScaleFactor =
+            Number.isFinite(scaleFactor) && scaleFactor > 0 ? scaleFactor : 1
+
+          return appWindow.setSizeConstraints!({
+            minWidth: size.width / safeScaleFactor,
+            minHeight: size.height / safeScaleFactor,
+            maxWidth: size.width / safeScaleFactor,
+            maxHeight: size.height / safeScaleFactor,
+          })
+        }
+      : undefined,
     setSize: (size: OverlayPhysicalSize) =>
       appWindow.setSize(new TauriPhysicalSize(size.width, size.height)),
     setPosition: (position: OverlayPhysicalPosition) =>

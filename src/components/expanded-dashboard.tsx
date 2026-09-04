@@ -63,7 +63,7 @@ export function ExpandedDashboard({
         className,
       )}
       data-focus-state={snapshot.focus.state}
-      data-slot="expanded-dashboard-tray"
+      data-overlay-visual="expanded-dashboard"
       progress={getExpandedDashboardProgress(snapshot.focus, countdown.now)}
       rainbowTimeline={
         snapshot.settings.showTimeline && snapshot.settings.rainbowTimeline

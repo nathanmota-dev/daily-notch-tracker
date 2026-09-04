@@ -136,7 +136,7 @@ function OverlayResizeHarness({
   return (
     <main ref={surfaceRef} data-resizing={isResizing ? "true" : "false"}>
       {presentationMode === "expanded" ? (
-        <div data-slot="expanded-dashboard-tray" />
+        <div data-overlay-visual="expanded-dashboard" data-slot="progress-tray" />
       ) : (
         <div data-slot="collapsed-focus-widget" />
       )}

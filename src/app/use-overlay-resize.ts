@@ -75,7 +75,7 @@ export function useOverlayResize({
 
     const visualSelector =
       presentationMode === "expanded"
-        ? '[data-slot="expanded-dashboard-tray"]'
+        ? '[data-overlay-visual="expanded-dashboard"]'
         : '[data-slot="collapsed-focus-widget"]'
     const visualElement = container.querySelector<HTMLElement>(visualSelector)
 

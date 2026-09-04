@@ -255,3 +255,12 @@ fn graphical_session_requires_x11_or_wayland_environment() {
     assert!(graphical_session_available_for(true, false));
     assert!(graphical_session_available_for(false, true));
 }
+
+#[cfg(target_os = "linux")]
+#[test]
+fn global_shortcut_requires_x11_or_xwayland_display() {
+    assert!(!crate::services::desktop_session::global_shortcut_session_available_for(false, false));
+    assert!(!crate::services::desktop_session::global_shortcut_session_available_for(false, true));
+    assert!(crate::services::desktop_session::global_shortcut_session_available_for(true, false));
+    assert!(crate::services::desktop_session::global_shortcut_session_available_for(true, true));
+}

@@ -64,6 +64,10 @@ describe("ExpandedDashboard", () => {
       screen.getByText(fixture === "expanded-empty" ? "0d" : "3d"),
     ).toBeInTheDocument()
     expect(screen.getByRole("progressbar", { name: "Focus timeline" })).toBeInTheDocument()
+    expect(document.querySelector('[data-slot="progress-tray"]')).toHaveAttribute(
+      "data-overlay-visual",
+      "expanded-dashboard",
+    )
     expect(
       document.querySelectorAll('[data-slot="compact-task-row"]'),
     ).toHaveLength(taskCount)
