@@ -215,7 +215,7 @@ fn handle_tray_menu_event<R: Runtime>(app: &AppHandle<R>, event: tauri::menu::Me
     tauri::async_runtime::spawn(async move {
         let result = match action {
             TrayMenuAction::OpenTasks => {
-                crate::commands::open_tasks_window(app.clone(), Some(TasksWindowIntent::List))
+                crate::commands::open_tasks_window(app.clone(), Some(TasksWindowIntent::List), None)
                     .await
                     .map(|_| ())
             }

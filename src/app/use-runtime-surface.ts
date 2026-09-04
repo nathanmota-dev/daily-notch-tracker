@@ -1,7 +1,13 @@
 import { useSyncExternalStore } from "react"
 
-import { getRuntimeSurfaceLabel } from "./surfaceResolver"
-import type { SurfaceLabel } from "../lib/desktopApi"
+import {
+  getRuntimePresentationMode,
+  getRuntimeSurfaceLabel,
+} from "./surfaceResolver"
+import type {
+  OverlayPresentationMode,
+  SurfaceLabel,
+} from "../lib/desktopApi"
 
 function subscribeToRuntimeSurface(onStoreChange: () => void) {
   if (typeof window === "undefined") {
@@ -22,5 +28,15 @@ export function useRuntimeSurface(): SurfaceLabel {
     subscribeToRuntimeSurface,
     getRuntimeSurfaceLabel,
     () => "overlay",
+  )
+}
+
+export function useRuntimePresentationMode(
+  fallback: OverlayPresentationMode = "collapsed",
+): OverlayPresentationMode {
+  return useSyncExternalStore(
+    subscribeToRuntimeSurface,
+    () => getRuntimePresentationMode(fallback),
+    () => fallback,
   )
 }

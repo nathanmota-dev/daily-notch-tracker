@@ -1,4 +1,8 @@
-import type { AppSnapshot, DesktopApiError } from "../lib/desktopApi"
+import type {
+  AppSnapshot,
+  DesktopApiError,
+  TasksWindowOrigin,
+} from "../lib/desktopApi"
 import type { FocusSessionPickerProps } from "./focus-session-picker"
 import { FocusSessionPicker } from "./focus-session-picker"
 import { useOverlayHold } from "../app/use-overlay-interaction"
@@ -17,9 +21,9 @@ import { useFocusCountdown } from "./use-focus-countdown"
 export type ExpandedDashboardCallbacks = {
   onToggleTask: (taskId: string, isDone: boolean) => void
   onToggleFocus: (taskId: string) => void
-  onAddTask: () => void
-  onOpenTasks: () => void
-  onOpenTask: (taskId: string) => void
+  onAddTask: (origin?: TasksWindowOrigin) => void
+  onOpenTasks: (origin?: TasksWindowOrigin) => void
+  onOpenTask: (taskId: string, origin?: TasksWindowOrigin) => void
   onReorder: (taskIds: string[]) => void
   focusSessionPicker: FocusSessionPickerProps
 }
@@ -33,7 +37,10 @@ export type ExpandedDashboardProps = {
 } & Partial<ExpandedDashboardCallbacks>
 
 const noop = () => undefined
-const noopTask = (taskId: string) => void taskId
+const noopTask = (taskId: string, origin?: TasksWindowOrigin) => {
+  void taskId
+  void origin
+}
 const noopReorder = (taskIds: string[]) => void taskIds
 
 export function ExpandedDashboard({

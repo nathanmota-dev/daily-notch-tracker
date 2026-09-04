@@ -1,6 +1,14 @@
 import type { StartFocusInput } from "./focus-contracts"
+import type {
+  OverlayPresentationMode,
+  TasksWindowOrigin,
+} from "./window-navigation-contracts"
 
 export type { StartFocusInput } from "./focus-contracts"
+export type {
+  OverlayPresentationMode,
+  TasksWindowOrigin,
+} from "./window-navigation-contracts"
 
 export type IsoDateString = string
 export type IsoDateTimeString = string
@@ -190,7 +198,10 @@ export type DesktopCommandMap = {
     result: AppSnapshot
   }
   open_tasks_window: {
-    args: { intent: TasksWindowIntent | null }
+    args: {
+      intent: TasksWindowIntent | null
+      origin: TasksWindowOrigin | null
+    }
     result: void
   }
   close_tasks_window: {
@@ -202,6 +213,10 @@ export type DesktopCommandMap = {
     result: void
   }
   close_settings_window: {
+    args: undefined
+    result: void
+  }
+  return_to_tasks_window: {
     args: undefined
     result: void
   }
@@ -218,4 +233,5 @@ export type DesktopEventMap = {
   "shortcut-changed": AppSnapshot
   "tasks-window-intent": TasksWindowIntent
   "window-placement-changed": WindowPlacementSnapshot
+  "overlay-presentation-restored": OverlayPresentationMode
 }

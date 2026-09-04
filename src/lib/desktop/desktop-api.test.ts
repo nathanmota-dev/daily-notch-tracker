@@ -9,6 +9,7 @@ import {
   type AppSnapshot,
   type CreateTaskInput,
   type TauriTransport,
+  type TasksWindowOrigin,
   type UpdateTaskInput,
 } from "../desktopApi"
 
@@ -51,6 +52,7 @@ describe("createTauriDesktopApi", () => {
     }
     const settingsPatch = { focusMinutes: 30 }
     const tasksIntent = { kind: "task", taskId: "task-1" } as const
+    const tasksOrigin: TasksWindowOrigin = { presentationMode: "expanded" }
 
     await api.getSnapshot()
     await api.addTask(createTaskInput)
@@ -66,10 +68,11 @@ describe("createTauriDesktopApi", () => {
     await api.updateSettings(settingsPatch)
     await api.getAppDiagnostics()
     await api.setAutostart(true)
-    await api.openTasksWindow(tasksIntent)
+    await api.openTasksWindow(tasksIntent, tasksOrigin)
     await api.closeTasksWindow()
     await api.openSettingsWindow()
     await api.closeSettingsWindow()
+    await api.returnToTasksWindow()
     await api.openExternalRelease("https://github.com/example/release")
 
     expect(invoke.mock.calls).toEqual([
@@ -87,10 +90,11 @@ describe("createTauriDesktopApi", () => {
       ["update_settings", { patch: settingsPatch }],
       ["get_app_diagnostics", undefined],
       ["set_autostart", { enabled: true }],
-      ["open_tasks_window", { intent: tasksIntent }],
+      ["open_tasks_window", { intent: tasksIntent, origin: tasksOrigin }],
       ["close_tasks_window", undefined],
       ["open_settings_window", undefined],
       ["close_settings_window", undefined],
+      ["return_to_tasks_window", undefined],
       ["open_external_release", { url: "https://github.com/example/release" }],
     ])
   })
@@ -297,6 +301,17 @@ describe("createMockDesktopApi", () => {
     expect(window.location.search).toContain("surface=settings")
     await api.closeSettingsWindow()
     expect(window.location.search).toContain("surface=overlay")
+
+    await api.openTasksWindow(
+      { kind: "list" },
+      { presentationMode: "expanded" },
+    )
+    await api.openSettingsWindow()
+    await api.returnToTasksWindow()
+    expect(window.location.search).toContain("surface=tasks")
+    await api.closeTasksWindow()
+    expect(window.location.search).toContain("surface=overlay")
+    expect(window.location.search).toContain("presentation=expanded")
     await api.deleteTask(secondId!)
     expect(controller.getSnapshot().tasks).toHaveLength(1)
 
@@ -311,6 +326,7 @@ describe("createMockDesktopApi", () => {
     const closeTasksWindow = vi.fn(async () => undefined)
     const openSettingsWindow = vi.fn(async () => undefined)
     const closeSettingsWindow = vi.fn(async () => undefined)
+    const returnToTasksWindow = vi.fn(async () => undefined)
     const openExternalRelease = vi.fn(async () => undefined)
     const controller = createMockDesktopApi({
       handlers: {
@@ -321,6 +337,7 @@ describe("createMockDesktopApi", () => {
         openExternalRelease,
         openSettingsWindow,
         openTasksWindow,
+        returnToTasksWindow,
       },
     })
 
@@ -330,14 +347,16 @@ describe("createMockDesktopApi", () => {
     await controller.api.closeTasksWindow()
     await controller.api.openSettingsWindow()
     await controller.api.closeSettingsWindow()
+    await controller.api.returnToTasksWindow()
     await controller.api.openExternalRelease("https://example.com/release")
 
     expect(getSnapshot).toHaveBeenCalledOnce()
     expect(getAppDiagnostics).toHaveBeenCalledOnce()
-    expect(openTasksWindow).toHaveBeenCalledWith({ kind: "list" })
+    expect(openTasksWindow).toHaveBeenCalledWith({ kind: "list" }, undefined)
     expect(closeTasksWindow).toHaveBeenCalledOnce()
     expect(openSettingsWindow).toHaveBeenCalledOnce()
     expect(closeSettingsWindow).toHaveBeenCalledOnce()
+    expect(returnToTasksWindow).toHaveBeenCalledOnce()
     expect(openExternalRelease).toHaveBeenCalledWith("https://example.com/release")
   })
 

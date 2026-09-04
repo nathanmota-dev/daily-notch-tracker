@@ -54,6 +54,7 @@ export function createMockState(snapshot: AppSnapshot): MockState {
             snapshot.focus.totalMs - (snapshot.focus.pausedRemainingMs ?? 0),
           )
         : 0,
+    tasksWindowOrigin: null,
   }
 }
 
@@ -71,14 +72,16 @@ export function navigateBrowserToTasks(
   window.dispatchEvent(new PopStateEvent("popstate"))
 }
 
-export function navigateBrowserToOverlay() {
+export function navigateBrowserToOverlay(
+  presentationMode?: Parameters<typeof overlaySurfaceSearch>[0],
+) {
   if (typeof window === "undefined") {
     return
   }
   window.history.pushState(
     {},
     "",
-    `${window.location.pathname || "/"}${overlaySurfaceSearch()}`,
+    `${window.location.pathname || "/"}${overlaySurfaceSearch(presentationMode)}`,
   )
   window.dispatchEvent(new PopStateEvent("popstate"))
 }

@@ -28,11 +28,16 @@ mod notification_adapter;
 mod notification_types;
 #[path = "tray.rs"]
 mod tray;
+#[path = "window-navigation.rs"]
+mod window_navigation;
+#[path = "window-navigation-types.rs"]
+mod window_navigation_types;
 
 pub use app_lifecycle::request_quit;
 pub use app_lifecycle::AppLifecycleState;
 pub(crate) use app_lifecycle::{
-    close_reusable_window, focus_tasks_or_overlay, handle_run_event, handle_window_event,
+    close_reusable_window, close_tasks_window_and_restore, focus_tasks_or_overlay,
+    handle_run_event, handle_window_event, hide_reusable_window, remember_tasks_window_origin,
     show_and_focus_window,
 };
 #[cfg(test)]
@@ -58,3 +63,7 @@ pub(crate) use notification_adapter::TauriNotificationBackend;
 #[cfg(test)]
 pub(crate) use notification_types::{NotificationBackendError, NotificationPermissionState};
 pub(crate) use tray::{current_tray_diagnostic, initialize_tray, sync_tray_menu, TrayRuntimeState};
+pub(crate) use window_navigation::WindowNavigationState;
+pub(crate) use window_navigation_types::TasksWindowOrigin;
+#[cfg(test)]
+pub(crate) use window_navigation_types::{ManagedWindowLabel, OverlayPresentationMode};

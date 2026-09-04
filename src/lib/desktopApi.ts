@@ -53,6 +53,8 @@ export type {
   SurfaceLabel,
   Task,
   TaskBucket,
+  OverlayPresentationMode,
+  TasksWindowOrigin,
   TasksWindowIntent,
   TrayDiagnostic,
   UpdateTaskInput,

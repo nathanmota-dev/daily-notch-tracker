@@ -7,23 +7,28 @@ use crate::domain::{
     MoveTasksInput, StartFocusInput, TasksWindowIntent, UpdateTaskInput,
 };
 use crate::services::{
-    close_reusable_window, current_autostart_diagnostic, current_tray_diagnostic,
-    notify_focus_completion, set_autostart_entry, sync_focus_scheduler, sync_tray_menu,
+    current_autostart_diagnostic, current_tray_diagnostic, notify_focus_completion,
+    set_autostart_entry, sync_focus_scheduler, sync_tray_menu,
 };
 use crate::state::AppState;
 
 #[path = "window-placement.rs"]
 mod window_placement;
 use window_placement::calculate_content_window_position;
-#[path = "window-dimensions.rs"]
-mod window_dimensions;
-use window_dimensions::SETTINGS_WINDOW_DIMENSIONS;
 #[path = "window-commands.rs"]
 mod window_commands;
+#[path = "window-dimensions.rs"]
+mod window_dimensions;
 use window_commands::{is_allowed_release_url, open_tasks_window_with_intent, open_window};
 #[path = "global-shortcut.rs"]
 mod global_shortcut;
 pub(crate) use global_shortcut::publish_shortcut_status;
+#[path = "window-navigation-commands.rs"]
+pub(crate) mod window_navigation_commands;
+pub use window_navigation_commands::{
+    close_settings_window, close_tasks_window, open_settings_window, open_tasks_window,
+    return_to_tasks_window,
+};
 
 const STORE_EVENTS: &[&str] = &["store-changed"];
 const SETTINGS_EVENTS: &[&str] = &["store-changed", "settings-changed"];
@@ -146,31 +151,6 @@ pub async fn set_autostart<R: Runtime>(
 ) -> Result<AppSnapshot, AppError> {
     set_autostart_entry(&app, enabled).await?;
     with_state(&app, |state| Ok(state.snapshot())).await
-}
-
-#[tauri::command]
-pub async fn open_tasks_window<R: Runtime>(
-    app: AppHandle<R>,
-    intent: Option<TasksWindowIntent>,
-) -> Result<(), AppError> {
-    let intent = intent.unwrap_or(TasksWindowIntent::List);
-    validate_tasks_window_intent(Some(&intent))?;
-    open_tasks_window_with_intent(&app, &intent)
-}
-
-#[tauri::command]
-pub async fn close_tasks_window<R: Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
-    close_reusable_window(&app, "tasks", "The Tasks window could not be hidden.")
-}
-
-#[tauri::command]
-pub async fn close_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
-    close_reusable_window(&app, "settings", "The Settings window could not be hidden.")
-}
-
-#[tauri::command]
-pub async fn open_settings_window<R: Runtime>(app: AppHandle<R>) -> Result<(), AppError> {
-    open_window(&app, "settings", "Settings", SETTINGS_WINDOW_DIMENSIONS)
 }
 
 #[tauri::command]

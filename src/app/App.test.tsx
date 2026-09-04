@@ -9,6 +9,7 @@ import {
   createMockDesktopApi,
   DesktopApiError,
   type AppSnapshot,
+  type TasksWindowOrigin,
   type TasksWindowIntent,
 } from "../lib/desktopApi"
 import { getLocalDateString } from "../lib/local-date"
@@ -621,9 +622,12 @@ describe("App", () => {
 
   it("sends list, add, and task intents to the Tasks window", async () => {
     const snapshot = createExpandedDashboardFixtureSnapshot("expanded", Date.now())
-    const openTasksWindow = vi.fn(async (intent?: TasksWindowIntent) => {
-      void intent
-    })
+    const openTasksWindow = vi.fn(
+      async (intent?: TasksWindowIntent, origin?: TasksWindowOrigin) => {
+        void intent
+        void origin
+      },
+    )
     const controller = createMockDesktopApi({
       handlers: { openTasksWindow },
       snapshot,
@@ -652,6 +656,11 @@ describe("App", () => {
       { kind: "add" },
       { kind: "task", taskId: "expanded-task-1" },
     ])
+    expect(openTasksWindow.mock.calls.map(([, origin]) => origin)).toEqual([
+      { presentationMode: "expanded" },
+      { presentationMode: "expanded" },
+      { presentationMode: "expanded" },
+    ])
   })
 
   it("opens the add intent when the dashboard has no tasks", async () => {
@@ -659,9 +668,12 @@ describe("App", () => {
       "expanded-empty",
       Date.now(),
     )
-    const openTasksWindow = vi.fn(async (intent?: TasksWindowIntent) => {
-      void intent
-    })
+    const openTasksWindow = vi.fn(
+      async (intent?: TasksWindowIntent, origin?: TasksWindowOrigin) => {
+        void intent
+        void origin
+      },
+    )
     const controller = createMockDesktopApi({
       handlers: { openTasksWindow },
       snapshot,
@@ -680,7 +692,10 @@ describe("App", () => {
     )
 
     await waitFor(() =>
-      expect(openTasksWindow).toHaveBeenCalledWith({ kind: "add" }),
+      expect(openTasksWindow).toHaveBeenCalledWith(
+        { kind: "add" },
+        { presentationMode: "expanded" },
+      ),
     )
   })
 

@@ -6,6 +6,7 @@ import type {
   FocusSettingsPatch,
   MoveTasksInput,
   StartFocusInput,
+  TasksWindowOrigin,
   TasksWindowIntent,
   UpdateTaskInput,
 } from "./contracts"
@@ -33,10 +34,14 @@ export interface DesktopApi {
   updateSettings(patch: FocusSettingsPatch): Promise<AppSnapshot>
   getAppDiagnostics(): Promise<AppDiagnostics>
   setAutostart(enabled: boolean): Promise<AppSnapshot>
-  openTasksWindow(intent?: TasksWindowIntent): Promise<void>
+  openTasksWindow(
+    intent?: TasksWindowIntent,
+    origin?: TasksWindowOrigin,
+  ): Promise<void>
   closeTasksWindow(): Promise<void>
   openSettingsWindow(): Promise<void>
   closeSettingsWindow(): Promise<void>
+  returnToTasksWindow(): Promise<void>
   openExternalRelease(url: string): Promise<void>
   subscribe<EventName extends DesktopEventName>(
     eventName: EventName,

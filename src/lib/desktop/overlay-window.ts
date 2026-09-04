@@ -26,6 +26,10 @@ export type {
   WindowSize,
 } from "./window-dimension-types"
 
+import type { OverlayPresentationMode } from "./window-navigation-contracts"
+
+export type { OverlayPresentationMode } from "./window-navigation-contracts"
+
 export type {
   OverlayDisplayMetrics,
   OverlayPhysicalPosition,
@@ -34,8 +38,6 @@ export type {
 } from "./overlay-position"
 
 export const OVERLAY_RESIZE_DURATION_MS = 240
-
-export type OverlayPresentationMode = "collapsed" | "expanded"
 
 export type OverlayLogicalSize = WindowSize
 

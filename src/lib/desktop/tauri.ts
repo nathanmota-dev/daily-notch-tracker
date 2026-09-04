@@ -102,9 +102,10 @@ export function createTauriDesktopApi(
       execute("getAppDiagnostics", "get_app_diagnostics", undefined),
     setAutostart: (enabled) =>
       execute("setAutostart", "set_autostart", { enabled }),
-    openTasksWindow: (intent) =>
+    openTasksWindow: (intent, origin) =>
       execute("openTasksWindow", "open_tasks_window", {
         intent: intent ?? null,
+        origin: origin ?? null,
       }),
     closeTasksWindow: () =>
       execute("closeTasksWindow", "close_tasks_window", undefined),
@@ -112,6 +113,12 @@ export function createTauriDesktopApi(
       execute("openSettingsWindow", "open_settings_window", undefined),
     closeSettingsWindow: () =>
       execute("closeSettingsWindow", "close_settings_window", undefined),
+    returnToTasksWindow: () =>
+      execute(
+        "returnToTasksWindow",
+        "return_to_tasks_window",
+        undefined,
+      ),
     openExternalRelease: (url) =>
       execute("openExternalRelease", "open_external_release", { url }),
     subscribe,

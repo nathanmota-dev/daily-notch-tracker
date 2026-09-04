@@ -15,6 +15,7 @@ import {
   type AppSnapshot,
   type DesktopApi,
   type DesktopApiError,
+  type OverlayPresentationMode,
   type SurfaceLabel,
 } from "../lib/desktopApi"
 import {
@@ -32,7 +33,7 @@ import { useAppSnapshot } from "./use-app-snapshot"
 import { useDashboardActions } from "./use-dashboard-actions"
 import { cn } from "../lib/utils"
 
-export type PresentationMode = "collapsed" | "expanded"
+export type PresentationMode = OverlayPresentationMode
 
 type PresentationCallbacks = Partial<ExpandedDashboardCallbacks>
 
@@ -44,6 +45,7 @@ type AppProps = {
 } & PresentationCallbacks
 
 type AppShellProps = {
+  api?: DesktopApi
   snapshot: AppSnapshot
   presentationMode?: PresentationMode
   overlayWindowAdapter?: OverlayWindowAdapter | null
@@ -57,6 +59,7 @@ type SurfaceRenderOptions = {
 }
 
 export function AppShell({
+  api,
   busy = false,
   presentationMode = "collapsed",
   snapshot,
@@ -67,10 +70,18 @@ export function AppShell({
   const overlayWindow = useOverlayWindowAdapter(overlayWindowAdapter)
   const interaction = useOverlayInteraction({
     adapter: overlayWindow,
+    api,
     focusState: snapshot.focus.state,
     initialPresentationMode: presentationMode,
   })
   const { presentationMode: effectivePresentationMode } = interaction
+  const origin = { presentationMode: effectivePresentationMode }
+  const overlayCallbacks: PresentationCallbacks = {
+    ...callbacks,
+    onAddTask: () => callbacks.onAddTask?.(origin),
+    onOpenTask: (taskId) => callbacks.onOpenTask?.(taskId, origin),
+    onOpenTasks: () => callbacks.onOpenTasks?.(origin),
+  }
   const isExpanded = effectivePresentationMode === "expanded"
   const { isResizing, surfaceRef } = useOverlayResize({
     adapter: overlayWindow,
@@ -100,7 +111,7 @@ export function AppShell({
             busy={busy}
             dashboardError={dashboardError}
             snapshot={snapshot}
-            {...callbacks}
+            {...overlayCallbacks}
           />
         ) : (
           <CollapsedFocusWidget
@@ -127,6 +138,7 @@ function renderSurface(
   if (surface === "overlay") {
     return (
       <AppShell
+        api={api}
         overlayWindowAdapter={overlayWindowAdapter}
         presentationMode={presentationMode}
         busy={dashboardBusy}
