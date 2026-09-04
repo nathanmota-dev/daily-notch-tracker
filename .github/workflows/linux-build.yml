@@ -1,0 +1,157 @@
+name: Linux Build
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Ubuntu 22.04 x64 bundles
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: rust-linux-build
+          cache-workspace-crates: true
+
+      - name: Install Tauri system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            build-essential \
+            curl \
+            file \
+            libayatana-appindicator3-dev \
+            libdbus-1-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            patchelf \
+            pkg-config \
+            wget
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Frontend tests
+        id: frontend_tests
+        run: npm test
+
+      - name: Rust tests
+        id: rust_tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+
+      - name: Build frontend and Tauri bundles
+        id: tauri_build
+        run: npm run tauri:build
+
+      - name: Validate Linux bundles
+        id: bundle_validation
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          shopt -s nullglob
+          appimages=(src-tauri/target/release/bundle/appimage/*.AppImage)
+          debs=(src-tauri/target/release/bundle/deb/*.deb)
+
+          if (( ${#appimages[@]} != 1 )); then
+            printf 'Expected exactly one AppImage, found %s.\n' "${#appimages[@]}"
+            exit 1
+          fi
+
+          if (( ${#debs[@]} != 1 )); then
+            printf 'Expected exactly one Debian package, found %s.\n' "${#debs[@]}"
+            exit 1
+          fi
+
+          appimage="${appimages[0]}"
+          deb="${debs[0]}"
+          test -s "$appimage"
+          test -x "$appimage"
+          test -s "$deb"
+          file "$appimage"
+          dpkg-deb --info "$deb"
+
+          appimage_size=$(stat -c '%s' "$appimage")
+          deb_size=$(stat -c '%s' "$deb")
+          appimage_sha256=$(sha256sum "$appimage" | awk '{print $1}')
+          deb_sha256=$(sha256sum "$deb" | awk '{print $1}')
+
+          {
+            printf '%s\n' '## Linux bundle validation'
+            printf '%s\n' ''
+            printf '%s\n' '- Runner: `ubuntu-22.04` x64'
+            printf '%s\n' "- Ref: \`$GITHUB_REF_NAME\`"
+            printf '%s\n' "- Commit: \`$GITHUB_SHA\`"
+            printf '%s\n' "- AppImage: \`$appimage\` (${appimage_size} bytes, SHA-256 \`$appimage_sha256\`)"
+            printf '%s\n' "- Debian package: \`$deb\` (${deb_size} bytes, SHA-256 \`$deb_sha256\`)"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload AppImage
+        id: upload_appimage
+        uses: actions/upload-artifact@v4
+        with:
+          name: dailynotch-linux-appimage-ubuntu-22.04-x64-${{ github.sha }}
+          path: src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Debian package
+        id: upload_deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: dailynotch-linux-deb-ubuntu-22.04-x64-${{ github.sha }}
+          path: src-tauri/target/release/bundle/deb/*.deb
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish build summary
+        if: always()
+        env:
+          FRONTEND_TESTS: ${{ steps.frontend_tests.outcome }}
+          RUST_TESTS: ${{ steps.rust_tests.outcome }}
+          TAURI_BUILD: ${{ steps.tauri_build.outcome }}
+          BUNDLE_VALIDATION: ${{ steps.bundle_validation.outcome }}
+          APPIMAGE_UPLOAD: ${{ steps.upload_appimage.outcome }}
+          APPIMAGE_URL: ${{ steps.upload_appimage.outputs.artifact-url }}
+          DEB_UPLOAD: ${{ steps.upload_deb.outcome }}
+          DEB_URL: ${{ steps.upload_deb.outputs.artifact-url }}
+        run: |
+          {
+            printf '%s\n' '## Linux build checks'
+            printf '%s\n' ''
+            printf '%s\n' "- Frontend tests: \`$FRONTEND_TESTS\`"
+            printf '%s\n' "- Rust tests: \`$RUST_TESTS\`"
+            printf '%s\n' "- Tauri build: \`$TAURI_BUILD\`"
+            printf '%s\n' "- Bundle validation: \`$BUNDLE_VALIDATION\`"
+            printf '%s\n' "- AppImage upload: \`$APPIMAGE_UPLOAD\` ${APPIMAGE_URL:+($APPIMAGE_URL)}"
+            printf '%s\n' "- Debian package upload: \`$DEB_UPLOAD\` ${DEB_URL:+($DEB_URL)}"
+          } >> "$GITHUB_STEP_SUMMARY"
