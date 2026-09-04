@@ -935,9 +935,8 @@ test.describe("DailyNotch surface router", () => {
     page,
   }) => {
     for (const size of [
-      { width: 720, height: 640 },
-      { width: 640, height: 480 },
-      { width: 960, height: 900 },
+      { width: 800, height: 550 },
+      { width: 760, height: 480 },
     ]) {
       await page.setViewportSize(size)
       await page.goto("/?surface=settings")
@@ -954,13 +953,11 @@ test.describe("DailyNotch surface router", () => {
         scrollHeight: element.scrollHeight,
       }))
 
-      expect(box?.width ?? 0).toBe(Math.min(size.width, 960))
-      expect(box?.height ?? 0).toBe(Math.min(size.height, 900))
+      expect(box?.width ?? 0).toBe(Math.min(size.width, 800))
+      expect(box?.height ?? 0).toBe(Math.min(size.height, 550))
       expect(documentSize.width).toBeLessThanOrEqual(size.width)
       expect(documentSize.height).toBeLessThanOrEqual(size.height)
-      expect(scrollMetrics.scrollHeight).toBeGreaterThanOrEqual(
-        scrollMetrics.clientHeight,
-      )
+      expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight)
 
       await surface.evaluate((element) => {
         element.scrollTop = element.scrollHeight

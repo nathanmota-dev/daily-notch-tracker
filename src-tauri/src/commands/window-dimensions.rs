@@ -11,7 +11,7 @@ pub(super) struct WindowDimensionContract {
     pub(super) maximum: WindowSize,
 }
 
-pub(super) const TASKS_WINDOW_DIMENSIONS: WindowDimensionContract = WindowDimensionContract {
+pub(super) const CONTENT_WINDOW_DIMENSIONS: WindowDimensionContract = WindowDimensionContract {
     preferred: WindowSize {
         width: 800.0,
         height: 550.0,
@@ -26,20 +26,8 @@ pub(super) const TASKS_WINDOW_DIMENSIONS: WindowDimensionContract = WindowDimens
     },
 };
 
-pub(super) const SETTINGS_WINDOW_DIMENSIONS: WindowDimensionContract = WindowDimensionContract {
-    preferred: WindowSize {
-        width: 720.0,
-        height: 640.0,
-    },
-    minimum: WindowSize {
-        width: 640.0,
-        height: 480.0,
-    },
-    maximum: WindowSize {
-        width: 960.0,
-        height: 900.0,
-    },
-};
+pub(super) const TASKS_WINDOW_DIMENSIONS: WindowDimensionContract = CONTENT_WINDOW_DIMENSIONS;
+pub(super) const SETTINGS_WINDOW_DIMENSIONS: WindowDimensionContract = CONTENT_WINDOW_DIMENSIONS;
 
 #[cfg(test)]
 mod tests {
@@ -85,24 +73,10 @@ mod tests {
     }
 
     #[test]
-    fn settings_dimensions_match_the_frontend_contract() {
-        let dimensions = std::hint::black_box(SETTINGS_WINDOW_DIMENSIONS);
+    fn settings_dimensions_match_the_tasks_contract() {
         assert_eq!(
-            dimensions,
-            WindowDimensionContract {
-                preferred: WindowSize {
-                    width: 720.0,
-                    height: 640.0,
-                },
-                minimum: WindowSize {
-                    width: 640.0,
-                    height: 480.0,
-                },
-                maximum: WindowSize {
-                    width: 960.0,
-                    height: 900.0,
-                },
-            }
+            std::hint::black_box(SETTINGS_WINDOW_DIMENSIONS),
+            std::hint::black_box(TASKS_WINDOW_DIMENSIONS)
         );
     }
 }

@@ -26,12 +26,13 @@ describe("desktop window dimension contracts", () => {
     })
   })
 
-  it("keeps Settings within the agreed desktop range", () => {
+  it("keeps Settings aligned with the Tasks window", () => {
     expect(SETTINGS_WINDOW_DIMENSIONS).toEqual({
-      preferred: { width: 720, height: 640 },
-      minimum: { width: 640, height: 480 },
-      maximum: { width: 960, height: 900 },
+      preferred: { width: 800, height: 550 },
+      minimum: { width: 760, height: 480 },
+      maximum: { width: 800, height: 550 },
     })
+    expect(SETTINGS_WINDOW_DIMENSIONS).toEqual(TASKS_WINDOW_DIMENSIONS)
   })
 
   it("keeps the expanded overlay minimum inclusive of its transparent gutter", () => {

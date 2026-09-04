@@ -5,6 +5,12 @@ import type {
 
 export const OVERLAY_VERTICAL_GUTTER = 8
 
+const CONTENT_WINDOW_DIMENSIONS = {
+  preferred: { width: 800, height: 550 },
+  minimum: { width: 760, height: 480 },
+  maximum: { width: 800, height: 550 },
+} as const satisfies WindowDimensionContract
+
 export const WINDOW_DIMENSIONS = {
   overlay: {
     idle: { width: 204, height: 32 },
@@ -13,16 +19,8 @@ export const WINDOW_DIMENSIONS = {
     timelineOff: { width: 360, height: 52 },
     expanded: { width: 620, minHeight: 206 },
   } satisfies OverlayWindowDimensionContract,
-  tasks: {
-    preferred: { width: 800, height: 550 },
-    minimum: { width: 760, height: 480 },
-    maximum: { width: 800, height: 550 },
-  } satisfies WindowDimensionContract,
-  settings: {
-    preferred: { width: 720, height: 640 },
-    minimum: { width: 640, height: 480 },
-    maximum: { width: 960, height: 900 },
-  } satisfies WindowDimensionContract,
+  tasks: CONTENT_WINDOW_DIMENSIONS,
+  settings: CONTENT_WINDOW_DIMENSIONS,
 } as const
 
 export const OVERLAY_WINDOW_DIMENSIONS = WINDOW_DIMENSIONS.overlay

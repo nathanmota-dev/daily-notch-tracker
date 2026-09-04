@@ -12,18 +12,19 @@ contract for the frontend layout and the Tauri window builders.
 | Overlay collapsed | 360 × 72 | 104 × 52 | 360 × 72 | logical px |
 | Overlay expanded | 620 × ≥206 | 620 × ≥206 | content-driven | logical px |
 | Tasks | 800 × 550 | 760 × 480 | 800 × 550 | logical px |
-| Settings | 720 × 640 | 640 × 480 | 960 × 900 | logical px |
+| Settings | 800 × 550 | 760 × 480 | 800 × 550 | logical px |
 
 The collapsed overlay also supports the 360 × 52 timeline-off state and the
 104 × 72 or 104 × 52 minimal states. The expanded minimum includes the
 transparent 8 px gutter above and below the dashboard; the visible dashboard
 itself has a 190 px minimum height.
 
-Tasks and Settings use logical pixels in both CSS and Tauri. Their content
-windows are resizable within the native minimum and maximum bounds. The
-frontend fills the available viewport, clamps it to those bounds, and keeps
-overflow inside the surface instead of allowing the document to grow
-horizontally.
+Tasks and Settings share the same logical-pixel contract in both CSS and
+Tauri. Their content windows are resizable within the native minimum and
+maximum bounds. The frontend fills the available viewport, clamps it to those
+bounds, and keeps overflow inside the surface instead of allowing the document
+to grow horizontally. Settings scrolls its content vertically within that
+shared 800 × 550 surface.
 
 ## Scrolling and responsive layout
 

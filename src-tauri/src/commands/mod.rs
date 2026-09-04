@@ -14,7 +14,7 @@ use crate::state::AppState;
 
 #[path = "window-placement.rs"]
 mod window_placement;
-use window_placement::calculate_tasks_window_position;
+use window_placement::calculate_content_window_position;
 #[path = "window-dimensions.rs"]
 mod window_dimensions;
 use window_dimensions::SETTINGS_WINDOW_DIMENSIONS;

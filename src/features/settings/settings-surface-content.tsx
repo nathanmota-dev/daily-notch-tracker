@@ -123,7 +123,7 @@ export function SettingsSurfaceContent({
 }: SettingsSurfaceContentProps) {
   return (
     <main
-      className="mx-auto h-screen min-h-[var(--settings-window-min-height)] max-h-[var(--settings-window-max-height)] min-w-0 w-full max-w-[var(--settings-window-max-width)] overflow-x-hidden overflow-y-auto bg-canvas px-4 py-5 text-content sm:px-7 sm:py-7"
+      className="mx-auto h-screen min-h-[var(--surface-window-min-height)] max-h-[var(--surface-window-max-height)] min-w-0 w-full max-w-[var(--surface-window-max-width)] overflow-x-hidden overflow-y-auto rounded-[22px] border border-white/[0.18] bg-black px-5 py-[18px] pr-3 text-content max-[640px]:rounded-none max-[640px]:border-0 max-[640px]:px-4"
       data-surface="settings"
       data-slot="settings-surface"
     >

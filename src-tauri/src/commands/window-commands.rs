@@ -6,7 +6,7 @@ use tauri::{
 use crate::domain::{AppError, TasksWindowIntent};
 use crate::services::show_and_focus_window;
 
-use super::{calculate_tasks_window_position, window_dimensions::WindowDimensionContract};
+use super::{calculate_content_window_position, window_dimensions::WindowDimensionContract};
 use super::{window_dimensions::TASKS_WINDOW_DIMENSIONS, TASKS_WINDOW_INTENT_EVENT};
 
 pub(super) fn open_tasks_window_with_intent<R: Runtime>(
@@ -47,7 +47,7 @@ pub(super) fn open_tasks_window_with_intent<R: Runtime>(
         })?,
     };
 
-    position_tasks_window_below_overlay(app, &window)?;
+    position_content_window_below_overlay(app, &window)?;
     show_and_focus_window(&window)?;
 
     if is_existing_window {
@@ -61,17 +61,17 @@ pub(super) fn open_tasks_window_with_intent<R: Runtime>(
     Ok(())
 }
 
-fn position_tasks_window_below_overlay<R: Runtime>(
+fn position_content_window_below_overlay<R: Runtime>(
     app: &AppHandle<R>,
-    tasks_window: &WebviewWindow<R>,
+    content_window: &WebviewWindow<R>,
 ) -> Result<(), AppError> {
     let Some(overlay_window) = app.get_webview_window("overlay") else {
         return Ok(());
     };
-    let (Ok(overlay_position), Ok(overlay_size), Ok(tasks_size)) = (
+    let (Ok(overlay_position), Ok(overlay_size), Ok(content_window_size)) = (
         overlay_window.outer_position(),
         overlay_window.outer_size(),
-        tasks_window.outer_size(),
+        content_window.outer_size(),
     ) else {
         return Ok(());
     };
@@ -80,12 +80,18 @@ fn position_tasks_window_below_overlay<R: Runtime>(
         .ok()
         .flatten()
         .map(|monitor| *monitor.work_area());
-    let position =
-        calculate_tasks_window_position(overlay_position, overlay_size, tasks_size, work_area);
+    let position = calculate_content_window_position(
+        overlay_position,
+        overlay_size,
+        content_window_size,
+        work_area,
+    );
 
-    tasks_window
+    content_window
         .set_position(PhysicalPosition::new(position.x, position.y))
-        .map_err(|_| AppError::integration_unavailable("The Tasks window could not be positioned."))
+        .map_err(|_| {
+            AppError::integration_unavailable("The content window could not be positioned.")
+        })
 }
 
 pub(super) fn tasks_window_url(intent: &TasksWindowIntent) -> String {
@@ -112,13 +118,18 @@ pub(super) fn open_window<R: Runtime>(
             .min_inner_size(dimensions.minimum.width, dimensions.minimum.height)
             .max_inner_size(dimensions.maximum.width, dimensions.maximum.height)
             .resizable(true)
-            .center()
+            .decorations(false)
+            .transparent(true)
+            .shadow(false)
+            .skip_taskbar(true)
+            .visible(false)
             .build()
             .map_err(|_| {
                 AppError::integration_unavailable("The desktop window could not be opened.")
             })?,
     };
 
+    position_content_window_below_overlay(app, &window)?;
     show_and_focus_window(&window)?;
     Ok(())
 }

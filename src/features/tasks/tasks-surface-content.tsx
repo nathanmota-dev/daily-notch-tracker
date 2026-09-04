@@ -31,7 +31,7 @@ export function TasksSurfaceContent({
 
   return (
     <main
-      className="mx-auto grid h-screen min-h-[var(--tasks-window-min-height)] max-h-[var(--tasks-window-max-height)] min-w-0 w-full max-w-[var(--tasks-window-max-width)] grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden rounded-[22px] border border-white/[0.18] bg-black py-[18px] pl-5 pr-3 text-content max-[640px]:h-auto max-[640px]:min-h-screen max-[640px]:max-h-none max-[640px]:overflow-visible max-[640px]:rounded-none max-[640px]:border-0 max-[640px]:px-4"
+      className="mx-auto grid h-screen min-h-[var(--surface-window-min-height)] max-h-[var(--surface-window-max-height)] min-w-0 w-full max-w-[var(--surface-window-max-width)] grid-rows-[auto_minmax(0,1fr)] gap-4 overflow-hidden rounded-[22px] border border-white/[0.18] bg-black py-[18px] pl-5 pr-3 text-content max-[640px]:h-auto max-[640px]:min-h-screen max-[640px]:max-h-none max-[640px]:overflow-visible max-[640px]:rounded-none max-[640px]:border-0 max-[640px]:px-4"
       data-surface="tasks"
     >
       <TasksWindowHeader
