@@ -21,9 +21,9 @@ pub use state::AppState;
 pub use storage::{PersistedPayload, RecoveryDiagnostic, Repository, RepositoryError};
 
 use services::{
-    focus_tasks_or_overlay, handle_run_event, handle_window_event, initialize_global_shortcut,
-    initialize_tray, NotificationService, TauriNotificationBackend, TrayRuntimeState,
-    WindowNavigationState,
+    focus_tasks_or_overlay, handle_run_event, handle_window_event, initialize_autostart,
+    initialize_global_shortcut, initialize_tray, NotificationService, TauriNotificationBackend,
+    TrayRuntimeState, WindowNavigationState,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -52,6 +52,7 @@ pub fn run() {
                 TauriNotificationBackend::new(app.handle().clone()),
             )));
             app.manage(TrayRuntimeState::default());
+            initialize_autostart(app);
             initialize_global_shortcut(app);
             initialize_tray(app);
             Ok(())

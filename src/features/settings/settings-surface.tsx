@@ -69,10 +69,10 @@ function useSettingsMutationRunner(
   const [retryMutation, setRetryMutation] = useState<(() => void) | null>(null)
 
   const runSettingsMutation = useCallback<SettingsMutationRunner>(
-    (operation, mutation) => {
+    (operation, mutation, onError) => {
       const retry = () => {
         setRetryMutation(() => retry)
-        void runMutation(operation, mutation).then((result) => {
+        void runMutation(operation, mutation, onError).then((result) => {
           if (result !== null) {
             setRetryMutation(null)
           }
@@ -174,7 +174,7 @@ export function SettingsSurface({
         const result = await api.setAutostart(enabled)
         loadDiagnostics()
         return result
-      })
+      }, () => loadDiagnostics())
     },
     [api, loadDiagnostics, runSettingsMutation],
   )

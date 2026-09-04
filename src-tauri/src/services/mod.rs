@@ -2,6 +2,12 @@
 
 #[path = "app-lifecycle.rs"]
 mod app_lifecycle;
+#[path = "autostart.rs"]
+mod autostart;
+#[path = "autostart-adapter.rs"]
+mod autostart_adapter;
+#[path = "autostart-types.rs"]
+mod autostart_types;
 #[path = "desktop-session.rs"]
 mod desktop_session;
 #[path = "focus-runtime.rs"]
@@ -34,6 +40,15 @@ pub(crate) use app_lifecycle::{
     handle_run_event, handle_window_event, hide_reusable_window, remember_tasks_window_origin,
     show_and_focus_window,
 };
+#[cfg(test)]
+pub(crate) use autostart::AutostartService;
+pub(crate) use autostart::{
+    current_autostart_diagnostic, initialize_autostart, set_autostart_entry,
+};
+#[cfg(test)]
+pub(crate) use autostart_adapter::MockAutostartBackend;
+#[cfg(test)]
+pub(crate) use autostart_types::{AutostartBackendError, UnavailableAutostartBackend};
 pub(crate) use focus_runtime::sync_focus_scheduler;
 pub use focus_scheduler::FocusScheduler;
 #[cfg(test)]
