@@ -60,7 +60,7 @@ export type SettingsSurfaceContentProps = {
   onAutostartChange: (enabled: boolean) => void
   onBack: () => void
   onClose: () => void
-  onCommitFocusMinutes: () => void
+  onCommitFocusMinutes: (value?: string) => void
   onFocusMinutesChange: (value: string) => void
   onRetryDiagnostics: () => void
   onRetryMutation: (() => void) | null
@@ -74,8 +74,22 @@ export type SettingsDurationControlProps = {
   draft: string
   error: string | null
   onChange: (value: string) => void
-  onCommit: () => void
+  onCommit: (value?: string) => void
 }
+
+export type SettingsDurationStepperProps = Pick<
+  SettingsDurationControlProps,
+  "draft" | "error" | "onChange" | "onCommit"
+> & {
+  currentValue: number
+  errorId: string
+}
+
+export type SettingsDurationPresetsProps = Pick<
+  SettingsDurationControlProps,
+  "onChange" | "onCommit"
+> &
+  Pick<SettingsDurationStepperProps, "currentValue" | "error">
 
 export type SettingsDiagnosticsProps = Pick<
   SettingsSurfaceContentProps,
