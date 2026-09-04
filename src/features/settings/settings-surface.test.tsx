@@ -79,6 +79,7 @@ describe("Settings surface", () => {
     expect(screen.getByRole("heading", { name: "Shortcut" })).toBeInTheDocument()
     expect(screen.getByRole("heading", { name: "Diagnostics" })).toBeInTheDocument()
     expect(await screen.findByText("0.1.0-test")).toBeInTheDocument()
+    expect(screen.queryByRole("switch", { name: "Play sound" })).not.toBeInTheDocument()
 
     const autostart = screen.getByRole("switch", { name: "Launch at login" })
     expect(autostart).toHaveAttribute("aria-disabled", "true")
@@ -96,12 +97,20 @@ describe("Settings surface", () => {
     await screen.findByText("0.1.0-test")
     const user = userEvent.setup()
     const timeline = screen.getByRole("switch", { name: "Show timeline" })
+    const notifications = screen.getByRole("switch", { name: "Notifications" })
 
     await user.click(timeline)
 
     await waitFor(() => {
       expect(controller.getSnapshot().settings.showTimeline).toBe(false)
       expect(timeline).not.toBeChecked()
+    })
+
+    await user.click(notifications)
+
+    await waitFor(() => {
+      expect(controller.getSnapshot().settings.notificationsEnabled).toBe(false)
+      expect(notifications).not.toBeChecked()
     })
 
     const updatedSnapshot = controller.getSnapshot()
@@ -114,6 +123,7 @@ describe("Settings surface", () => {
     )
 
     expect(await screen.findByRole("switch", { name: "Show timeline" })).not.toBeChecked()
+    expect(screen.getByRole("switch", { name: "Notifications" })).not.toBeChecked()
     expect(updatedSnapshot.settings.showTimeline).toBe(false)
   })
 

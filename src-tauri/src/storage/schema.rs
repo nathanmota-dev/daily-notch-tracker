@@ -182,11 +182,31 @@ mod tests {
 
         assert_eq!(payload.settings.focus_minutes, 50);
         assert!(payload.settings.notifications_enabled);
-        assert!(payload.settings.play_sound);
         assert!(payload.settings.show_timeline);
         assert!(!payload.settings.rainbow_timeline);
         assert!(!payload.settings.minimal_mode);
         assert!(!payload.settings.launch_at_login);
+    }
+
+    #[test]
+    fn legacy_play_sound_setting_is_ignored_and_not_written_back() {
+        let payload = PersistedPayload::parse(
+            br#"{
+                "schema_version": 1,
+                "tasks": [],
+                "sessions": [],
+                "settings": {
+                    "focusMinutes": 25,
+                    "notificationsEnabled": true,
+                    "playSound": false
+                }
+            }"#,
+        )
+        .expect("legacy settings should remain readable");
+
+        assert!(payload.settings.notifications_enabled);
+        let json = serde_json::to_value(payload).expect("payload should serialize");
+        assert!(json["settings"].get("playSound").is_none());
     }
 
     #[test]

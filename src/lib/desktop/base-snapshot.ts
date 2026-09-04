@@ -8,7 +8,6 @@ export function createEmptyAppSnapshot(): AppSnapshot {
     settings: {
       focusMinutes: 25,
       notificationsEnabled: true,
-      playSound: true,
       showTimeline: true,
       rainbowTimeline: false,
       minimalMode: false,

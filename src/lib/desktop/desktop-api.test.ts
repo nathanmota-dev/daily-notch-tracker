@@ -49,7 +49,7 @@ describe("createTauriDesktopApi", () => {
       source: { scheduledDate: "2026-08-30" },
       destination: { scheduledDate: null },
     }
-    const settingsPatch = { focusMinutes: 30, playSound: false }
+    const settingsPatch = { focusMinutes: 30 }
     const tasksIntent = { kind: "task", taskId: "task-1" } as const
 
     await api.getSnapshot()

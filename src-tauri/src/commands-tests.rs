@@ -9,15 +9,20 @@ use crate::domain::{
     CreateTaskInput, FocusSettingsPatch, MoveTasksInput, ShortcutStatus, StartFocusInput,
     TaskBucket, TasksWindowIntent, UpdateTaskInput,
 };
-use crate::services::FocusScheduler;
+use crate::services::{FocusScheduler, MockNotificationBackend, NotificationBackendError};
 use crate::state::AppState;
 use chrono::{Duration, Utc};
 use tauri::Listener;
 
 fn test_app() -> tauri::App<tauri::test::MockRuntime> {
+    let notification_backend = Arc::new(MockNotificationBackend::default());
     tauri::test::mock_builder()
         .manage(Mutex::new(AppState::default()))
         .manage(FocusScheduler::new())
+        .manage(Arc::clone(&notification_backend))
+        .manage(crate::services::NotificationService::new(
+            notification_backend,
+        ))
         .build(tauri::test::mock_context(tauri::test::noop_assets()))
         .expect("mock app should build")
 }
@@ -355,6 +360,9 @@ fn reusable_windows_work_without_overlay_and_preserve_focus_scheduler() {
 fn due_focus_is_completed_by_the_managed_scheduler() {
     let app = test_app();
     let handle = app.handle().clone();
+    let notification_backend = handle
+        .try_state::<Arc<MockNotificationBackend>>()
+        .expect("notification backend should be managed");
     let focus_events = Arc::new(AtomicUsize::new(0));
     let store_events = Arc::new(AtomicUsize::new(0));
     let focus_event_counter = Arc::clone(&focus_events);
@@ -391,4 +399,140 @@ fn due_focus_is_completed_by_the_managed_scheduler() {
     wait_for_focus_events(&focus_events, &store_events);
     assert_eq!(focus_events.load(Ordering::Acquire), 1);
     assert_eq!(store_events.load(Ordering::Acquire), 1);
+    assert_eq!(notification_backend.sent_requests().len(), 1);
+}
+
+#[test]
+fn completed_focus_command_notifies_after_the_state_is_committed() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let added = tauri::async_runtime::block_on(add_task(
+        handle.clone(),
+        CreateTaskInput {
+            title: "Command notification task".to_owned(),
+            notes: "private notes".to_owned(),
+            scheduled_date: None,
+            estimate_minutes: 25,
+        },
+    ))
+    .expect("task should be added");
+    let task_id = added.tasks[0].id;
+    let started_at = Utc::now() - Duration::seconds(2);
+
+    tauri::async_runtime::block_on(with_state(&handle, move |state| {
+        state
+            .start_focus_with_duration_at(Some(task_id), Some(1), started_at)
+            .map(|_| ())
+    }))
+    .expect("focus should start");
+
+    let completed = tauri::async_runtime::block_on(stop_focus(handle.clone()))
+        .expect("due focus should stop as completed");
+    assert_eq!(completed.sessions.len(), 1);
+    assert!(completed.sessions[0].completed);
+
+    let backend = handle
+        .try_state::<Arc<MockNotificationBackend>>()
+        .expect("notification backend should be managed");
+    let requests = backend.sent_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].title, "Focus block complete");
+    assert_eq!(
+        requests[0].body.as_deref(),
+        Some("Command notification task")
+    );
+}
+
+#[test]
+fn completing_the_active_task_notifies_after_the_session_is_persisted() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let added = tauri::async_runtime::block_on(add_task(
+        handle.clone(),
+        CreateTaskInput {
+            title: "Active task completion".to_owned(),
+            notes: String::new(),
+            scheduled_date: None,
+            estimate_minutes: 25,
+        },
+    ))
+    .expect("task should be added");
+    let task_id = added.tasks[0].id;
+    let started_at = Utc::now() - Duration::seconds(2);
+
+    tauri::async_runtime::block_on(with_state(&handle, move |state| {
+        state
+            .start_focus_with_duration_at(Some(task_id), Some(1), started_at)
+            .map(|_| ())
+    }))
+    .expect("focus should start");
+
+    let completed =
+        tauri::async_runtime::block_on(toggle_task(handle.clone(), task_id.to_string()))
+            .expect("completing the active task should succeed");
+    assert!(completed.tasks[0].is_done);
+    assert!(completed.sessions[0].completed);
+
+    let backend = handle
+        .try_state::<Arc<MockNotificationBackend>>()
+        .expect("notification backend should be managed");
+    let requests = backend.sent_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].title, "Focus block complete");
+    assert_eq!(requests[0].body.as_deref(), Some("Active task completion"));
+}
+
+#[test]
+fn notification_failure_does_not_fail_or_undo_a_completed_focus_command() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let backend = handle
+        .try_state::<Arc<MockNotificationBackend>>()
+        .expect("notification backend should be managed");
+    backend.set_send_error(Some(NotificationBackendError::Failed));
+
+    let started_at = Utc::now() - Duration::seconds(2);
+    tauri::async_runtime::block_on(with_state(&handle, move |state| {
+        state
+            .start_focus_with_duration_at(None, Some(1), started_at)
+            .map(|_| ())
+    }))
+    .expect("focus should start");
+
+    let completed = tauri::async_runtime::block_on(stop_focus(handle.clone()))
+        .expect("notification failure should not fail focus completion");
+
+    assert_eq!(completed.sessions.len(), 1);
+    assert!(completed.sessions[0].completed);
+    assert!(backend.sent_requests().is_empty());
+}
+
+#[test]
+fn disabled_notifications_do_not_call_the_notification_backend_from_commands() {
+    let app = test_app();
+    let handle = app.handle().clone();
+    let backend = handle
+        .try_state::<Arc<MockNotificationBackend>>()
+        .expect("notification backend should be managed");
+
+    tauri::async_runtime::block_on(update_settings(
+        handle.clone(),
+        FocusSettingsPatch {
+            notifications_enabled: Some(false),
+            ..FocusSettingsPatch::default()
+        },
+    ))
+    .expect("notifications should be disabled");
+
+    let started_at = Utc::now() - Duration::seconds(2);
+    tauri::async_runtime::block_on(with_state(&handle, move |state| {
+        state
+            .start_focus_with_duration_at(None, Some(1), started_at)
+            .map(|_| ())
+    }))
+    .expect("focus should start");
+    tauri::async_runtime::block_on(stop_focus(handle.clone())).expect("focus should complete");
+
+    assert_eq!(backend.permission_state_calls(), 0);
+    assert!(backend.sent_requests().is_empty());
 }

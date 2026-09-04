@@ -10,8 +10,8 @@ use crate::domain::{
     MoveTasksInput, StartFocusInput, TasksWindowIntent, UpdateTaskInput,
 };
 use crate::services::{
-    close_reusable_window, current_tray_diagnostic, show_and_focus_window, sync_focus_scheduler,
-    sync_tray_menu,
+    close_reusable_window, current_tray_diagnostic, notify_focus_completion, show_and_focus_window,
+    sync_focus_scheduler, sync_tray_menu,
 };
 use crate::state::AppState;
 
@@ -244,6 +244,7 @@ where
     }
 
     sync_tray_menu(&app, &snapshot);
+    notify_focus_completion(&app, &before, &snapshot);
 
     Ok(snapshot)
 }

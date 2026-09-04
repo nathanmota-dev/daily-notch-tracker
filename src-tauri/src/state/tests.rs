@@ -137,7 +137,7 @@ fn empty_state_matches_the_typescript_snapshot_contract() {
     assert_eq!(json["sessions"], serde_json::json!([]));
     assert_eq!(json["settings"]["focusMinutes"], 25);
     assert_eq!(json["settings"]["notificationsEnabled"], true);
-    assert_eq!(json["settings"]["playSound"], true);
+    assert!(json["settings"].get("playSound").is_none());
     assert_eq!(json["settings"]["showTimeline"], true);
     assert_eq!(json["settings"]["rainbowTimeline"], false);
     assert_eq!(json["settings"]["minimalMode"], false);
@@ -634,7 +634,6 @@ fn persisted_state_recovers_tasks_sessions_and_settings_after_reloading() {
         .update_settings(FocusSettingsPatch {
             focus_minutes: Some(50),
             notifications_enabled: Some(false),
-            play_sound: Some(false),
             show_timeline: Some(false),
             rainbow_timeline: Some(true),
             minimal_mode: Some(true),
@@ -665,11 +664,36 @@ fn persisted_state_recovers_tasks_sessions_and_settings_after_reloading() {
     assert_eq!(snapshot.sessions[0].focused_seconds, 1_500);
     assert_eq!(snapshot.settings.focus_minutes, 50);
     assert!(!snapshot.settings.notifications_enabled);
-    assert!(!snapshot.settings.play_sound);
     assert!(!snapshot.settings.show_timeline);
     assert!(snapshot.settings.rainbow_timeline);
     assert!(snapshot.settings.minimal_mode);
     assert_eq!(snapshot.focus, FocusSnapshot::default());
+}
+
+#[test]
+fn persisted_state_ignores_the_legacy_play_sound_setting() {
+    let test_directory = TestDirectory::new();
+    fs::write(
+        test_directory.path().join("dailynotch.json"),
+        br#"{
+            "schema_version": 1,
+            "tasks": [],
+            "sessions": [],
+            "settings": {
+                "focusMinutes": 25,
+                "notificationsEnabled": true,
+                "playSound": false
+            }
+        }"#,
+    )
+    .expect("legacy payload should be written");
+
+    let state = AppState::load(Repository::new(test_directory.path()))
+        .expect("legacy payload should still load");
+    let json = serde_json::to_value(state.snapshot()).expect("snapshot should serialize");
+
+    assert!(json["settings"].get("playSound").is_none());
+    assert!(state.snapshot().settings.notifications_enabled);
 }
 
 #[test]
