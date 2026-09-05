@@ -15,10 +15,12 @@ import {
 } from "./overlay-interaction-helpers"
 import {
   useOverlayInteractionLifecycleEffect,
+  useOverlayBootstrapCollapseEffect,
   useOverlayPresentationRestoreEffect,
   useOverlayVisibilityEffect,
 } from "./overlay-interaction-effects"
 import { useOverlayInteractionState } from "./overlay-interaction-state"
+import { getRuntimeOverlayBootstrap } from "./surfaceResolver"
 import type {
   OverlayInteraction,
   UseOverlayInteractionOptions,
@@ -44,6 +46,7 @@ export function useOverlayInteraction({
   focusState = "idle",
   initialPresentationMode = "collapsed",
 }: UseOverlayInteractionOptions = {}): OverlayInteraction {
+  const runtimeBootstrap = getRuntimeOverlayBootstrap()
   const {
     childWindowOpenRef,
     clearCollapseTimer,
@@ -54,7 +57,11 @@ export function useOverlayInteraction({
     pointerInsideRef,
     resolvedAdapter,
     updatePresentationMode,
-  } = useOverlayInteractionState(adapter, initialPresentationMode)
+  } = useOverlayInteractionState(
+    adapter,
+    initialPresentationMode,
+    runtimeBootstrap.childWindowOpen,
+  )
   const scheduleCollapse = useCallback(() => {
     scheduleOverlayCollapse(collapseState)
   }, [collapseState])
@@ -101,6 +108,10 @@ export function useOverlayInteraction({
   }, [collapseState, clearCollapseTimer, holdsRef, scheduleCollapse, updatePresentationMode])
 
   useOverlayInteractionLifecycleEffect(collapseState)
+  useOverlayBootstrapCollapseEffect(
+    collapseState,
+    runtimeBootstrap.autoCollapse,
+  )
   useOverlayVisibilityEffect(resolvedAdapter, focusState)
 
   return {

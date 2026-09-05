@@ -1,10 +1,11 @@
-import { act, fireEvent, render, screen } from "@testing-library/react"
+import { act, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
   COLLAPSED_WIDGET_FIXTURE_NAMES,
   createCollapsedWidgetFixtureSnapshot,
   createEmptyAppSnapshot,
+  createExpandedDashboardFixtureSnapshot,
 } from "../lib/desktopApi"
 import { CollapsedFocusWidget } from "./collapsed-focus-widget"
 import {
@@ -24,7 +25,9 @@ function renderSnapshot(
   return render(
     <CollapsedFocusWidget
       focus={snapshot.focus}
+      sessions={snapshot.sessions}
       settings={snapshot.settings}
+      tasks={snapshot.tasks}
     />,
   )
 }
@@ -148,7 +151,7 @@ describe("CollapsedFocusWidget", () => {
     )
   })
 
-  it("renders the idle notch without rendering a progress bar", () => {
+  it("renders the idle peek with its default timer and streak", () => {
     const snapshot = createEmptyAppSnapshot()
 
     render(
@@ -164,8 +167,49 @@ describe("CollapsedFocusWidget", () => {
 
     expect(widget).toHaveAttribute("data-state", "idle")
     expect(widget).not.toHaveAttribute("hidden")
-    expect(screen.getByRole("button", { name: "Open focus dashboard" })).toBeInTheDocument()
+    expect(screen.getByRole("timer")).toHaveTextContent("25:00")
+    expect(screen.getByText("Ready to focus")).toBeInTheDocument()
+    expect(screen.getByLabelText("Journey Streak: 0 days")).toBeInTheDocument()
+    expect(screen.getByRole("progressbar")).toBeInTheDocument()
+  })
+
+  it("renders the persistent notch when the peek is not visible", () => {
+    const snapshot = createEmptyAppSnapshot()
+
+    render(
+      <CollapsedFocusWidget
+        focus={snapshot.focus}
+        settings={snapshot.settings}
+        visible={false}
+      />,
+    )
+
+    expect(
+      screen.getByRole("button", { name: "Open focus dashboard" }),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole("timer")).not.toBeInTheDocument()
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument()
+  })
+
+  it("uses the next task estimate and current journey streak while idle", () => {
+    const snapshot = createExpandedDashboardFixtureSnapshot(
+      "expanded",
+      FIXTURE_NOW,
+    )
+
+    render(
+      <CollapsedFocusWidget
+        focus={snapshot.focus}
+        now={FIXTURE_NOW}
+        sessions={snapshot.sessions}
+        settings={snapshot.settings}
+        tasks={snapshot.tasks}
+      />,
+    )
+
+    expect(screen.getByRole("timer")).toHaveTextContent("25:00")
+    expect(screen.getByText("Plan the next focused block")).toBeInTheDocument()
+    expect(screen.getByLabelText("Journey Streak: 5 days")).toBeInTheDocument()
   })
 })
 
@@ -216,8 +260,6 @@ describe("CollapsedFocusWidget countdown", () => {
       />,
     )
 
-    fireEvent.pointerEnter(screen.getByRole("group"))
-
     act(() => {
       vi.advanceTimersByTime(1_250)
     })
@@ -227,7 +269,7 @@ describe("CollapsedFocusWidget countdown", () => {
     )
     expect(idleWidget).toHaveAttribute("data-state", "idle")
     expect(idleWidget).not.toHaveAttribute("hidden")
-    expect(screen.getByRole("button", { name: "Open focus dashboard" })).toBeInTheDocument()
-    expect(screen.queryByRole("timer")).not.toBeInTheDocument()
+    expect(screen.getByRole("timer")).toHaveTextContent("25:00")
+    expect(screen.getByText("Ready to focus")).toBeInTheDocument()
   })
 })

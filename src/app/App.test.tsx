@@ -138,14 +138,16 @@ describe("App", () => {
     try {
       render(
         <AppShell
-          snapshot={createCollapsedWidgetFixtureSnapshot("running", Date.now())}
+          snapshot={createEmptyAppSnapshot()}
         />,
       )
       const surface = screen.getByRole("main")
 
       fireEvent.pointerEnter(surface)
       expect(surface).toHaveAttribute("data-presentation-mode", "peek")
-      expect(screen.getByRole("timer")).toBeInTheDocument()
+      expect(screen.getByRole("timer")).toHaveTextContent("25:00")
+      expect(screen.getByText("Ready to focus")).toBeInTheDocument()
+      expect(screen.getByLabelText("Journey Streak: 0 days")).toBeInTheDocument()
 
       fireEvent.click(surface)
       expect(surface).toHaveAttribute("data-presentation-mode", "expanded")

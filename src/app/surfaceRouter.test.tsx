@@ -5,6 +5,7 @@ import {
   createMockDesktopApi,
 } from "../lib/desktopApi"
 import {
+  resolveOverlayRuntimeBootstrap,
   resolvePresentationMode,
   resolveSurfaceLabel,
 } from "./surfaceResolver"
@@ -64,6 +65,15 @@ describe("resolvePresentationMode", () => {
     ).toBe("peek")
   })
 
+  it("restores the native presentation after a WebView navigation", () => {
+    expect(
+      resolvePresentationMode({
+        runtime: "tauri",
+        search: "?presentation=expanded&childOpen=true",
+      }),
+    ).toBe("expanded")
+  })
+
   it("falls back for an invalid browser presentation", () => {
     expect(
       resolvePresentationMode({
@@ -72,6 +82,24 @@ describe("resolvePresentationMode", () => {
         search: "?surface=overlay&presentation=unknown",
       }),
     ).toBe("expanded")
+  })
+})
+
+describe("resolveOverlayRuntimeBootstrap", () => {
+  it("restores a child-window hold independently from auto collapse", () => {
+    expect(
+      resolveOverlayRuntimeBootstrap(
+        "?presentation=expanded&childOpen=true&autoCollapse=false",
+      ),
+    ).toEqual({ autoCollapse: false, childWindowOpen: true })
+  })
+
+  it("restores the reverse-flow collapse request", () => {
+    expect(
+      resolveOverlayRuntimeBootstrap(
+        "?presentation=expanded&childOpen=false&autoCollapse=true",
+      ),
+    ).toEqual({ autoCollapse: true, childWindowOpen: false })
   })
 })
 

@@ -14,7 +14,10 @@ import type {
   StartFocusInput,
 } from "./contracts"
 import { normalizeDesktopApiError } from "./errors"
-import { isSurfaceChangedPayload } from "./window-navigation-contracts"
+import {
+  isOverlayChildWindowChangedPayload,
+  isSurfaceChangedPayload,
+} from "./window-navigation-contracts"
 
 export interface TauriTransport {
   invoke(command: string, args?: Record<string, unknown>): Promise<unknown>
@@ -94,6 +97,12 @@ export function createTauriDesktopApi(
         if (eventName === "surface-changed" && !isSurfaceChangedPayload(payload)) {
           return
         }
+        if (
+          eventName === "overlay-child-window-changed" &&
+          !isOverlayChildWindowChangedPayload(payload)
+        ) {
+          return
+        }
 
         listener(payload as DesktopEventMap[EventName])
       })
@@ -117,7 +126,7 @@ export function createTauriDesktopApi(
       execute(
         "startFocus",
         "start_focus",
-        normalizeStartFocusInput(input),
+        { input: normalizeStartFocusInput(input) },
       ),
     pauseFocus: () => execute("pauseFocus", "pause_focus", undefined),
     resumeFocus: () => execute("resumeFocus", "resume_focus", undefined),

@@ -121,7 +121,9 @@ export function AppShell({
         ) : (
           <CollapsedFocusWidget
             focus={snapshot.focus}
+            sessions={snapshot.sessions}
             settings={snapshot.settings}
+            tasks={snapshot.tasks}
             visible={isPeek}
           />
         )}

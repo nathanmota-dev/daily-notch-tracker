@@ -82,10 +82,12 @@ function renderStandaloneTasks(
 describe("Tasks surface", () => {
   beforeEach(() => {
     window.history.replaceState({}, "", "/")
+    window.sessionStorage.clear()
   })
 
   afterEach(() => {
     window.history.replaceState({}, "", "/")
+    window.sessionStorage.clear()
   })
 
   it("renders the two-column shell without an ICS events section", async () => {

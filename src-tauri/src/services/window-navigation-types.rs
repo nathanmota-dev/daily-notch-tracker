@@ -51,13 +51,18 @@ impl SurfaceChangedPayload {
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct OverlayChildWindowChangedPayload {
     pub(crate) open: bool,
+    pub(crate) presentation_mode: OverlayPresentationMode,
 }
 
 impl OverlayChildWindowChangedPayload {
-    pub(crate) fn new(open: bool) -> Self {
-        Self { open }
+    pub(crate) fn new(open: bool, presentation_mode: OverlayPresentationMode) -> Self {
+        Self {
+            open,
+            presentation_mode,
+        }
     }
 }
 

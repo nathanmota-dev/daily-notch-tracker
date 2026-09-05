@@ -18,6 +18,7 @@ import type {
 export function useOverlayInteractionState(
   adapter: OverlayWindowAdapter | null | undefined,
   initialPresentationMode: OverlayPresentationMode,
+  initialChildWindowOpen = false,
 ): OverlayInteractionState {
   const [presentationMode, setPresentationMode] = useState(
     initialPresentationMode,
@@ -25,7 +26,7 @@ export function useOverlayInteractionState(
   const presentationModeRef = useRef(initialPresentationMode)
   const pointerInsideRef = useRef(false)
   const holdsRef = useRef(0)
-  const childWindowOpenRef = useRef(false)
+  const childWindowOpenRef = useRef(initialChildWindowOpen)
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeRef = useRef(true)
   const resolvedAdapter = useMemo(

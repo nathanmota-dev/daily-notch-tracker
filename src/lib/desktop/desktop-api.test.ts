@@ -106,7 +106,10 @@ describe("createTauriDesktopApi", () => {
       ["delete_task", { taskId: "task-1" }],
       ["toggle_task", { taskId: "task-1" }],
       ["move_tasks", { input: moveInput }],
-      ["start_focus", { taskId: "task-1", durationSeconds: 90 }],
+      [
+        "start_focus",
+        { input: { taskId: "task-1", durationSeconds: 90 } },
+      ],
       ["pause_focus", undefined],
       ["resume_focus", undefined],
       ["stop_focus", undefined],

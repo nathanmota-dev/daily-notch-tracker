@@ -119,10 +119,34 @@ function ManualInteractionHarness({
 describe("useOverlayInteraction", () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    window.history.replaceState({}, "", "/")
   })
 
   afterEach(() => {
     vi.useRealTimers()
+    window.history.replaceState({}, "", "/")
+  })
+
+  it("runs the reverse collapse timers after a native WebView restore", () => {
+    window.history.replaceState(
+      {},
+      "",
+      "/?presentation=expanded&childOpen=false&autoCollapse=true",
+    )
+    render(<InteractionHarness initialPresentationMode="expanded" />)
+    const surface = screen.getByRole("main")
+
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+
+    act(() => {
+      vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS)
+    })
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+
+    act(() => {
+      vi.advanceTimersByTime(OVERLAY_WIDGET_COLLAPSE_DELAY_MS)
+    })
+    expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
   })
 
   it("enters the compact peek when the pointer enters", () => {
@@ -177,7 +201,10 @@ describe("useOverlayInteraction", () => {
     fireEvent.pointerLeave(surface)
 
     act(() => {
-      controller.emit("overlay-child-window-changed", { open: true })
+      controller.emit("overlay-child-window-changed", {
+        open: true,
+        presentationMode: "expanded",
+      })
       vi.advanceTimersByTime(
         OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS +
           OVERLAY_WIDGET_COLLAPSE_DELAY_MS,
@@ -188,18 +215,40 @@ describe("useOverlayInteraction", () => {
     expect(vi.getTimerCount()).toBe(0)
 
     act(() => {
-      controller.emit("surface-changed", {
-        intent: null,
+      controller.emit("overlay-child-window-changed", {
+        open: false,
         presentationMode: "expanded",
-        surface: "overlay",
       })
-      controller.emit("overlay-child-window-changed", { open: false })
     })
 
     act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS - 1))
     expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
 
     act(() => vi.advanceTimersByTime(1))
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+  })
+
+  it("restores and collapses when a child close arrives without its open event", async () => {
+    const controller = createMockDesktopApi()
+    render(<InteractionHarness api={controller.api} />)
+    const surface = screen.getByRole("main")
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    act(() => {
+      controller.emit("overlay-child-window-changed", {
+        open: false,
+        presentationMode: "expanded",
+      })
+    })
+
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+    expect(vi.getTimerCount()).toBe(1)
+
+    act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS))
     expect(surface).toHaveAttribute("data-presentation-mode", "peek")
   })
 

@@ -1,5 +1,3 @@
-import { useState } from "react"
-
 import { useDesktopMutations } from "../../app/use-desktop-mutations"
 import { useFocusSessionFlow } from "../../components/use-focus-session-flow"
 import type {
@@ -10,8 +8,8 @@ import type {
 import { getLocalDateString } from "../../lib/local-date"
 import { createTaskSurfaceActions } from "./tasks-actions"
 import { TasksSurfaceContent } from "./tasks-surface-content"
-import { type TasksTab } from "./tasks-model"
 import { useTaskDraftController, useTaskSurfaceRouting } from "./tasks-state"
+import { useTasksViewPreferences } from "./tasks-view-preferences"
 import { useTasksWindowIntent } from "./tasks-window-intent"
 
 export type TasksSurfaceProps = {
@@ -34,8 +32,12 @@ export function TasksSurface({
   const routedIntent = useTasksWindowIntent(api, search)
   const intent = initialIntent ?? routedIntent
   const today = getLocalDateString()
-  const [activeTab, setActiveTab] = useState<TasksTab>("day")
-  const [selectedDate, setSelectedDate] = useState(today)
+  const {
+    activeTab,
+    selectedDate,
+    setActiveTab,
+    setSelectedDate,
+  } = useTasksViewPreferences(today)
   const routing = useTaskSurfaceRouting(intent, snapshot.tasks)
   const selectedTask = snapshot.tasks.find(
     (task) => task.id === routing.selectedTaskId,

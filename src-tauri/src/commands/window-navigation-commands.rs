@@ -1,3 +1,5 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use tauri::{AppHandle, Emitter, EventTarget, Manager, Runtime, WebviewWindow};
 
 use crate::domain::{AppError, TasksWindowIntent};
@@ -8,6 +10,8 @@ use crate::services::{
 };
 
 use super::window_commands::{configure_content_window, content_window, position_content_window};
+
+static OVERLAY_RESTORE_REVISION: AtomicU64 = AtomicU64::new(1);
 
 fn current_presentation_origin<R: Runtime>(
     app: &AppHandle<R>,
@@ -48,12 +52,13 @@ fn publish_surface_changed<R: Runtime>(
 fn publish_overlay_child_state<R: Runtime>(
     overlay: &WebviewWindow<R>,
     open: bool,
+    presentation_mode: OverlayPresentationMode,
 ) -> Result<(), AppError> {
     overlay
         .emit_to(
             EventTarget::webview_window(overlay.label()),
             OVERLAY_CHILD_WINDOW_CHANGED_EVENT,
-            OverlayChildWindowChangedPayload::new(open),
+            OverlayChildWindowChangedPayload::new(open, presentation_mode),
         )
         .map_err(|_| {
             AppError::integration_unavailable(
@@ -74,16 +79,46 @@ fn show_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), AppError> {
         .map_err(|_| AppError::integration_unavailable("The desktop window could not be shown."))
 }
 
+fn reload_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), AppError> {
+    window
+        .reload()
+        .map_err(|_| AppError::integration_unavailable("The desktop window could not be restored."))
+}
+
+fn presentation_mode_query_value(mode: OverlayPresentationMode) -> &'static str {
+    match mode {
+        OverlayPresentationMode::Collapsed => "collapsed",
+        OverlayPresentationMode::Peek => "peek",
+        OverlayPresentationMode::Expanded => "expanded",
+    }
+}
+
+fn restore_overlay_window<R: Runtime>(
+    overlay: &WebviewWindow<R>,
+    presentation_mode: OverlayPresentationMode,
+    child_open: bool,
+    auto_collapse: bool,
+) -> Result<(), AppError> {
+    let mut url = overlay.url().map_err(|_| {
+        AppError::integration_unavailable("The overlay window could not be restored.")
+    })?;
+    let query = format!(
+        "presentation={}&childOpen={child_open}&autoCollapse={auto_collapse}&restoreRevision={}",
+        presentation_mode_query_value(presentation_mode),
+        OVERLAY_RESTORE_REVISION.fetch_add(1, Ordering::Relaxed),
+    );
+    url.set_query(Some(&query));
+    overlay
+        .navigate(url)
+        .map_err(|_| AppError::integration_unavailable("The overlay window could not be restored."))
+}
+
 fn hide_optional_window<R: Runtime>(app: &AppHandle<R>, label: &str) -> Result<(), AppError> {
     if let Some(window) = app.get_webview_window(label) {
         hide_window(&window)?;
     }
 
     Ok(())
-}
-
-fn keep_overlay_expanded(origin: Option<OverlayPresentationMode>) -> bool {
-    origin == Some(OverlayPresentationMode::Expanded)
 }
 
 fn open_content_window<R: Runtime>(
@@ -101,18 +136,20 @@ fn open_content_window<R: Runtime>(
     position_content_window(&overlay, &content)?;
     transition_to(app, surface, presentation_origin)?;
     show_window(&overlay)?;
-    if keep_overlay_expanded(presentation_origin) {
-        publish_surface_changed(
-            &overlay,
-            SurfaceLabel::Overlay,
-            None,
-            Some(OverlayPresentationMode::Expanded),
-        )?;
-        publish_overlay_child_state(&overlay, true)?;
-    }
+    publish_overlay_child_state(
+        &overlay,
+        true,
+        presentation_origin.unwrap_or(OverlayPresentationMode::Collapsed),
+    )?;
 
     show_and_focus_window(&content)?;
-    publish_surface_changed(&content, surface, intent, None)
+    publish_surface_changed(&content, surface, intent, None)?;
+    restore_overlay_window(
+        &overlay,
+        presentation_origin.unwrap_or(OverlayPresentationMode::Collapsed),
+        true,
+        false,
+    )
 }
 
 fn close_content_windows<R: Runtime>(
@@ -127,13 +164,11 @@ fn close_content_windows<R: Runtime>(
     }
     transition_to(app, SurfaceLabel::Overlay, None)?;
     show_and_focus_window(&overlay)?;
-    publish_surface_changed(
+    publish_overlay_child_state(
         &overlay,
-        SurfaceLabel::Overlay,
-        None,
-        Some(presentation_mode.unwrap_or(OverlayPresentationMode::Collapsed)),
-    )?;
-    publish_overlay_child_state(&overlay, false)
+        false,
+        presentation_mode.unwrap_or(OverlayPresentationMode::Collapsed),
+    )
 }
 
 #[tauri::command]
@@ -187,11 +222,18 @@ pub async fn return_to_tasks_window<R: Runtime>(app: AppHandle<R>) -> Result<(),
     configure_content_window(&tasks)?;
     position_content_window(&overlay, &tasks)?;
     transition_to(&app, SurfaceLabel::Tasks, presentation_origin)?;
+    show_window(&overlay)?;
+    publish_overlay_child_state(
+        &overlay,
+        true,
+        presentation_origin.unwrap_or(OverlayPresentationMode::Collapsed),
+    )?;
     show_and_focus_window(&tasks)?;
-    publish_surface_changed(
-        &tasks,
-        SurfaceLabel::Tasks,
-        Some(TasksWindowIntent::List),
-        None,
+    reload_window(&tasks)?;
+    restore_overlay_window(
+        &overlay,
+        presentation_origin.unwrap_or(OverlayPresentationMode::Collapsed),
+        true,
+        false,
     )
 }

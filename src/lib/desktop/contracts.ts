@@ -173,7 +173,7 @@ export type DesktopCommandMap = {
     result: AppSnapshot
   }
   start_focus: {
-    args: StartFocusInput
+    args: { input: StartFocusInput }
     result: AppSnapshot
   }
   pause_focus: {

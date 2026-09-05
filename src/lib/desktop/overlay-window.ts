@@ -102,17 +102,12 @@ function safeScaleFactor(scaleFactor: number) {
 }
 
 export function getCollapsedOverlayLogicalSize({
-  focusState = "running",
   minimalMode = false,
   showTimeline = true,
 }: Pick<
   OverlayTargetOptions,
-  "focusState" | "minimalMode" | "showTimeline"
+  "minimalMode" | "showTimeline"
 > = {}) {
-  if (focusState === "idle") {
-    return { ...OVERLAY_WINDOW_SIZES.idle }
-  }
-
   const width = minimalMode
     ? OVERLAY_WINDOW_SIZES.minimal.width
     : OVERLAY_WINDOW_SIZES.collapsed.width

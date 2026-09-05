@@ -11,9 +11,9 @@ use crate::domain::{
 };
 use crate::services::{
     AutostartBackendError, AutostartService, FocusScheduler, MockAutostartBackend,
-    MockNotificationBackend, NotificationBackendError, OverlayPresentationMode,
-    SurfaceChangedPayload, SurfaceLabel, TasksWindowOrigin, WindowNavigationState,
-    SURFACE_CHANGED_EVENT,
+    MockNotificationBackend, NotificationBackendError, OverlayChildWindowChangedPayload,
+    OverlayPresentationMode, SurfaceChangedPayload, SurfaceLabel, TasksWindowOrigin,
+    WindowNavigationState, OVERLAY_CHILD_WINDOW_CHANGED_EVENT, SURFACE_CHANGED_EVENT,
 };
 use crate::state::AppState;
 use chrono::{Duration, Utc};
@@ -468,6 +468,18 @@ fn window_commands_switch_native_surfaces_and_emit_surface_transitions() {
     let (tasks, settings) = create_content_windows(&app);
     let task_id = "11111111-1111-4111-8111-111111111111".to_owned();
     let received = Arc::new(Mutex::new(Vec::<SurfaceChangedPayload>::new()));
+    let child_states = Arc::new(Mutex::new(Vec::<OverlayChildWindowChangedPayload>::new()));
+    let child_states_for_listener = Arc::clone(&child_states);
+    overlay.listen(OVERLAY_CHILD_WINDOW_CHANGED_EVENT, move |event| {
+        if let Ok(payload) =
+            serde_json::from_str::<OverlayChildWindowChangedPayload>(event.payload())
+        {
+            child_states_for_listener
+                .lock()
+                .expect("child-window listeners should not be poisoned")
+                .push(payload);
+        }
+    });
     for window in [&overlay, &tasks, &settings] {
         let received_for_listener = Arc::clone(&received);
         window.listen(SURFACE_CHANGED_EVENT, move |event| {
@@ -508,27 +520,23 @@ fn window_commands_switch_native_surfaces_and_emit_surface_transitions() {
             .clone(),
         vec![
             SurfaceChangedPayload::new(
-                SurfaceLabel::Overlay,
-                None,
-                Some(OverlayPresentationMode::Expanded),
-            ),
-            SurfaceChangedPayload::new(
                 SurfaceLabel::Tasks,
                 Some(TasksWindowIntent::Task { task_id }),
                 None,
             ),
-            SurfaceChangedPayload::new(
-                SurfaceLabel::Overlay,
-                None,
-                Some(OverlayPresentationMode::Expanded),
-            ),
             SurfaceChangedPayload::new(SurfaceLabel::Settings, None, None),
-            SurfaceChangedPayload::new(SurfaceLabel::Tasks, Some(TasksWindowIntent::List), None,),
-            SurfaceChangedPayload::new(
-                SurfaceLabel::Overlay,
-                None,
-                Some(OverlayPresentationMode::Expanded),
-            ),
+        ]
+    );
+    assert_eq!(
+        child_states
+            .lock()
+            .expect("child-window payloads should not be poisoned")
+            .clone(),
+        vec![
+            OverlayChildWindowChangedPayload::new(true, OverlayPresentationMode::Expanded,),
+            OverlayChildWindowChangedPayload::new(true, OverlayPresentationMode::Expanded,),
+            OverlayChildWindowChangedPayload::new(true, OverlayPresentationMode::Expanded,),
+            OverlayChildWindowChangedPayload::new(false, OverlayPresentationMode::Expanded,),
         ]
     );
 

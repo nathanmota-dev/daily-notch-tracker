@@ -66,7 +66,20 @@ describe("native surface event contract", () => {
     expect(isOverlayPresentationMode("peek")).toBe(true)
     expect(isOverlayPresentationMode("expanded")).toBe(true)
     expect(isOverlayPresentationMode("unknown")).toBe(false)
-    expect(isOverlayChildWindowChangedPayload({ open: true })).toBe(true)
-    expect(isOverlayChildWindowChangedPayload({ open: "true" })).toBe(false)
+    expect(
+      isOverlayChildWindowChangedPayload({
+        open: true,
+        presentationMode: "expanded",
+      }),
+    ).toBe(true)
+    expect(
+      isOverlayChildWindowChangedPayload({
+        open: "true",
+        presentationMode: "expanded",
+      }),
+    ).toBe(false)
+    expect(
+      isOverlayChildWindowChangedPayload({ open: true }),
+    ).toBe(false)
   })
 })

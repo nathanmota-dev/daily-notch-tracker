@@ -86,16 +86,15 @@ export function useOverlayPresentationRestoreEffect(
       if (payload.open) {
         collapseState.childWindowOpenRef.current = true
         collapseState.clearTimer()
-        collapseState.presentationModeRef.current = "expanded"
-        collapseState.setPresentationMode("expanded")
-        return
-      }
-
-      if (!collapseState.childWindowOpenRef.current) {
+        collapseState.presentationModeRef.current = payload.presentationMode
+        collapseState.setPresentationMode(payload.presentationMode)
         return
       }
 
       collapseState.childWindowOpenRef.current = false
+      collapseState.clearTimer()
+      collapseState.presentationModeRef.current = payload.presentationMode
+      collapseState.setPresentationMode(payload.presentationMode)
       if (
         !collapseState.pointerInsideRef.current &&
         collapseState.holdsRef.current === 0
@@ -126,6 +125,23 @@ export function useOverlayInteractionLifecycleEffect(
       collapseState.clearTimer()
     }
   }, [collapseState])
+}
+
+export function useOverlayBootstrapCollapseEffect(
+  collapseState: CollapseState,
+  autoCollapse: boolean,
+) {
+  useEffect(() => {
+    if (!autoCollapse) {
+      return
+    }
+
+    collapseState.pointerInsideRef.current = false
+    collapseState.childWindowOpenRef.current = false
+    scheduleOverlayCollapse(collapseState)
+
+    return collapseState.clearTimer
+  }, [autoCollapse, collapseState])
 }
 
 export function useOverlayVisibilityEffect(
