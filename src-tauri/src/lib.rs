@@ -27,8 +27,39 @@ use services::{
     WindowNavigationState,
 };
 
+#[cfg(target_os = "linux")]
+fn should_prefer_x11_backend(
+    has_wayland_display: bool,
+    has_x11_display: bool,
+    backend: Option<&str>,
+) -> bool {
+    let requested_backend = backend
+        .and_then(|value| value.split(',').next())
+        .map(str::trim);
+
+    has_wayland_display && has_x11_display && requested_backend != Some("x11")
+}
+
+#[cfg(target_os = "linux")]
+fn configure_positioned_overlay_backend() {
+    let backend = std::env::var("GDK_BACKEND").ok();
+
+    if should_prefer_x11_backend(
+        std::env::var_os("WAYLAND_DISPLAY").is_some(),
+        std::env::var_os("DISPLAY").is_some(),
+        backend.as_deref(),
+    ) {
+        // A normal Wayland window cannot be placed at an absolute monitor
+        // coordinate. XWayland keeps the overlay below the primary panel.
+        std::env::set_var("GDK_BACKEND", "x11");
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    configure_positioned_overlay_backend();
+
     let mut builder = tauri::Builder::default()
         .manage(AppLifecycleState::new())
         .manage(WindowNavigationState::new())
@@ -84,4 +115,34 @@ pub fn run() {
         .build(tauri::generate_context!())
         .expect("error while building DailyNotch Linux")
         .run(handle_run_event);
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod tests {
+    use super::should_prefer_x11_backend;
+
+    #[test]
+    fn prefers_x11_when_both_display_backends_are_available() {
+        assert!(should_prefer_x11_backend(true, true, None));
+    }
+
+    #[test]
+    fn keeps_wayland_when_xwayland_is_unavailable() {
+        assert!(!should_prefer_x11_backend(true, false, None));
+    }
+
+    #[test]
+    fn keeps_the_requested_x11_backend() {
+        assert!(!should_prefer_x11_backend(true, true, Some("x11,wayland")));
+    }
+
+    #[test]
+    fn prefers_x11_when_wayland_is_only_the_first_fallback() {
+        assert!(should_prefer_x11_backend(true, true, Some("wayland,x11")));
+    }
+
+    #[test]
+    fn keeps_the_wayland_fallback_without_a_wayland_session() {
+        assert!(!should_prefer_x11_backend(false, true, None));
+    }
 }

@@ -61,7 +61,7 @@ describe("ExpandedDashboard", () => {
       screen.getByRole("img", { name: /Activity heatmap for/ }),
     ).toBeInTheDocument()
     expect(
-      screen.getByText(fixture === "expanded-empty" ? "0d" : "3d"),
+      screen.getByText(fixture === "expanded-empty" ? "0d" : "5d"),
     ).toBeInTheDocument()
     expect(screen.getByRole("progressbar", { name: "Focus timeline" })).toBeInTheDocument()
     expect(document.querySelector('[data-slot="progress-tray"]')).toHaveAttribute(
@@ -73,6 +73,14 @@ describe("ExpandedDashboard", () => {
     ).toHaveLength(taskCount)
   })
 
+  it("uses the same black canvas as the Tasks and Settings surfaces", () => {
+    renderFixture("expanded")
+
+    expect(
+      screen.getByRole("region", { name: "Expanded dashboard" }),
+    ).toHaveClass("bg-black")
+  })
+
   it("derives the activity intensity from the fixture session history", () => {
     renderFixture("expanded")
 
@@ -81,7 +89,7 @@ describe("ExpandedDashboard", () => {
 
     expect(todayCell).toHaveAttribute("data-intensity", "4")
     expect(document.querySelector('[data-slot="streak-count"]')).toHaveTextContent(
-      "3d",
+      "5d",
     )
   })
 

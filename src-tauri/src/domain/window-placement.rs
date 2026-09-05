@@ -12,7 +12,7 @@ pub struct WindowMonitorSnapshot {
     pub scale_factor: f64,
 }
 
-/// Physical placement for the shared extended overlay window.
+/// Physical placement retained for the extended surface placement contract.
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WindowPlacementSnapshot {

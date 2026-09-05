@@ -116,7 +116,7 @@ describe("expanded dashboard fixtures", () => {
       Date.parse("2026-08-31T12:00:00.000Z"),
     )
 
-    expect(snapshot.sessions).toHaveLength(6)
+    expect(snapshot.sessions).toHaveLength(8)
     expect(snapshot.sessions.some((session) => session.completed)).toBe(true)
     expect(snapshot.sessions.some((session) => !session.completed)).toBe(true)
     expect(

@@ -21,7 +21,10 @@ import {
   mockSortableRects,
   startPointerTaskDrag,
 } from "../test/task-reorder-helpers"
-import { OVERLAY_COLLAPSE_DELAY_MS } from "./use-overlay-interaction"
+import {
+  OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS,
+  OVERLAY_WIDGET_COLLAPSE_DELAY_MS,
+} from "./use-overlay-interaction"
 import { App, AppShell } from "./App"
 
 function createOverlayAdapter() {
@@ -97,6 +100,7 @@ describe("App", () => {
   it("renders a supplied focus snapshot without coupling the shell to Tauri", () => {
     render(
       <AppShell
+        presentationMode="peek"
         snapshot={createCollapsedWidgetFixtureSnapshot(
           "running",
           Date.now(),
@@ -128,7 +132,7 @@ describe("App", () => {
     expect(screen.getByRole("progressbar")).toBeInTheDocument()
   })
 
-  it("expands on pointer enter and collapses after the hover delay", () => {
+  it("moves from the idle notch to peek and then collapses in two stages", () => {
     vi.useFakeTimers()
 
     try {
@@ -140,11 +144,21 @@ describe("App", () => {
       const surface = screen.getByRole("main")
 
       fireEvent.pointerEnter(surface)
+      expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+      expect(screen.getByRole("timer")).toBeInTheDocument()
+
+      fireEvent.click(surface)
       expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
 
       fireEvent.pointerLeave(surface)
-      act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS - 1))
+      act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS - 1))
       expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+
+      act(() => vi.advanceTimersByTime(1))
+      expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+
+      act(() => vi.advanceTimersByTime(OVERLAY_WIDGET_COLLAPSE_DELAY_MS - 1))
+      expect(surface).toHaveAttribute("data-presentation-mode", "peek")
 
       act(() => vi.advanceTimersByTime(1))
       expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
@@ -153,7 +167,7 @@ describe("App", () => {
     }
   })
 
-  it("keeps an idle notch visible even when its initial presentation is expanded", () => {
+  it("shows the idle notch after its initial placement", async () => {
     const adapter = createOverlayAdapter()
 
     render(
@@ -168,7 +182,7 @@ describe("App", () => {
       "data-presentation-mode",
       "expanded",
     )
-    expect(adapter.show).toHaveBeenCalledOnce()
+    await waitFor(() => expect(adapter.show).toHaveBeenCalledOnce())
     expect(adapter.hide).not.toHaveBeenCalled()
   })
 
@@ -226,11 +240,21 @@ describe("App", () => {
 
     render(<App api={controller.api} />)
 
-    const widget = await screen.findByRole("group", {
-      name: "Foco em andamento",
-    })
-    fireEvent.pointerEnter(widget)
+    await waitFor(() =>
+      expect(screen.getByRole("main")).toHaveAttribute(
+        "data-presentation-mode",
+        "collapsed",
+      ),
+    )
+    const surface = screen.getByRole("main")
+    fireEvent.pointerEnter(surface)
 
+    expect(screen.getByRole("main")).toHaveAttribute(
+      "data-presentation-mode",
+      "peek",
+    )
+
+    fireEvent.click(surface)
     expect(screen.getByRole("main")).toHaveAttribute(
       "data-presentation-mode",
       "expanded",
@@ -274,7 +298,7 @@ describe("App", () => {
     expect(
       await screen.findByText("Plan the next focused block"),
     ).toBeInTheDocument()
-    expect(screen.getByText("3d")).toBeInTheDocument()
+    expect(screen.getByText("5d")).toBeInTheDocument()
     expect(
       document.querySelector(`[data-date="${getLocalDateString(now)}"]`),
     ).toHaveAttribute("data-intensity", "4")
@@ -545,7 +569,7 @@ describe("App", () => {
     }
     const controller = createMockDesktopApi({ snapshot: runningSnapshot })
 
-    render(<App api={controller.api} />)
+    render(<App api={controller.api} presentationMode="peek" />)
     await screen.findByRole("group", { name: "Foco em andamento" })
 
     act(() => controller.emit("focus-changed", pausedSnapshot))

@@ -77,7 +77,7 @@ describe("overlay window dimensions", () => {
       getOverlayTargetLogicalSize("expanded", { measuredVisualHeight: 220 }),
     ).toEqual({ width: 620, height: 236 })
     expect(
-      getOverlayTargetLogicalSize("collapsed", {
+      getOverlayTargetLogicalSize("peek", {
         minimalMode: true,
         showTimeline: false,
       }),

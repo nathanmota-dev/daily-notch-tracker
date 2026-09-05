@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  isOverlayChildWindowChangedPayload,
   isOverlayPresentationMode,
   isSurfaceChangedPayload,
   isTasksWindowIntent,
@@ -62,7 +63,10 @@ describe("native surface event contract", () => {
     expect(isTasksWindowIntent({ kind: "task", taskId: "task-1" })).toBe(true)
     expect(isTasksWindowIntent({ kind: "task", taskId: "" })).toBe(false)
     expect(isOverlayPresentationMode("collapsed")).toBe(true)
+    expect(isOverlayPresentationMode("peek")).toBe(true)
     expect(isOverlayPresentationMode("expanded")).toBe(true)
     expect(isOverlayPresentationMode("unknown")).toBe(false)
+    expect(isOverlayChildWindowChangedPayload({ open: true })).toBe(true)
+    expect(isOverlayChildWindowChangedPayload({ open: "true" })).toBe(false)
   })
 })

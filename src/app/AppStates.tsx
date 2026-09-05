@@ -3,14 +3,9 @@ import { Panel } from "../components/panel"
 import { Button } from "../components/ui/button"
 
 export function LoadingShell({ surface }: { surface: SurfaceLabel }) {
-  const backgroundClass = surface === "overlay" ? "bg-transparent" : "bg-canvas"
-
   return (
     <main
-      className={
-        "flex min-h-screen items-center justify-center px-6 text-content " +
-        backgroundClass
-      }
+      className="flex min-h-screen items-center justify-center bg-transparent px-6 text-content"
       data-surface={surface}
     >
       <p className="text-body text-muted" role="status">
@@ -29,14 +24,9 @@ export function ErrorShell({
   onRetry: () => void
   surface: SurfaceLabel
 }) {
-  const backgroundClass = surface === "overlay" ? "bg-transparent" : "bg-canvas"
-
   return (
     <main
-      className={
-        "flex min-h-screen items-center justify-center px-6 text-content " +
-        backgroundClass
-      }
+      className="flex min-h-screen items-center justify-center bg-transparent px-6 text-content"
       data-surface={surface}
     >
       <Panel className="max-w-lg p-8" variant="danger">

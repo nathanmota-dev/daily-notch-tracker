@@ -162,9 +162,9 @@ test.describe("DailyNotch surface router", () => {
       await expect(
         page.getByRole("heading", { name: "Journey Streak" }),
       ).toBeVisible()
-      await expect(
-        page.getByText(name === "expanded-empty" ? "0d" : "3d"),
-      ).toBeVisible()
+      await expect(page.locator('[data-slot="streak-count"]')).toHaveText(
+        name === "expanded-empty" ? "0d" : "5d",
+      )
       await expect(
         page.getByRole("img", { name: /Activity heatmap for/ }),
       ).toBeVisible()

@@ -22,8 +22,10 @@ const fixtureApi = developmentFixture
     }).api
   : undefined
 const presentationMode =
-  developmentFixture && isExpandedDashboardFixture(developmentFixture)
-    ? "expanded"
+  developmentFixture
+    ? isExpandedDashboardFixture(developmentFixture)
+      ? "expanded"
+      : "peek"
     : "collapsed"
 
 createRoot(document.getElementById("root")!).render(

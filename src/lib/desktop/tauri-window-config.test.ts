@@ -2,12 +2,14 @@ import tauriConfig from "../../../src-tauri/tauri.conf.json"
 import defaultCapability from "../../../src-tauri/capabilities/default.json"
 import { WINDOW_DIMENSIONS } from "./window-dimensions"
 
-const [overlayWindow] = tauriConfig.app.windows
+const [overlayWindow, tasksWindow, settingsWindow] = tauriConfig.app.windows
 
 describe("Tauri overlay window configuration", () => {
-  it("declares exactly one overlay window", () => {
-    expect(tauriConfig.app.windows).toHaveLength(1)
+  it("declares the overlay and stacked content windows", () => {
+    expect(tauriConfig.app.windows).toHaveLength(3)
     expect(overlayWindow.label).toBe("overlay")
+    expect(tasksWindow.label).toBe("tasks")
+    expect(settingsWindow.label).toBe("settings")
   })
 
   it("configures the compact transparent window behavior", () => {
@@ -21,7 +23,7 @@ describe("Tauri overlay window configuration", () => {
       skipTaskbar: true,
       shadow: false,
       fullscreen: false,
-      visible: true,
+      visible: false,
     })
   })
 
@@ -30,8 +32,8 @@ describe("Tauri overlay window configuration", () => {
     expect(overlayWindow).not.toHaveProperty("minHeight")
   })
 
-  it("keeps the overlay capability scoped to its current permissions", () => {
-    expect(defaultCapability.windows).toEqual(["overlay"])
+  it("keeps every native surface inside the current permissions", () => {
+    expect(defaultCapability.windows).toEqual(["overlay", "tasks", "settings"])
     expect(defaultCapability.permissions).toEqual([
       "core:default",
       "core:window:allow-set-size",
@@ -41,6 +43,7 @@ describe("Tauri overlay window configuration", () => {
       "core:window:allow-hide",
       "core:window:allow-start-dragging",
       "core:window:allow-available-monitors",
+      "core:window:allow-primary-monitor",
       "notification:default",
       "autostart:default",
       "global-shortcut:allow-register",
@@ -48,9 +51,28 @@ describe("Tauri overlay window configuration", () => {
     ])
   })
 
-  it("uses only the overlay capability for every native surface view", () => {
+  it("uses the default capability for every native surface view", () => {
     expect(tauriConfig.app.security.capabilities).toEqual(["default"])
-    expect(defaultCapability.windows).toEqual(["overlay"])
+    expect(defaultCapability.windows).toEqual(["overlay", "tasks", "settings"])
+  })
+
+  it("keeps content windows hidden until a navigation command opens them", () => {
+    expect(tasksWindow).toMatchObject({
+      width: WINDOW_DIMENSIONS.tasks.preferred.width,
+      height: WINDOW_DIMENSIONS.tasks.preferred.height,
+      decorations: false,
+      transparent: true,
+      alwaysOnTop: true,
+      visible: false,
+    })
+    expect(settingsWindow).toMatchObject({
+      width: WINDOW_DIMENSIONS.settings.preferred.width,
+      height: WINDOW_DIMENSIONS.settings.preferred.height,
+      decorations: false,
+      transparent: true,
+      alwaysOnTop: true,
+      visible: false,
+    })
   })
 })
 

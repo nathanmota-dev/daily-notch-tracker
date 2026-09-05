@@ -9,7 +9,6 @@ import {
   overlayResizeNow,
   readOverlayVerticalGutter,
   scheduleOverlayResizeFrame,
-  type ScheduledOverlayFrame,
 } from "./overlay-resize-helpers"
 import {
   requestOverlayDisplayPlacement,
@@ -25,8 +24,13 @@ import {
   type OverlayPresentationMode,
   type OverlayWindowAdapter,
   type OverlayWindowGeometry,
-  type OverlayWindowUnlisten,
 } from "../lib/desktop/overlay-window"
+import {
+  cancelAnimation,
+  createRuntimeState,
+  destroyResizeRuntime,
+  type OverlayResizeRuntimeState,
+} from "./overlay-resize-state"
 
 type OverlayResizeRuntimeOptions = {
   container: HTMLElement
@@ -40,35 +44,11 @@ type OverlayResizeRuntimeOptions = {
   setIsResizing: (isResizing: boolean) => void
 }
 
-type OverlayResizeRuntimeState = {
-  active: boolean
-  animationFrame: ScheduledOverlayFrame | null
-  transitionId: number
-  displayRequestId: number
-  lastTargetKey: string | null
-  displayUnlisten?: OverlayWindowUnlisten
-}
-
 type ResizeTransitionOptions = {
   id: number
   state: OverlayResizeRuntimeState
   operationQueue: ReturnType<typeof createOverlayWindowOperationQueue>
   setIsResizing: (isResizing: boolean) => void
-}
-
-function createRuntimeState(): OverlayResizeRuntimeState {
-  return {
-    active: true,
-    animationFrame: null,
-    transitionId: 0,
-    displayRequestId: 0,
-    lastTargetKey: null,
-  }
-}
-
-function cancelAnimation(state: OverlayResizeRuntimeState) {
-  state.animationFrame?.cancel()
-  state.animationFrame = null
 }
 
 function finishTransition(
@@ -121,7 +101,11 @@ function createPlacementRuntime(
     finishTransition: (id) =>
       finishTransition(state, id, options.setIsResizing),
     setIsResizing: options.setIsResizing,
+    onInitialPlacementSuccess: () => {
+      state.initialPlacementPending = false
+    },
     onInitialPlacementFailure: () => {
+      state.initialPlacementPending = false
       if (options.initializedAdapterRef.current === options.windowAdapter) {
         options.initializedAdapterRef.current = null
       }
@@ -240,6 +224,7 @@ function createTargetRequest(
 
     if (options.initializedAdapterRef.current !== options.windowAdapter) {
       options.initializedAdapterRef.current = options.windowAdapter
+      state.initialPlacementPending = true
       startInitialOverlayPlacement(nextTargetSize, placementRuntime)
       return
     }
@@ -292,22 +277,6 @@ function createResizeObserver(
   return observer
 }
 
-function destroyResizeRuntime(
-  state: OverlayResizeRuntimeState,
-  operationQueue: ReturnType<typeof createOverlayWindowOperationQueue>,
-  observer: ResizeObserver | null,
-  setIsResizing: (isResizing: boolean) => void,
-) {
-  state.active = false
-  state.transitionId += 1
-  state.displayRequestId += 1
-  cancelAnimation(state)
-  operationQueue.cancelPending()
-  state.displayUnlisten?.()
-  setIsResizing(false)
-  observer?.disconnect()
-}
-
 export type OverlayResizeRuntime = {
   start: () => void
   destroy: () => void
@@ -343,6 +312,8 @@ export function createOverlayResizeRuntime(
         state,
         operationQueue,
         observer,
+        options.initializedAdapterRef,
+        options.windowAdapter,
         options.setIsResizing,
       )
     },

@@ -13,10 +13,10 @@ import { SurfaceRouter } from "./surfaceRouter"
 const surfaceLabels = ["overlay", "tasks", "settings"] as const
 
 describe("resolveSurfaceLabel", () => {
-  it.each(surfaceLabels)("uses overlay for a %s Tauri label", (label) => {
+  it.each(surfaceLabels)("uses the native %s label", (label) => {
     expect(
       resolveSurfaceLabel({ runtime: "tauri", windowLabel: label }),
-    ).toBe("overlay")
+    ).toBe(label)
   })
 
   it("reads a valid browser query string", () => {
@@ -53,6 +53,15 @@ describe("resolvePresentationMode", () => {
         search: "?surface=overlay&presentation=expanded",
       }),
     ).toBe("expanded")
+  })
+
+  it("reads the compact browser presentation", () => {
+    expect(
+      resolvePresentationMode({
+        runtime: "browser",
+        search: "?surface=overlay&presentation=peek",
+      }),
+    ).toBe("peek")
   })
 
   it("falls back for an invalid browser presentation", () => {

@@ -86,6 +86,7 @@ export function AppShell({
     onOpenTasks: () => callbacks.onOpenTasks?.(origin),
   }
   const isExpanded = effectivePresentationMode === "expanded"
+  const isPeek = effectivePresentationMode === "peek"
   const { isResizing, surfaceRef } = useOverlayResize({
     adapter: overlayWindow,
     focusState: snapshot.focus.state,
@@ -106,6 +107,7 @@ export function AppShell({
         data-resizing={isResizing ? "true" : "false"}
         data-surface="overlay"
         onFocus={interaction.onFocus}
+        onClick={interaction.onClick}
         onPointerEnter={interaction.onPointerEnter}
         onPointerLeave={interaction.onPointerLeave}
       >
@@ -120,6 +122,7 @@ export function AppShell({
           <CollapsedFocusWidget
             focus={snapshot.focus}
             settings={snapshot.settings}
+            visible={isPeek}
           />
         )}
       </main>

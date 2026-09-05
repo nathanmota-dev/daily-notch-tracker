@@ -1,4 +1,5 @@
 import { act, render } from "@testing-library/react"
+import { StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -201,13 +202,48 @@ afterEach(() => {
 })
 
 describe("useOverlayResize", () => {
+  it("shows the overlay only after its initial size and position are applied", async () => {
+    const adapter = createAdapter()
+
+    render(<OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />)
+    await settleAsyncWork()
+
+    expect(adapter.show).toHaveBeenCalledOnce()
+    expect(adapter.setSize).toHaveBeenCalled()
+    expect(adapter.setPosition).toHaveBeenCalled()
+    expect(adapter.show.mock.invocationCallOrder[0]).toBeGreaterThan(
+      adapter.setSize.mock.invocationCallOrder[0] ?? 0,
+    )
+    expect(adapter.show.mock.invocationCallOrder[0]).toBeGreaterThan(
+      adapter.setPosition.mock.invocationCallOrder[0] ?? 0,
+    )
+    expect(adapter.setPosition.mock.invocationCallOrder.at(-1)).toBeGreaterThan(
+      adapter.show.mock.invocationCallOrder[0] ?? 0,
+    )
+  })
+
+  it("retries initial placement after strict effect replay", async () => {
+    const adapter = createAdapter()
+
+    render(
+      <StrictMode>
+        <OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />
+      </StrictMode>,
+    )
+    await settleAsyncWork()
+
+    expect(adapter.show).toHaveBeenCalledOnce()
+    expect(adapter.setPosition).toHaveBeenLastCalledWith({ x: 858, y: 38 })
+    expect(animationFrame.pending()).toBe(0)
+  })
+
   it("resizes on mode changes while preserving the current center and top", async () => {
     const adapter = createAdapter()
     const { rerender } = render(
       <OverlayResizeHarness
         adapter={adapter}
         minimalMode
-        presentationMode="collapsed"
+        presentationMode="peek"
       />,
     )
 
@@ -238,7 +274,7 @@ describe("useOverlayResize", () => {
       <OverlayResizeHarness
         adapter={adapter}
         minimalMode
-        presentationMode="collapsed"
+        presentationMode="peek"
       />,
     )
 
@@ -255,7 +291,7 @@ describe("useOverlayResize", () => {
       <OverlayResizeHarness
         adapter={adapter}
         minimalMode
-        presentationMode="collapsed"
+        presentationMode="peek"
       />,
     )
     await settleAsyncWork()
@@ -356,7 +392,7 @@ describe("useOverlayResize", () => {
     render(
       <OverlayResizeHarness
         adapter={adapter}
-        presentationMode="collapsed"
+        presentationMode="peek"
       />,
     )
     await settleAsyncWork()
@@ -374,7 +410,7 @@ describe("useOverlayResize", () => {
   it("recalculates size and position when the primary display changes", async () => {
     const adapter = createAdapter()
 
-    render(<OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />)
+    render(<OverlayResizeHarness adapter={adapter} presentationMode="peek" />)
     await settleAsyncWork()
 
     adapter.setDisplay({
@@ -407,7 +443,7 @@ describe("useOverlayResize", () => {
       <OverlayResizeHarness
         adapter={adapter}
         minimalMode
-        presentationMode="collapsed"
+        presentationMode="peek"
       />,
     )
     await settleAsyncWork()
@@ -425,7 +461,7 @@ describe("useOverlayResize", () => {
     const unlisten = vi.fn()
     adapter.subscribeToDisplayChanges = vi.fn(async () => unlisten)
     const { unmount } = render(
-      <OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />,
+      <OverlayResizeHarness adapter={adapter} presentationMode="peek" />,
     )
 
     await settleAsyncWork()
@@ -438,7 +474,7 @@ describe("useOverlayResize", () => {
   it("ignores a stale display response after a newer display request", async () => {
     const adapter = createAdapter()
 
-    render(<OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />)
+    render(<OverlayResizeHarness adapter={adapter} presentationMode="peek" />)
     await settleAsyncWork()
 
     const nextDisplay: OverlayDisplayMetrics = {
