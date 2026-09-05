@@ -3,6 +3,10 @@
 Aplicativo Linux local-first para tarefas e foco, construído com React, Vite,
 TypeScript, Tailwind CSS, Vitest, Tauri 2 e Rust.
 
+## Demo
+
+<video src="https://github.com/user-attachments/assets/75d686a8-925f-4f90-98af-cce34c4ac3bd" controls="controls" muted="muted" style="max-width: 100%;"></video>
+
 ## Requisitos
 
 - Node.js 20.19+
