@@ -233,7 +233,7 @@ describe("useOverlayResize", () => {
     await settleAsyncWork()
 
     expect(adapter.show).toHaveBeenCalledOnce()
-    expect(adapter.setPosition).toHaveBeenLastCalledWith({ x: 780, y: 38 })
+    expect(adapter.setPosition).toHaveBeenLastCalledWith({ x: 858, y: 38 })
     expect(animationFrame.pending()).toBe(0)
   })
 
@@ -243,7 +243,7 @@ describe("useOverlayResize", () => {
       <OverlayResizeHarness
         adapter={adapter}
         minimalMode
-        presentationMode="collapsed"
+        presentationMode="peek"
       />,
     )
 
@@ -274,7 +274,7 @@ describe("useOverlayResize", () => {
       <OverlayResizeHarness
         adapter={adapter}
         minimalMode
-        presentationMode="collapsed"
+        presentationMode="peek"
       />,
     )
 
@@ -291,7 +291,7 @@ describe("useOverlayResize", () => {
       <OverlayResizeHarness
         adapter={adapter}
         minimalMode
-        presentationMode="collapsed"
+        presentationMode="peek"
       />,
     )
     await settleAsyncWork()
@@ -392,7 +392,7 @@ describe("useOverlayResize", () => {
     render(
       <OverlayResizeHarness
         adapter={adapter}
-        presentationMode="collapsed"
+        presentationMode="peek"
       />,
     )
     await settleAsyncWork()
@@ -410,7 +410,7 @@ describe("useOverlayResize", () => {
   it("recalculates size and position when the primary display changes", async () => {
     const adapter = createAdapter()
 
-    render(<OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />)
+    render(<OverlayResizeHarness adapter={adapter} presentationMode="peek" />)
     await settleAsyncWork()
 
     adapter.setDisplay({
@@ -443,7 +443,7 @@ describe("useOverlayResize", () => {
       <OverlayResizeHarness
         adapter={adapter}
         minimalMode
-        presentationMode="collapsed"
+        presentationMode="peek"
       />,
     )
     await settleAsyncWork()
@@ -461,7 +461,7 @@ describe("useOverlayResize", () => {
     const unlisten = vi.fn()
     adapter.subscribeToDisplayChanges = vi.fn(async () => unlisten)
     const { unmount } = render(
-      <OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />,
+      <OverlayResizeHarness adapter={adapter} presentationMode="peek" />,
     )
 
     await settleAsyncWork()
@@ -474,7 +474,7 @@ describe("useOverlayResize", () => {
   it("ignores a stale display response after a newer display request", async () => {
     const adapter = createAdapter()
 
-    render(<OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />)
+    render(<OverlayResizeHarness adapter={adapter} presentationMode="peek" />)
     await settleAsyncWork()
 
     const nextDisplay: OverlayDisplayMetrics = {

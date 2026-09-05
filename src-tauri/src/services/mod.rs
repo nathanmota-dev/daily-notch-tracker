@@ -28,6 +28,8 @@ mod notification_adapter;
 mod notification_types;
 #[path = "tray.rs"]
 mod tray;
+#[path = "window.rs"]
+mod window;
 #[path = "window-navigation.rs"]
 mod window_navigation;
 #[path = "window-navigation-types.rs"]
@@ -59,8 +61,9 @@ pub(crate) use notification_adapter::TauriNotificationBackend;
 #[cfg(test)]
 pub(crate) use notification_types::{NotificationBackendError, NotificationPermissionState};
 pub(crate) use tray::{current_tray_diagnostic, initialize_tray, sync_tray_menu, TrayRuntimeState};
+pub(crate) use window::show_and_focus_window;
 pub(crate) use window_navigation::WindowNavigationState;
 pub(crate) use window_navigation_types::{
-    OverlayPresentationMode, SurfaceChangedPayload, SurfaceLabel, TasksWindowOrigin,
-    SURFACE_CHANGED_EVENT,
+    OverlayChildWindowChangedPayload, OverlayPresentationMode, SurfaceChangedPayload, SurfaceLabel,
+    TasksWindowOrigin, OVERLAY_CHILD_WINDOW_CHANGED_EVENT, SURFACE_CHANGED_EVENT,
 };

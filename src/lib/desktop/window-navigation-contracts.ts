@@ -1,6 +1,6 @@
 import { isSurfaceLabel, type SurfaceLabel, type TasksWindowIntent } from "./contracts"
 
-export type OverlayPresentationMode = "collapsed" | "expanded"
+export type OverlayPresentationMode = "collapsed" | "peek" | "expanded"
 
 export const OVERLAY_PRESENTATION_QUERY_PARAMETER = "presentation"
 
@@ -16,10 +16,24 @@ export type SurfaceChangedPayload = {
 
 export type SurfaceChangedEvent = SurfaceChangedPayload
 
+export type OverlayChildWindowChangedPayload = {
+  open: boolean
+}
+
 export function isOverlayPresentationMode(
   value: unknown,
 ): value is OverlayPresentationMode {
-  return value === "collapsed" || value === "expanded"
+  return value === "collapsed" || value === "peek" || value === "expanded"
+}
+
+export function isOverlayChildWindowChangedPayload(
+  value: unknown,
+): value is OverlayChildWindowChangedPayload {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { open?: unknown }).open === "boolean"
+  )
 }
 
 export function isTasksWindowIntent(

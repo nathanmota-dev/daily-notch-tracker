@@ -14,6 +14,7 @@ export type CollapsedFocusWidgetProps = {
   settings: Pick<FocusSettings, "minimalMode" | "rainbowTimeline" | "showTimeline">
   className?: string
   now?: Date | number
+  visible?: boolean
 }
 
 export function CollapsedFocusWidget({
@@ -21,11 +22,12 @@ export function CollapsedFocusWidget({
   focus,
   now: controlledNow,
   settings,
+  visible = true,
 }: CollapsedFocusWidgetProps) {
   const { now } = useFocusCountdown(focus, { now: controlledNow })
   const presentation = deriveCollapsedFocusPresentation(focus, settings, now)
 
-  if (!presentation.isVisible) {
+  if (!visible || !presentation.isVisible) {
     return (
       <div
         className={cn(

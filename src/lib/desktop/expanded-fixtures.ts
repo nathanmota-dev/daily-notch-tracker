@@ -113,6 +113,18 @@ const ACTIVITY_SESSION_SPECS: ExpandedSessionSpec[] = [
     id: "expanded-session-two-days-ago",
     minutesAgo: 48 * 60 + 30,
   },
+  {
+    completed: true,
+    focusedSeconds: 1_200,
+    id: "expanded-session-three-days-ago",
+    minutesAgo: 72 * 60 + 30,
+  },
+  {
+    completed: false,
+    focusedSeconds: 900,
+    id: "expanded-session-four-days-ago",
+    minutesAgo: 96 * 60 + 30,
+  },
 ]
 
 const TASK_SPECS: Record<NonEmptyExpandedFixture, ExpandedTaskSpec[]> = {

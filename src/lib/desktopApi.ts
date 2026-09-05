@@ -68,6 +68,7 @@ export {
   SURFACE_LABELS,
 } from "./desktop/contracts"
 export {
+  isOverlayChildWindowChangedPayload,
   isOverlayPresentationMode,
   isSurfaceChangedPayload,
   isTasksWindowIntent,

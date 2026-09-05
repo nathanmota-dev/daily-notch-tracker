@@ -102,7 +102,7 @@ export function ExpandedDashboard({
           />
           <ActivityPanel {...activity} today={countdown.now} />
         </div>
-        </Panel>
+      </Panel>
       {focusSessionPicker?.open && (
         <div className="flex justify-end px-4 pt-2">
           <FocusSessionPicker {...focusSessionPicker} />

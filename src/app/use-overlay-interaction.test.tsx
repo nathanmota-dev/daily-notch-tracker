@@ -8,7 +8,8 @@ import {
   type DesktopApi,
 } from "../lib/desktopApi"
 import {
-  OVERLAY_COLLAPSE_DELAY_MS,
+  OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS,
+  OVERLAY_WIDGET_COLLAPSE_DELAY_MS,
   OverlayInteractionProvider,
   useOverlayHold,
   useOverlayInteraction,
@@ -70,7 +71,7 @@ function InteractionHarness({
   api?: DesktopApi
   firstHold?: boolean
   focusState?: "idle" | "running" | "paused"
-  initialPresentationMode?: "collapsed" | "expanded"
+  initialPresentationMode?: "collapsed" | "peek" | "expanded"
   secondHold?: boolean
 }) {
   const interaction = useOverlayInteraction({
@@ -84,6 +85,7 @@ function InteractionHarness({
     <OverlayInteractionProvider value={interaction}>
       <main
         data-presentation-mode={interaction.presentationMode}
+        onClick={interaction.onClick}
         onPointerEnter={interaction.onPointerEnter}
         onPointerLeave={interaction.onPointerLeave}
       >
@@ -123,7 +125,7 @@ describe("useOverlayInteraction", () => {
     vi.useRealTimers()
   })
 
-  it("expands immediately when the pointer enters", () => {
+  it("enters the compact peek when the pointer enters", () => {
     render(<InteractionHarness />)
     const surface = screen.getByRole("main")
 
@@ -131,7 +133,7 @@ describe("useOverlayInteraction", () => {
 
     fireEvent.pointerEnter(surface)
 
-    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
     expect(vi.getTimerCount()).toBe(0)
   })
 
@@ -160,14 +162,62 @@ describe("useOverlayInteraction", () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it("waits 400 ms before collapsing after the pointer leaves", () => {
+  it("keeps the overlay expanded while a native child window is open", async () => {
+    const controller = createMockDesktopApi()
+    render(<InteractionHarness api={controller.api} />)
+    const surface = screen.getByRole("main")
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    fireEvent.pointerEnter(surface)
+    fireEvent.click(surface)
+    fireEvent.pointerLeave(surface)
+
+    act(() => {
+      controller.emit("overlay-child-window-changed", { open: true })
+      vi.advanceTimersByTime(
+        OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS +
+          OVERLAY_WIDGET_COLLAPSE_DELAY_MS,
+      )
+    })
+
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+    expect(vi.getTimerCount()).toBe(0)
+
+    act(() => {
+      controller.emit("surface-changed", {
+        intent: null,
+        presentationMode: "expanded",
+        surface: "overlay",
+      })
+      controller.emit("overlay-child-window-changed", { open: false })
+    })
+
+    act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS - 1))
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+  })
+
+  it("collapses the dashboard and widget using their separate delays", () => {
     render(<InteractionHarness />)
     const surface = screen.getByRole("main")
     fireEvent.pointerEnter(surface)
+    fireEvent.click(surface)
     fireEvent.pointerLeave(surface)
 
-    act(() => vi.advanceTimersByTime(399))
+    act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS - 1))
     expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+
+    act(() => vi.advanceTimersByTime(OVERLAY_WIDGET_COLLAPSE_DELAY_MS - 1))
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
 
     act(() => vi.advanceTimersByTime(1))
     expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
@@ -177,11 +227,12 @@ describe("useOverlayInteraction", () => {
     render(<InteractionHarness />)
     const surface = screen.getByRole("main")
     fireEvent.pointerEnter(surface)
+    fireEvent.click(surface)
     fireEvent.pointerLeave(surface)
 
     act(() => vi.advanceTimersByTime(250))
     fireEvent.pointerEnter(surface)
-    act(() => vi.advanceTimersByTime(400))
+    act(() => vi.advanceTimersByTime(OVERLAY_WIDGET_COLLAPSE_DELAY_MS))
 
     expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
     expect(vi.getTimerCount()).toBe(0)
@@ -209,14 +260,16 @@ describe("useOverlayInteraction", () => {
     expect(vi.getTimerCount()).toBe(1)
 
     rerender(<InteractionHarness firstHold />)
-    act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS))
+    act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS))
 
     expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
     expect(vi.getTimerCount()).toBe(0)
 
     rerender(<InteractionHarness />)
     expect(vi.getTimerCount()).toBe(1)
-    act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS))
+    act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS))
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+    act(() => vi.advanceTimersByTime(OVERLAY_WIDGET_COLLAPSE_DELAY_MS))
     expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
   })
 
@@ -230,13 +283,15 @@ describe("useOverlayInteraction", () => {
     expect(vi.getTimerCount()).toBe(0)
 
     rerender(<InteractionHarness secondHold />)
-    act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS))
+    act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS))
     expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
     expect(vi.getTimerCount()).toBe(0)
 
     rerender(<InteractionHarness />)
     expect(vi.getTimerCount()).toBe(1)
-    act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS))
+    act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS))
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+    act(() => vi.advanceTimersByTime(OVERLAY_WIDGET_COLLAPSE_DELAY_MS))
     expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
   })
 
@@ -252,7 +307,9 @@ describe("useOverlayInteraction", () => {
     releaseRef.current?.()
     expect(vi.getTimerCount()).toBe(1)
 
-    act(() => vi.advanceTimersByTime(OVERLAY_COLLAPSE_DELAY_MS))
+    act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS))
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+    act(() => vi.advanceTimersByTime(OVERLAY_WIDGET_COLLAPSE_DELAY_MS))
     expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
   })
 

@@ -24,6 +24,34 @@
         "shadow": false,
         "fullscreen": false,
         "visible": false
+      },
+      {
+        "label": "tasks",
+        "title": "DailyNotch Tasks",
+        "width": 800,
+        "height": 550,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "resizable": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "fullscreen": false,
+        "visible": false
+      },
+      {
+        "label": "settings",
+        "title": "DailyNotch Settings",
+        "width": 800,
+        "height": 550,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "resizable": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "fullscreen": false,
+        "visible": false
       }
     ],
     "security": {

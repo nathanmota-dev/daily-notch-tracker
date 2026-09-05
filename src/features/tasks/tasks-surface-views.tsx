@@ -1,7 +1,7 @@
 import { InlineTaskForm } from "./inline-task-form"
 import { TaskForm } from "./task-form"
 import { TaskList } from "./task-list"
-import { parseLocalDateString } from "../../lib/local-date"
+import { getLocalDateString, parseLocalDateString } from "../../lib/local-date"
 import type {
   TaskDetailViewProps,
   TaskListAndCreateViewProps,
@@ -21,6 +21,23 @@ function formatSelectedDay(dateValue: string) {
     day: "numeric",
     month: "long",
     weekday: "long",
+    year: "numeric",
+  }).format(date)
+}
+
+function formatSelectedDayHeading(dateValue: string) {
+  if (dateValue === getLocalDateString()) {
+    return "Today"
+  }
+
+  const date = parseLocalDateString(dateValue)
+  if (!date) {
+    return "Choose a day"
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
     year: "numeric",
   }).format(date)
 }
@@ -60,7 +77,7 @@ export function SelectedListHeader({
           aria-label={date ? "Day" : "Unscheduled"}
           className="m-0 truncate text-[0.95rem] font-semibold leading-tight tracking-[-0.02em] text-content"
         >
-          {date ? "Today" : "Unscheduled"}
+          {date ? formatSelectedDayHeading(date) : "Unscheduled"}
         </h2>
         <p className="sr-only" data-slot="tasks-day-title">
           {date ? formatSelectedDay(date) : "Tasks without a date"} · {taskCount}{" "}

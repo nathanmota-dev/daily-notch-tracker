@@ -1,5 +1,9 @@
 import type { StartFocusInput } from "./focus-contracts"
-import type { SurfaceChangedPayload, TasksWindowOrigin } from "./window-navigation-contracts"
+import type {
+  OverlayChildWindowChangedPayload,
+  SurfaceChangedPayload,
+  TasksWindowOrigin,
+} from "./window-navigation-contracts"
 import type { WindowPlacementSnapshot } from "./window-placement-contracts"
 
 export type { StartFocusInput } from "./focus-contracts"
@@ -8,6 +12,7 @@ export type {
   SurfaceChangedEvent,
   SurfaceChangedPayload,
   TasksWindowOrigin,
+  OverlayChildWindowChangedPayload,
 } from "./window-navigation-contracts"
 export type {
   WindowMonitorSnapshot,
@@ -234,5 +239,6 @@ export type DesktopEventMap = {
   "settings-changed": AppSnapshot
   "shortcut-changed": AppSnapshot
   "surface-changed": SurfaceChangedPayload
+  "overlay-child-window-changed": OverlayChildWindowChangedPayload
   "window-placement-changed": WindowPlacementSnapshot
 }

@@ -1,6 +1,7 @@
 import { useEffect } from "react"
 
 import type { DesktopApi, SurfaceLabel } from "../lib/desktopApi"
+import { isTauriRuntime } from "../lib/desktop/tauri"
 import {
   resolveWindowPlacement,
   type WindowPlacementGeometry,
@@ -108,7 +109,7 @@ async function applyWindowPlacement(
   }
 }
 
-/** Restores and persists the shared physical placement of extended surfaces. */
+/** Restores browser/test placements; native content windows are stacked by Rust. */
 export function useWindowPlacement({
   adapter,
   api,
@@ -116,7 +117,7 @@ export function useWindowPlacement({
   surface,
 }: UseWindowPlacementOptions) {
   useEffect(() => {
-    if (!isExtendedSurface(surface) || !adapter) {
+    if (!isExtendedSurface(surface) || !adapter || isTauriRuntime()) {
       return
     }
 

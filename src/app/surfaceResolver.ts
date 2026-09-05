@@ -3,7 +3,7 @@ import {
   type OverlayPresentationMode,
   type SurfaceLabel,
 } from "../lib/desktopApi"
-import { isTauriRuntime } from "../lib/desktop/tauri"
+import { getTauriWindowLabel, isTauriRuntime } from "../lib/desktop/tauri"
 import {
   parseTasksWindowIntent,
 } from "../lib/desktop/window-intent"
@@ -25,8 +25,7 @@ export function resolveSurfaceLabel({
   windowLabel,
 }: SurfaceResolutionContext): SurfaceLabel {
   if (runtime === "tauri") {
-    void windowLabel
-    return DEFAULT_SURFACE
+    return isSurfaceLabel(windowLabel) ? windowLabel : DEFAULT_SURFACE
   }
 
   const candidate = new URLSearchParams(search).get(SURFACE_QUERY_PARAMETER)
@@ -38,6 +37,7 @@ export function getRuntimeSurfaceLabel(): SurfaceLabel {
   return resolveSurfaceLabel({
     runtime: isTauriRuntime() ? "tauri" : "browser",
     search: typeof window === "undefined" ? "" : window.location.search,
+    windowLabel: getTauriWindowLabel(),
   })
 }
 
@@ -82,6 +82,7 @@ export function getRuntimeSurfaceState(
     fallbackPresentationMode,
     runtime,
     search: typeof window === "undefined" ? "" : window.location.search,
+    windowLabel: getTauriWindowLabel(),
   })
 }
 
@@ -104,7 +105,11 @@ export function resolvePresentationMode({
     OVERLAY_PRESENTATION_QUERY_PARAMETER,
   )
 
-  return candidate === "collapsed" || candidate === "expanded"
+  return (
+    candidate === "collapsed" ||
+    candidate === "peek" ||
+    candidate === "expanded"
+  )
     ? candidate
     : fallback
 }

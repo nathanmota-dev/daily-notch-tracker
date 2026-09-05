@@ -2,8 +2,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::{AppHandle, Manager, RunEvent, Runtime};
 
-use super::cleanup_global_shortcut;
-use super::FocusScheduler;
+use super::{cleanup_global_shortcut, show_and_focus_window, FocusScheduler};
 use crate::domain::AppError;
 
 /// Tracks shutdown progress shared by the application lifecycle and future tray actions.
@@ -40,7 +39,7 @@ impl AppLifecycleState {
     }
 }
 
-/// Shows and focuses the single native overlay window.
+/// Shows and focuses the persistent native overlay window.
 pub(crate) fn focus_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), AppError> {
     let Some(window) = app.get_webview_window("overlay") else {
         return Err(AppError::integration_unavailable(
@@ -48,12 +47,7 @@ pub(crate) fn focus_overlay<R: Runtime>(app: &AppHandle<R>) -> Result<(), AppErr
         ));
     };
 
-    window
-        .show()
-        .map_err(|_| AppError::integration_unavailable("The desktop window could not be shown."))?;
-    window.set_focus().map_err(|_| {
-        AppError::integration_unavailable("The desktop window could not receive focus.")
-    })
+    show_and_focus_window(&window)
 }
 
 /// Requests an explicit application exit, allowing only the first request through.

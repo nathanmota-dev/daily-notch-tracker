@@ -61,9 +61,25 @@ fn wait_for_focus_events(focus_events: &AtomicUsize, store_events: &AtomicUsize)
 fn create_overlay_window(
     app: &tauri::App<tauri::test::MockRuntime>,
 ) -> tauri::WebviewWindow<tauri::test::MockRuntime> {
-    WebviewWindowBuilder::new(app, "overlay", WebviewUrl::App("index.html".into()))
+    create_window(app, "overlay")
+}
+
+fn create_window(
+    app: &tauri::App<tauri::test::MockRuntime>,
+    label: &str,
+) -> tauri::WebviewWindow<tauri::test::MockRuntime> {
+    WebviewWindowBuilder::new(app, label, WebviewUrl::App("index.html".into()))
         .build()
         .expect("test window should build")
+}
+
+fn create_content_windows(
+    app: &tauri::App<tauri::test::MockRuntime>,
+) -> (
+    tauri::WebviewWindow<tauri::test::MockRuntime>,
+    tauri::WebviewWindow<tauri::test::MockRuntime>,
+) {
+    (create_window(app, "tasks"), create_window(app, "settings"))
 }
 
 fn sample_window_placement() -> WindowPlacementSnapshot {
@@ -445,21 +461,24 @@ fn shortcut_status_publishes_complete_snapshots_without_tray_state() {
 }
 
 #[test]
-fn window_commands_change_one_native_window_and_emit_surface_transitions() {
+fn window_commands_switch_native_surfaces_and_emit_surface_transitions() {
     let app = test_app();
     let handle = app.handle().clone();
-    let _overlay = create_overlay_window(&app);
+    let overlay = create_overlay_window(&app);
+    let (tasks, settings) = create_content_windows(&app);
     let task_id = "11111111-1111-4111-8111-111111111111".to_owned();
     let received = Arc::new(Mutex::new(Vec::<SurfaceChangedPayload>::new()));
-    let received_for_listener = Arc::clone(&received);
-    handle.listen_any(SURFACE_CHANGED_EVENT, move |event| {
-        if let Ok(payload) = serde_json::from_str::<SurfaceChangedPayload>(event.payload()) {
-            received_for_listener
-                .lock()
-                .expect("surface listener should not be poisoned")
-                .push(payload);
-        }
-    });
+    for window in [&overlay, &tasks, &settings] {
+        let received_for_listener = Arc::clone(&received);
+        window.listen(SURFACE_CHANGED_EVENT, move |event| {
+            if let Ok(payload) = serde_json::from_str::<SurfaceChangedPayload>(event.payload()) {
+                received_for_listener
+                    .lock()
+                    .expect("surface listener should not be poisoned")
+                    .push(payload);
+            }
+        });
+    }
 
     tauri::async_runtime::block_on(open_tasks_window(
         handle.clone(),
@@ -479,9 +498,9 @@ fn window_commands_change_one_native_window_and_emit_surface_transitions() {
         .expect("tasks view should close");
 
     assert!(handle.get_webview_window("overlay").is_some());
-    assert!(handle.get_webview_window("tasks").is_none());
-    assert!(handle.get_webview_window("settings").is_none());
-    assert_eq!(handle.webview_windows().len(), 1);
+    assert!(handle.get_webview_window("tasks").is_some());
+    assert!(handle.get_webview_window("settings").is_some());
+    assert_eq!(handle.webview_windows().len(), 3);
     assert_eq!(
         received
             .lock()
@@ -489,9 +508,19 @@ fn window_commands_change_one_native_window_and_emit_surface_transitions() {
             .clone(),
         vec![
             SurfaceChangedPayload::new(
+                SurfaceLabel::Overlay,
+                None,
+                Some(OverlayPresentationMode::Expanded),
+            ),
+            SurfaceChangedPayload::new(
                 SurfaceLabel::Tasks,
                 Some(TasksWindowIntent::Task { task_id }),
                 None,
+            ),
+            SurfaceChangedPayload::new(
+                SurfaceLabel::Overlay,
+                None,
+                Some(OverlayPresentationMode::Expanded),
             ),
             SurfaceChangedPayload::new(SurfaceLabel::Settings, None, None),
             SurfaceChangedPayload::new(SurfaceLabel::Tasks, Some(TasksWindowIntent::List), None,),
@@ -517,6 +546,7 @@ fn closing_settings_returns_to_the_overlay_without_restoring_tasks_origin() {
     let app = test_app();
     let handle = app.handle().clone();
     let _overlay = create_overlay_window(&app);
+    let (_tasks, _settings) = create_content_windows(&app);
 
     tauri::async_runtime::block_on(open_tasks_window(
         handle.clone(),
@@ -566,10 +596,11 @@ fn external_release_rejects_non_https_urls() {
 }
 
 #[test]
-fn surface_views_preserve_focus_scheduler_in_the_single_window() {
+fn surface_views_preserve_focus_scheduler_across_native_windows() {
     let app = test_app();
     let handle = app.handle().clone();
     let _overlay = create_overlay_window(&app);
+    let (_tasks, _settings) = create_content_windows(&app);
 
     tauri::async_runtime::block_on(toggle_focus(handle.clone()))
         .expect("standalone focus should start");
@@ -592,7 +623,9 @@ fn surface_views_preserve_focus_scheduler_in_the_single_window() {
         .expect("Settings view should close");
 
     assert!(handle.get_webview_window("overlay").is_some());
-    assert_eq!(handle.webview_windows().len(), 1);
+    assert!(handle.get_webview_window("tasks").is_some());
+    assert!(handle.get_webview_window("settings").is_some());
+    assert_eq!(handle.webview_windows().len(), 3);
     let snapshot = tauri::async_runtime::block_on(get_snapshot(handle.clone()))
         .expect("snapshot should remain available");
     assert_eq!(snapshot.focus.state, crate::domain::FocusState::Running);

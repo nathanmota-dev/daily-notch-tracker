@@ -1,8 +1,11 @@
 # Window dimensions
 
-DailyNotch keeps one native `overlay` window. Tasks and Settings are views in
-that webview, and the dimensions below are the shared contract for the frontend
-layout and the Tauri surface transitions.
+DailyNotch keeps one transparent native `overlay` window plus hidden transparent
+native `tasks` and `settings` webviews. Their black rounded panels provide the
+visible content, while the transparent window corners preserve the shape on the
+desktop. The content windows are shown and stacked below the overlay by Rust,
+and the dimensions below are the shared contract for the frontend layout and
+Tauri navigation.
 
 ## Contract
 
@@ -20,11 +23,12 @@ transparent 8 px gutter above and below the dashboard; the visible dashboard
 itself has a 190 px minimum height.
 
 Tasks and Settings share the same logical-pixel contract in both CSS and Tauri.
-Changing either view resizes the single native window within the content
-minimum and maximum bounds. The frontend fills the available viewport, clamps
-it to those bounds, and keeps overflow inside the surface instead of allowing
-the document to grow horizontally. Settings scrolls its content vertically
-within that shared 800 × 550 surface.
+Opening either view configures its native window within the content minimum and
+maximum bounds, centers it below the overlay, and keeps it inside the active
+monitor work area. The frontend fills the available viewport, clamps it to those
+bounds, and keeps overflow inside the surface instead of allowing the document
+to grow horizontally. Settings scrolls its content vertically within that
+shared 800 × 550 surface.
 
 ## Scrolling and responsive layout
 
@@ -35,8 +39,8 @@ within that shared 800 × 550 surface.
 - Settings uses a vertically scrolling viewport. Status messages, diagnostics
   paths, toggles, and the duration input wrap or stack below 640 px. Horizontal
   overflow is blocked so long integration messages remain readable.
-- Closing Tasks or Settings switches the single webview back to the Overlay;
-  the current lifecycle and focus behavior are preserved.
+- Closing Tasks or Settings hides the content webview and returns focus to the
+  overlay; the current lifecycle and focus behavior are preserved.
 
 ## Overlay scale and placement
 

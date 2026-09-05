@@ -3,11 +3,13 @@ use serde::{Deserialize, Serialize};
 use crate::domain::TasksWindowIntent;
 
 pub(crate) const SURFACE_CHANGED_EVENT: &str = "surface-changed";
+pub(crate) const OVERLAY_CHILD_WINDOW_CHANGED_EVENT: &str = "overlay-child-window-changed";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum OverlayPresentationMode {
     Collapsed,
+    Peek,
     Expanded,
 }
 
@@ -45,6 +47,17 @@ impl SurfaceChangedPayload {
             intent,
             presentation_mode,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub(crate) struct OverlayChildWindowChangedPayload {
+    pub(crate) open: bool,
+}
+
+impl OverlayChildWindowChangedPayload {
+    pub(crate) fn new(open: bool) -> Self {
+        Self { open }
     }
 }
 

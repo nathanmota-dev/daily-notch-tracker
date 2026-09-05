@@ -61,18 +61,19 @@ persistidos.
 
 ### Ciclo de vida no desktop
 
-Ao iniciar, somente uma WebviewWindow nativa, com label `overlay`, é criada.
-`Tasks`, `Settings` e o próprio Overlay são views do mesmo webview; os comandos
-de navegação redimensionam essa janela e emitem o evento tipado
-`surface-changed`. O aplicativo usa single-instance: se um segundo launch for
-solicitado, esse processo é encerrado e a primeira instância traz a janela
+Ao iniciar, o app cria a WebviewWindow nativa transparente `overlay` e mantém
+`tasks` e `settings` pré-carregadas, ocultas e transparentes. Cada comando de
+navegação exibe a janela de conteúdo correspondente abaixo do overlay, preserva
+a origem do dashboard e publica eventos tipados somente para a WebviewWindow
+que precisa atualizar. O aplicativo usa single-instance: se um segundo launch
+for solicitado, esse processo é encerrado e a primeira instância traz a janela
 `overlay` para frente. Os argumentos e o diretório do segundo launch são
 ignorados.
 
-Fechar `Tasks` ou `Settings` retorna à view `overlay`, preservando o estado, um
-foco em andamento e seu scheduler. `Quit` é a saída explícita da aplicação pelo
-menu nativo do tray e marca o processo como encerrando antes de cancelar o
-scheduler e sair.
+Fechar `Tasks` ou `Settings` oculta a janela de conteúdo e retorna o foco ao
+overlay, preservando o estado, um foco em andamento e seu scheduler. `Quit` é a
+saída explícita da aplicação pelo menu nativo do tray e marca o processo como
+encerrando antes de cancelar o scheduler e sair.
 
 ### Tray e menu nativo
 
@@ -302,10 +303,11 @@ lugar.
 ## Superfícies
 
 O bundle compartilhado renderiza `overlay`, `tasks` ou `settings` como views. No
-Tauri, a única janela nativa tem label `overlay`; o backend publica
-`surface-changed` para trocar a view e ajustar o tamanho. No navegador, a mesma
-seleção pode ser testada com `?surface=overlay`, `?surface=tasks` ou
-`?surface=settings`; sem o parâmetro, o shell usa `overlay`.
+Tauri, `overlay` é a janela transparente persistente; `tasks` e `settings` são
+webviews nativos pré-carregados e ocultos, exibidos pelo backend abaixo do
+overlay quando a navegação é solicitada. No navegador, a mesma seleção pode ser
+testada com `?surface=overlay`, `?surface=tasks` ou `?surface=settings`; sem o
+parâmetro, o shell usa `overlay`.
 
 ### Posicionamento do overlay
 
@@ -328,19 +330,19 @@ teclado tenham um alvo estável; estados
 
 ### Interação do overlay
 
-O overlay expande imediatamente quando o ponteiro entra na superfície e começa
-a recolher 400 ms depois que o ponteiro sai. Uma nova entrada cancela o
-recolhimento pendente, e apenas um timer pode ficar ativo por vez. Menus e
-popovers podem manter o overlay expandido com o contrato reutilizável
-`useOverlayHold(isHeld)`. O seletor de duração do foco usa esse hold para não
-recolher enquanto a sessão está sendo configurada.
+Ao entrar com o ponteiro, o overlay mostra primeiro o widget compacto. Um clique
+abre o dashboard completo. Depois que o ponteiro sai, o dashboard volta ao
+widget após 1 s e o widget volta ao notch idle após 3 s; novas entradas cancelam
+o recolhimento pendente. Enquanto Tasks ou Settings estiver aberto, um evento
+de ciclo de vida mantém o dashboard expandido visível. Menus e popovers também
+podem manter o overlay expandido com o contrato reutilizável
+`useOverlayHold(isHeld)`.
 
-No navegador, a janela nativa não existe, mas a área compacta continua sendo
-renderizada. Em Tauri, a janela permanece `visible` e o resize acompanha os
-estados idle, recolhido e expandido. Para evitar que o tamanho natural do
-WebKitGTK force uma altura de 200 px, os limites nativos mínimo e máximo são
-fixados no tamanho programático atual; portanto, o resize manual do overlay
-continua bloqueado.
+No navegador, a janela nativa não existe, mas os estados idle, compacto e
+expandido continuam sendo renderizados. Em Tauri, o overlay permanece `visible`
+e o resize acompanha esses estados. Tasks e Settings usam janelas nativas
+separadas, alinhadas horizontalmente ao overlay e posicionadas abaixo dele com
+uma margem de 8 px; seus limites são fixados em 760–800 × 480–550 px.
 
 Durante o desenvolvimento, o widget pode ser renderizado com uma fixture pelo
 parâmetro `?fixture=`. As opções recolhidas são `running`, `paused`, `no-task`,
@@ -372,8 +374,9 @@ o bucket do dia.
 A view `Tasks` usa a mesma janela nativa com tamanho de conteúdo preferido de
 800 x 550 px, tamanho mínimo de 760 x 480 px e limites máximos de 800 x 550 px.
 A view `Settings` compartilha esse contrato. Ambas preenchem o webview e têm
-seus próprios cabeçalhos e rolagem; os comandos de abrir, fechar e voltar apenas
-trocam a view e redimensionam a janela única. `Settings` permite ajustar a
+seus próprios cabeçalhos e rolagem; os comandos de abrir, fechar e voltar
+mostram ou ocultam as janelas nativas correspondentes e preservam a origem do
+dashboard. `Settings` permite ajustar a
 duração padrão de foco, alertas, timeline, RGB e modo mínimo; alterações são
 persistidas pelo Rust e refletidas nas outras views sem reiniciar o app. A seção
 de diagnostics mostra somente a versão, o caminho do arquivo local e o estado

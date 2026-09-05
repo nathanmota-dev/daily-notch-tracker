@@ -1,5 +1,6 @@
 import { invoke as tauriInvoke, isTauri } from "@tauri-apps/api/core"
 import { listen as tauriListen } from "@tauri-apps/api/event"
+import { getCurrentWindow } from "@tauri-apps/api/window"
 
 import type {
   DesktopApi,
@@ -26,7 +27,12 @@ export interface TauriTransport {
 const defaultTauriTransport: TauriTransport = {
   invoke: (command, args) => tauriInvoke(command, args),
   listen: (eventName, listener) =>
-    tauriListen<unknown>(eventName, (event) => listener(event.payload)),
+    tauriListen<unknown>(eventName, (event) => listener(event.payload), {
+      target: {
+        kind: "WebviewWindow",
+        label: getCurrentWindow().label,
+      },
+    }),
 }
 
 type DesktopCommandName = keyof DesktopCommandMap
@@ -45,6 +51,18 @@ function normalizeStartFocusInput(input: StartFocusRequest): StartFocusInput {
 
 export function isTauriRuntime() {
   return isTauri()
+}
+
+export function getTauriWindowLabel() {
+  if (!isTauriRuntime()) {
+    return undefined
+  }
+
+  try {
+    return getCurrentWindow().label
+  } catch {
+    return undefined
+  }
 }
 
 export function createTauriDesktopApi(

@@ -151,6 +151,10 @@ export function getOverlayTargetLogicalSize(
     )
   }
 
+  if (presentationMode === "collapsed") {
+    return { ...OVERLAY_WINDOW_SIZES.idle }
+  }
+
   return getCollapsedOverlayLogicalSize(options)
 }
 

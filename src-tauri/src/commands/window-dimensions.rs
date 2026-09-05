@@ -26,6 +26,7 @@ pub(super) const CONTENT_WINDOW_DIMENSIONS: WindowDimensionContract = WindowDime
     },
 };
 
+#[cfg(test)]
 pub(super) const OVERLAY_WINDOW_DIMENSIONS: WindowDimensionContract = WindowDimensionContract {
     preferred: WindowSize {
         width: 204.0,
