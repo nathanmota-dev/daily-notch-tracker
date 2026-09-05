@@ -17,10 +17,7 @@ import {
 } from "./overlay-window"
 
 describe("overlay window dimensions", () => {
-  it("uses the compact idle notch dimensions regardless of focus settings", () => {
-    expect(getCollapsedOverlayLogicalSize({ focusState: "idle" })).toEqual(
-      WINDOW_DIMENSIONS.overlay.idle,
-    )
+  it("uses the compact idle dimensions only for the collapsed notch", () => {
     expect(
       getOverlayTargetLogicalSize("collapsed", {
         focusState: "idle",
@@ -28,6 +25,13 @@ describe("overlay window dimensions", () => {
         showTimeline: false,
       }),
     ).toEqual({ width: 204, height: 32 })
+    expect(
+      getOverlayTargetLogicalSize("peek", {
+        focusState: "idle",
+        minimalMode: false,
+        showTimeline: true,
+      }),
+    ).toEqual(WINDOW_DIMENSIONS.overlay.collapsed)
   })
 
   it("returns the supported collapsed dimensions", () => {

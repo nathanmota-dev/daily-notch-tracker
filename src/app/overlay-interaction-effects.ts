@@ -86,16 +86,15 @@ export function useOverlayPresentationRestoreEffect(
       if (payload.open) {
         collapseState.childWindowOpenRef.current = true
         collapseState.clearTimer()
-        collapseState.presentationModeRef.current = "expanded"
-        collapseState.setPresentationMode("expanded")
-        return
-      }
-
-      if (!collapseState.childWindowOpenRef.current) {
+        collapseState.presentationModeRef.current = payload.presentationMode
+        collapseState.setPresentationMode(payload.presentationMode)
         return
       }
 
       collapseState.childWindowOpenRef.current = false
+      collapseState.clearTimer()
+      collapseState.presentationModeRef.current = payload.presentationMode
+      collapseState.setPresentationMode(payload.presentationMode)
       if (
         !collapseState.pointerInsideRef.current &&
         collapseState.holdsRef.current === 0

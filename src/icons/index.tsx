@@ -21,6 +21,7 @@ import {
   FiTrash2,
   FiX,
 } from "react-icons/fi"
+import { LuFlame } from "react-icons/lu"
 
 export type AppIconProps = IconBaseProps
 export type AppIcon = IconType
@@ -46,6 +47,7 @@ export const icons = {
   expand: FiMaximize2,
   edit: FiEdit2,
   trash: FiTrash2,
+  flame: LuFlame,
 } satisfies Record<string, AppIcon>
 
 export const {
@@ -69,4 +71,5 @@ export const {
   expand: ExpandIcon,
   edit: EditIcon,
   trash: TrashIcon,
+  flame: FlameIcon,
 } = icons

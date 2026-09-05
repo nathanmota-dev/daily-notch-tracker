@@ -11,9 +11,9 @@ use crate::domain::{
 };
 use crate::services::{
     AutostartBackendError, AutostartService, FocusScheduler, MockAutostartBackend,
-    MockNotificationBackend, NotificationBackendError, OverlayPresentationMode,
-    SurfaceChangedPayload, SurfaceLabel, TasksWindowOrigin, WindowNavigationState,
-    SURFACE_CHANGED_EVENT,
+    MockNotificationBackend, NotificationBackendError, OverlayChildWindowChangedPayload,
+    OverlayPresentationMode, SurfaceChangedPayload, SurfaceLabel, TasksWindowOrigin,
+    WindowNavigationState, OVERLAY_CHILD_WINDOW_CHANGED_EVENT, SURFACE_CHANGED_EVENT,
 };
 use crate::state::AppState;
 use chrono::{Duration, Utc};
@@ -468,6 +468,18 @@ fn window_commands_switch_native_surfaces_and_emit_surface_transitions() {
     let (tasks, settings) = create_content_windows(&app);
     let task_id = "11111111-1111-4111-8111-111111111111".to_owned();
     let received = Arc::new(Mutex::new(Vec::<SurfaceChangedPayload>::new()));
+    let child_states = Arc::new(Mutex::new(Vec::<OverlayChildWindowChangedPayload>::new()));
+    let child_states_for_listener = Arc::clone(&child_states);
+    overlay.listen(OVERLAY_CHILD_WINDOW_CHANGED_EVENT, move |event| {
+        if let Ok(payload) =
+            serde_json::from_str::<OverlayChildWindowChangedPayload>(event.payload())
+        {
+            child_states_for_listener
+                .lock()
+                .expect("child-window listeners should not be poisoned")
+                .push(payload);
+        }
+    });
     for window in [&overlay, &tasks, &settings] {
         let received_for_listener = Arc::clone(&received);
         window.listen(SURFACE_CHANGED_EVENT, move |event| {
@@ -490,10 +502,12 @@ fn window_commands_switch_native_surfaces_and_emit_surface_transitions() {
         }),
     ))
     .expect("tasks view should open");
-    tauri::async_runtime::block_on(open_settings_window(handle.clone()))
-        .expect("settings view should open");
-    tauri::async_runtime::block_on(return_to_tasks_window(handle.clone()))
-        .expect("tasks view should return");
+    for _ in 0..4 {
+        tauri::async_runtime::block_on(open_settings_window(handle.clone()))
+            .expect("settings view should open");
+        tauri::async_runtime::block_on(return_to_tasks_window(handle.clone()))
+            .expect("tasks view should return");
+    }
     tauri::async_runtime::block_on(close_tasks_window(handle.clone()))
         .expect("tasks view should close");
 
@@ -501,34 +515,38 @@ fn window_commands_switch_native_surfaces_and_emit_surface_transitions() {
     assert!(handle.get_webview_window("tasks").is_some());
     assert!(handle.get_webview_window("settings").is_some());
     assert_eq!(handle.webview_windows().len(), 3);
+    let mut expected_surfaces = vec![SurfaceChangedPayload::new(
+        SurfaceLabel::Tasks,
+        Some(TasksWindowIntent::Task { task_id }),
+        None,
+    )];
+    for _ in 0..4 {
+        expected_surfaces.push(SurfaceChangedPayload::new(
+            SurfaceLabel::Settings,
+            None,
+            None,
+        ));
+        expected_surfaces.push(SurfaceChangedPayload::new(
+            SurfaceLabel::Tasks,
+            Some(TasksWindowIntent::List),
+            None,
+        ));
+    }
     assert_eq!(
         received
             .lock()
             .expect("surface payloads should not be poisoned")
             .clone(),
+        expected_surfaces,
+    );
+    assert_eq!(
+        child_states
+            .lock()
+            .expect("child-window payloads should not be poisoned")
+            .clone(),
         vec![
-            SurfaceChangedPayload::new(
-                SurfaceLabel::Overlay,
-                None,
-                Some(OverlayPresentationMode::Expanded),
-            ),
-            SurfaceChangedPayload::new(
-                SurfaceLabel::Tasks,
-                Some(TasksWindowIntent::Task { task_id }),
-                None,
-            ),
-            SurfaceChangedPayload::new(
-                SurfaceLabel::Overlay,
-                None,
-                Some(OverlayPresentationMode::Expanded),
-            ),
-            SurfaceChangedPayload::new(SurfaceLabel::Settings, None, None),
-            SurfaceChangedPayload::new(SurfaceLabel::Tasks, Some(TasksWindowIntent::List), None,),
-            SurfaceChangedPayload::new(
-                SurfaceLabel::Overlay,
-                None,
-                Some(OverlayPresentationMode::Expanded),
-            ),
+            OverlayChildWindowChangedPayload::new(true, OverlayPresentationMode::Expanded,),
+            OverlayChildWindowChangedPayload::new(false, OverlayPresentationMode::Expanded,),
         ]
     );
 
@@ -599,8 +617,20 @@ fn external_release_rejects_non_https_urls() {
 fn surface_views_preserve_focus_scheduler_across_native_windows() {
     let app = test_app();
     let handle = app.handle().clone();
-    let _overlay = create_overlay_window(&app);
+    let overlay = create_overlay_window(&app);
     let (_tasks, _settings) = create_content_windows(&app);
+    let child_states = Arc::new(Mutex::new(Vec::<OverlayChildWindowChangedPayload>::new()));
+    let child_states_for_listener = Arc::clone(&child_states);
+    overlay.listen(OVERLAY_CHILD_WINDOW_CHANGED_EVENT, move |event| {
+        if let Ok(payload) =
+            serde_json::from_str::<OverlayChildWindowChangedPayload>(event.payload())
+        {
+            child_states_for_listener
+                .lock()
+                .expect("child-window listeners should not be poisoned")
+                .push(payload);
+        }
+    });
 
     tauri::async_runtime::block_on(toggle_focus(handle.clone()))
         .expect("standalone focus should start");
@@ -617,8 +647,6 @@ fn surface_views_preserve_focus_scheduler_across_native_windows() {
     .expect("Tasks view should open");
     tauri::async_runtime::block_on(open_settings_window(handle.clone()))
         .expect("Settings view should open");
-    tauri::async_runtime::block_on(close_tasks_window(handle.clone()))
-        .expect("Tasks view should close");
     tauri::async_runtime::block_on(close_settings_window(handle.clone()))
         .expect("Settings view should close");
 
@@ -633,6 +661,16 @@ fn surface_views_preserve_focus_scheduler_across_native_windows() {
         .try_state::<FocusScheduler>()
         .expect("scheduler should remain managed")
         .is_scheduled());
+    assert_eq!(
+        child_states
+            .lock()
+            .expect("child-window payloads should not be poisoned")
+            .last(),
+        Some(&OverlayChildWindowChangedPayload::new(
+            false,
+            OverlayPresentationMode::Peek,
+        )),
+    );
 
     tauri::async_runtime::block_on(stop_focus(handle)).expect("focus should stop");
 }

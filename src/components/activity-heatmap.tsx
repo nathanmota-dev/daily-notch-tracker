@@ -27,7 +27,7 @@ export function ActivityHeatmap({
           aria-hidden="true"
           className={cn(
             "aspect-square min-w-0 rounded-[3px] bg-white/[0.07]",
-            cell.state === "future" || cell.state === "outside-month"
+            cell.state === "outside-month"
               ? "bg-transparent shadow-none"
               : cell.intensity === 1
                 ? "bg-accent/[0.32]"

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { act, render, screen, waitFor } from "@testing-library/react"
 
 import {
   createEmptyAppSnapshot,
@@ -103,6 +103,12 @@ describe("SurfaceRouter", () => {
         ).toHaveAttribute("data-state", "idle"),
       )
     } else {
+      expect(
+        document.querySelector('[data-slot="stacked-content-surface"]'),
+      ).toBeInTheDocument()
+      expect(
+        document.querySelector('[data-slot="stacked-dashboard"]'),
+      ).toBeInTheDocument()
       const headingName = surface === "tasks" ? "Tasks" : "Settings"
 
       expect(
@@ -126,6 +132,41 @@ describe("SurfaceRouter", () => {
 
     expect(await screen.findByRole("heading", { name: "Tasks" })).toBeVisible()
     expect(screen.getByRole("main")).toHaveAttribute("data-surface", "tasks")
+  })
+
+  it("reuses the content surface through repeated Tasks and Settings transitions", async () => {
+    window.history.replaceState({}, "", "/?surface=tasks")
+    const controller = createMockDesktopApi()
+
+    render(<SurfaceRouter api={controller.api} />)
+
+    expect(await screen.findByRole("heading", { name: "Tasks" })).toBeVisible()
+
+    for (let index = 0; index < 4; index += 1) {
+      act(() => {
+        controller.emit("surface-changed", {
+          surface: "settings",
+          intent: null,
+          presentationMode: null,
+        })
+      })
+      expect(
+        await screen.findByRole("heading", { name: "Settings" }),
+      ).toBeVisible()
+
+      act(() => {
+        controller.emit("surface-changed", {
+          surface: "tasks",
+          intent: { kind: "list" },
+          presentationMode: null,
+        })
+      })
+      expect(await screen.findByRole("heading", { name: "Tasks" })).toBeVisible()
+    }
+
+    expect(
+      document.querySelector('[data-slot="stacked-content-surface"]'),
+    ).toBeInTheDocument()
   })
 
   it("forwards the expanded presentation mode to the overlay", async () => {

@@ -51,11 +51,10 @@ export function getActivityHeatmapModel(
   const monthStart = new Date(year, month, 1)
   const daysInMonth = new Date(year, month + 1, 0).getDate()
   const leadingEmptyCells = (monthStart.getDay() + 6) % 7
-  const todayDay = Math.min(Math.max(currentDate.getDate(), 1), daysInMonth)
   const rowCount = Math.max(
     1,
     Math.ceil(
-      (leadingEmptyCells + todayDay) / ACTIVITY_HEATMAP_COLUMN_COUNT,
+      (leadingEmptyCells + daysInMonth) / ACTIVITY_HEATMAP_COLUMN_COUNT,
     ),
   )
 
@@ -80,12 +79,12 @@ export function getActivityHeatmapModel(
       const date = new Date(year, month, dayOfMonth)
       const dateKey = formatActivityDateKey(date)
 
-      if (dayOfMonth > todayDay) {
+      if (dayOfMonth > currentDate.getDate()) {
         return {
           column,
           date: dateKey,
           dayOfMonth,
-          intensity: null,
+          intensity: 0,
           row,
           state: "future",
         }

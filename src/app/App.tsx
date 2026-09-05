@@ -34,6 +34,7 @@ import { useWindowPlacement } from "./use-window-placement"
 import { useAppSnapshot } from "./use-app-snapshot"
 import { useDashboardActions } from "./use-dashboard-actions"
 import { cn } from "../lib/utils"
+import { StackedContentSurface } from "./stacked-content-surface"
 
 export type PresentationMode = OverlayPresentationMode
 
@@ -121,7 +122,9 @@ export function AppShell({
         ) : (
           <CollapsedFocusWidget
             focus={snapshot.focus}
+            sessions={snapshot.sessions}
             settings={snapshot.settings}
+            tasks={snapshot.tasks}
             visible={isPeek}
           />
         )}
@@ -156,34 +159,34 @@ function renderSurface(
     )
   }
 
-  if (surface === "tasks") {
-    if (api && snapshotOptions) {
-      return (
-        <TasksSurface
+  if ((surface === "tasks" || surface === "settings") && api && snapshotOptions) {
+    return (
+      <StackedContentSurface
+        activeSurface={surface}
+        dashboardProps={{
+          ...callbacks,
+          busy: dashboardBusy,
+          dashboardError,
+          snapshot,
+        }}
+        settings={<SettingsSurface
+          api={api}
+          applySnapshot={snapshotOptions.applySnapshot}
+          refreshSnapshot={snapshotOptions.refreshSnapshot}
+          snapshot={snapshot}
+        />}
+        tasks={<TasksSurface
           api={api}
           applySnapshot={snapshotOptions.applySnapshot}
           refreshSnapshot={snapshotOptions.refreshSnapshot}
           snapshot={snapshot}
           initialIntent={tasksIntent}
-        />
-      )
-    }
-
-    return <LoadingShell surface="tasks" />
-  }
-
-  if (surface === "settings" && api && snapshotOptions) {
-    return (
-      <SettingsSurface
-        api={api}
-        applySnapshot={snapshotOptions.applySnapshot}
-        refreshSnapshot={snapshotOptions.refreshSnapshot}
-        snapshot={snapshot}
+        />}
       />
     )
   }
 
-  return <LoadingShell surface="settings" />
+  return <LoadingShell surface={surface} />
 }
 
 export function App({

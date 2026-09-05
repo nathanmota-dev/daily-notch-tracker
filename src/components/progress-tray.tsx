@@ -67,7 +67,7 @@ export function ProgressTray({
           aria-valuemin={0}
           aria-valuenow={progressPercentage}
           aria-valuetext={`${progressPercentage}%`}
-          className="pointer-events-none absolute inset-0 block size-full overflow-visible"
+          className="pointer-events-none absolute inset-0 block size-full overflow-hidden"
           data-slot="progress-tray-timeline"
           focusable="false"
           preserveAspectRatio="none"

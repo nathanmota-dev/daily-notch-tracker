@@ -7,6 +7,7 @@ import type {
 import { clampProgress } from "./progress"
 
 export const EMPTY_FOCUS_TASK_TITLE = "Foco sem tarefa"
+export const READY_FOCUS_TITLE = "Ready to focus"
 
 export type CollapsedFocusMode =
   | "idle"
@@ -78,15 +79,13 @@ export function deriveCollapsedFocusPresentation(
   const sessionActive = focus.state !== "idle"
   const isVisible = sessionActive && remainingMs > 0
   const title = focus.activeTaskTitle?.trim() || EMPTY_FOCUS_TASK_TITLE
-  const mode: CollapsedFocusMode = !isVisible
-    ? "idle"
-    : settings.minimalMode
-      ? "minimal"
-      : !settings.showTimeline
-        ? "timeline-off"
-        : settings.rainbowTimeline
-          ? "rgb"
-          : "normal"
+  const mode: CollapsedFocusMode = settings.minimalMode
+    ? "minimal"
+    : !settings.showTimeline
+      ? "timeline-off"
+      : settings.rainbowTimeline
+        ? "rgb"
+        : "normal"
 
   return {
     mode,
@@ -95,7 +94,16 @@ export function deriveCollapsedFocusPresentation(
     remainingMs,
     progress: getFocusProgress(focus.totalMs, remainingMs),
     title,
-    showTimeline: isVisible && settings.showTimeline,
-    rainbowTimeline: isVisible && settings.showTimeline && settings.rainbowTimeline,
+    showTimeline: settings.showTimeline,
+    rainbowTimeline: settings.showTimeline && settings.rainbowTimeline,
   }
+}
+
+export function getIdleFocusRemainingMs(
+  focusMinutes: number,
+  taskEstimateMinutes?: number,
+) {
+  const minutes = taskEstimateMinutes ?? focusMinutes
+
+  return Number.isFinite(minutes) && minutes > 0 ? minutes * 60 * 1000 : 0
 }

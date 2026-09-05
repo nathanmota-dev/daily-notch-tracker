@@ -119,10 +119,12 @@ function ManualInteractionHarness({
 describe("useOverlayInteraction", () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    window.history.replaceState({}, "", "/")
   })
 
   afterEach(() => {
     vi.useRealTimers()
+    window.history.replaceState({}, "", "/")
   })
 
   it("enters the compact peek when the pointer enters", () => {
@@ -177,7 +179,10 @@ describe("useOverlayInteraction", () => {
     fireEvent.pointerLeave(surface)
 
     act(() => {
-      controller.emit("overlay-child-window-changed", { open: true })
+      controller.emit("overlay-child-window-changed", {
+        open: true,
+        presentationMode: "expanded",
+      })
       vi.advanceTimersByTime(
         OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS +
           OVERLAY_WIDGET_COLLAPSE_DELAY_MS,
@@ -188,12 +193,10 @@ describe("useOverlayInteraction", () => {
     expect(vi.getTimerCount()).toBe(0)
 
     act(() => {
-      controller.emit("surface-changed", {
-        intent: null,
+      controller.emit("overlay-child-window-changed", {
+        open: false,
         presentationMode: "expanded",
-        surface: "overlay",
       })
-      controller.emit("overlay-child-window-changed", { open: false })
     })
 
     act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS - 1))
@@ -201,6 +204,56 @@ describe("useOverlayInteraction", () => {
 
     act(() => vi.advanceTimersByTime(1))
     expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+  })
+
+  it("restores and collapses when a child close arrives without its open event", async () => {
+    const controller = createMockDesktopApi()
+    render(<InteractionHarness api={controller.api} />)
+    const surface = screen.getByRole("main")
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    act(() => {
+      controller.emit("overlay-child-window-changed", {
+        open: false,
+        presentationMode: "expanded",
+      })
+    })
+
+    expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
+    expect(vi.getTimerCount()).toBe(1)
+
+    act(() => vi.advanceTimersByTime(OVERLAY_DASHBOARD_COLLAPSE_DELAY_MS))
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+  })
+
+  it("returns directly to the timer peek when active focus content closes", async () => {
+    const controller = createMockDesktopApi()
+    render(<InteractionHarness api={controller.api} focusState="running" />)
+    const surface = screen.getByRole("main")
+
+    await act(async () => {
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+
+    act(() => {
+      controller.emit("overlay-child-window-changed", {
+        open: false,
+        presentationMode: "peek",
+      })
+    })
+
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+
+    act(() => vi.advanceTimersByTime(OVERLAY_WIDGET_COLLAPSE_DELAY_MS - 1))
+    expect(surface).toHaveAttribute("data-presentation-mode", "peek")
+
+    act(() => vi.advanceTimersByTime(1))
+    expect(surface).toHaveAttribute("data-presentation-mode", "collapsed")
   })
 
   it("collapses the dashboard and widget using their separate delays", () => {

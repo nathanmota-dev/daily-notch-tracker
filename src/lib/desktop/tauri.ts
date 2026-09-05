@@ -14,7 +14,10 @@ import type {
   StartFocusInput,
 } from "./contracts"
 import { normalizeDesktopApiError } from "./errors"
-import { isSurfaceChangedPayload } from "./window-navigation-contracts"
+import {
+  isOverlayChildWindowChangedPayload,
+  isSurfaceChangedPayload,
+} from "./window-navigation-contracts"
 
 export interface TauriTransport {
   invoke(command: string, args?: Record<string, unknown>): Promise<unknown>
@@ -94,6 +97,12 @@ export function createTauriDesktopApi(
         if (eventName === "surface-changed" && !isSurfaceChangedPayload(payload)) {
           return
         }
+        if (
+          eventName === "overlay-child-window-changed" &&
+          !isOverlayChildWindowChangedPayload(payload)
+        ) {
+          return
+        }
 
         listener(payload as DesktopEventMap[EventName])
       })
@@ -117,7 +126,7 @@ export function createTauriDesktopApi(
       execute(
         "startFocus",
         "start_focus",
-        normalizeStartFocusInput(input),
+        { input: normalizeStartFocusInput(input) },
       ),
     pauseFocus: () => execute("pauseFocus", "pause_focus", undefined),
     resumeFocus: () => execute("resumeFocus", "resume_focus", undefined),
@@ -129,25 +138,31 @@ export function createTauriDesktopApi(
       execute("getAppDiagnostics", "get_app_diagnostics", undefined),
     setAutostart: (enabled) =>
       execute("setAutostart", "set_autostart", { enabled }),
-    openTasksWindow: (intent, origin) =>
-      execute("openTasksWindow", "open_tasks_window", {
+    openTasksWindow: async (intent, origin): Promise<void> => {
+      await execute("openTasksWindow", "open_tasks_window", {
         intent: intent ?? null,
         origin: origin ?? null,
-      }),
-    closeTasksWindow: () =>
-      execute("closeTasksWindow", "close_tasks_window", undefined),
-    openSettingsWindow: () =>
-      execute("openSettingsWindow", "open_settings_window", undefined),
-    closeSettingsWindow: () =>
-      execute("closeSettingsWindow", "close_settings_window", undefined),
-    returnToTasksWindow: () =>
-      execute(
+      })
+    },
+    closeTasksWindow: async (): Promise<void> => {
+      await execute("closeTasksWindow", "close_tasks_window", undefined)
+    },
+    openSettingsWindow: async (): Promise<void> => {
+      await execute("openSettingsWindow", "open_settings_window", undefined)
+    },
+    closeSettingsWindow: async (): Promise<void> => {
+      await execute("closeSettingsWindow", "close_settings_window", undefined)
+    },
+    returnToTasksWindow: async (): Promise<void> => {
+      await execute(
         "returnToTasksWindow",
         "return_to_tasks_window",
         undefined,
-      ),
-    openExternalRelease: (url) =>
-      execute("openExternalRelease", "open_external_release", { url }),
+      )
+    },
+    openExternalRelease: async (url): Promise<void> => {
+      await execute("openExternalRelease", "open_external_release", { url })
+    },
     subscribe,
   }
 }

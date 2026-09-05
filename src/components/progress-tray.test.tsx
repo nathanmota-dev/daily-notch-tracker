@@ -42,6 +42,7 @@ describe("ProgressTray", () => {
       expect(timeline).toHaveAttribute("aria-valuenow", percentage)
       expect(timeline).toHaveAttribute("aria-valuetext", `${percentage}%`)
       expect(timeline).toHaveAttribute("viewBox", "0 0 100 100")
+      expect(timeline).toHaveClass("overflow-hidden")
       expect(fill).toHaveAttribute("pathLength", "1")
       expect(fill).toHaveAttribute("stroke-dasharray", "1")
       expect(fill).toHaveAttribute("stroke-dashoffset", offset)

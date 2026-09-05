@@ -6,7 +6,7 @@ import {
   type DesktopApiError,
 } from "../lib/desktopApi"
 
-export type SnapshotMutation = () => Promise<AppSnapshot | void>
+export type SnapshotMutation = () => Promise<AppSnapshot | null | void>
 export type SnapshotMutationErrorHandler = (error: DesktopApiError) => void
 
 export type UseDesktopMutationsOptions = {
@@ -58,7 +58,7 @@ export function useDesktopMutations({
 
       try {
         const result = await mutation()
-        if (result !== undefined) {
+        if (result !== undefined && result !== null) {
           applySnapshot(result)
         }
         return result

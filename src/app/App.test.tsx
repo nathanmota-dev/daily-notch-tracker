@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { vi } from "vitest"
 
@@ -138,14 +138,16 @@ describe("App", () => {
     try {
       render(
         <AppShell
-          snapshot={createCollapsedWidgetFixtureSnapshot("running", Date.now())}
+          snapshot={createEmptyAppSnapshot()}
         />,
       )
       const surface = screen.getByRole("main")
 
       fireEvent.pointerEnter(surface)
       expect(surface).toHaveAttribute("data-presentation-mode", "peek")
-      expect(screen.getByRole("timer")).toBeInTheDocument()
+      expect(screen.getByRole("timer")).toHaveTextContent("25:00")
+      expect(screen.getByText("Ready to focus")).toBeInTheDocument()
+      expect(screen.getByLabelText("Journey Streak: 0 days")).toBeInTheDocument()
 
       fireEvent.click(surface)
       expect(surface).toHaveAttribute("data-presentation-mode", "expanded")
@@ -404,7 +406,9 @@ describe("App", () => {
 
     act(() => controller.emit("store-changed", updatedSnapshot))
 
-    expect(await screen.findByText("Shared task")).toBeInTheDocument()
+    expect(
+      await within(screen.getByRole("main")).findByText("Shared task"),
+    ).toBeInTheDocument()
   })
 
   it("applies the snapshot returned by a real task mutation", async () => {

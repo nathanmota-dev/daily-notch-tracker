@@ -18,6 +18,7 @@ export type SurfaceChangedEvent = SurfaceChangedPayload
 
 export type OverlayChildWindowChangedPayload = {
   open: boolean
+  presentationMode: OverlayPresentationMode
 }
 
 export function isOverlayPresentationMode(
@@ -32,7 +33,10 @@ export function isOverlayChildWindowChangedPayload(
   return (
     typeof value === "object" &&
     value !== null &&
-    typeof (value as { open?: unknown }).open === "boolean"
+    typeof (value as { open?: unknown }).open === "boolean" &&
+    isOverlayPresentationMode(
+      (value as { presentationMode?: unknown }).presentationMode,
+    )
   )
 }
 

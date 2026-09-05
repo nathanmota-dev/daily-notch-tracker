@@ -60,18 +60,18 @@ describe("getActivityHeatmapModel", () => {
     })
   })
 
-  it("stops at today while keeping future cells empty", () => {
+  it("renders every day in the month while keeping future days inactive", () => {
     const model = getActivityHeatmapModel(localDate(2026, 7, 28))
     const activityCells = model.cells.filter(
       (cell) => cell.state === "activity",
     )
     const futureCells = model.cells.filter((cell) => cell.state === "future")
 
-    expect(model.rowCount).toBe(5)
+    expect(model.rowCount).toBe(6)
     expect(activityCells).toHaveLength(28)
-    expect(futureCells.map((cell) => cell.dayOfMonth)).toEqual([29, 30])
-    expect(model.cells.some((cell) => cell.dayOfMonth === 31)).toBe(false)
-    expect(futureCells.every((cell) => cell.intensity === null)).toBe(true)
+    expect(model.cells.some((cell) => cell.dayOfMonth === 31)).toBe(true)
+    expect(futureCells.map((cell) => cell.dayOfMonth)).toEqual([29, 30, 31])
+    expect(futureCells.every((cell) => cell.intensity === 0)).toBe(true)
   })
 
   it("keeps cells outside the month empty", () => {
@@ -145,16 +145,24 @@ describe("ActivityHeatmap", () => {
     )
   })
 
-  it("does not assign activity intensity to future or outside cells", () => {
+  it("renders future days at zero intensity and keeps only outside cells empty", () => {
     render(<ActivityHeatmap today={localDate(2026, 7, 28)} />)
 
-    const emptyCells = document.querySelectorAll(
-      '[data-cell-state="future"], [data-cell-state="outside-month"]',
+    const futureCells = document.querySelectorAll(
+      '[data-cell-state="future"]',
+    )
+    const outsideCells = document.querySelectorAll(
+      '[data-cell-state="outside-month"]',
     )
 
-    expect(emptyCells.length).toBeGreaterThan(0)
+    expect(futureCells.length).toBeGreaterThan(0)
     expect(
-      [...emptyCells].every((cell) => !cell.hasAttribute("data-intensity")),
+      [...futureCells].every(
+        (cell) => cell.getAttribute("data-intensity") === "0",
+      ),
+    ).toBe(true)
+    expect(
+      [...outsideCells].every((cell) => !cell.hasAttribute("data-intensity")),
     ).toBe(true)
   })
 })

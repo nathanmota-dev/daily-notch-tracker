@@ -94,13 +94,8 @@ export type PresentationResolutionContext = {
 
 export function resolvePresentationMode({
   fallback = DEFAULT_PRESENTATION_MODE,
-  runtime,
   search = "",
 }: PresentationResolutionContext): OverlayPresentationMode {
-  if (runtime === "tauri") {
-    return fallback
-  }
-
   const candidate = new URLSearchParams(search).get(
     OVERLAY_PRESENTATION_QUERY_PARAMETER,
   )

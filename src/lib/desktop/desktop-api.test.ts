@@ -106,7 +106,10 @@ describe("createTauriDesktopApi", () => {
       ["delete_task", { taskId: "task-1" }],
       ["toggle_task", { taskId: "task-1" }],
       ["move_tasks", { input: moveInput }],
-      ["start_focus", { taskId: "task-1", durationSeconds: 90 }],
+      [
+        "start_focus",
+        { input: { taskId: "task-1", durationSeconds: 90 } },
+      ],
       ["pause_focus", undefined],
       ["resume_focus", undefined],
       ["stop_focus", undefined],
@@ -146,6 +149,17 @@ describe("createTauriDesktopApi", () => {
     expect(listen).toHaveBeenCalledWith("store-changed", expect.any(Function))
     expect(listener).toHaveBeenCalledWith(snapshot)
     expect(unlisten).toHaveBeenCalledOnce()
+  })
+
+  it("normalizes serialized Rust unit results to undefined", async () => {
+    const api = createTauriDesktopApi({
+      invoke: vi.fn(async () => null),
+      listen: vi.fn(async () => vi.fn()),
+    })
+
+    await expect(api.openSettingsWindow()).resolves.toBeUndefined()
+    await expect(api.returnToTasksWindow()).resolves.toBeUndefined()
+    await expect(api.closeTasksWindow()).resolves.toBeUndefined()
   })
 
   it("drops invalid native surface payloads before they reach listeners", async () => {
