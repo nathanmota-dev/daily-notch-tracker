@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { vi } from "vitest"
 
@@ -406,7 +406,9 @@ describe("App", () => {
 
     act(() => controller.emit("store-changed", updatedSnapshot))
 
-    expect(await screen.findByText("Shared task")).toBeInTheDocument()
+    expect(
+      await within(screen.getByRole("main")).findByText("Shared task"),
+    ).toBeInTheDocument()
   })
 
   it("applies the snapshot returned by a real task mutation", async () => {

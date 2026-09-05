@@ -127,23 +127,6 @@ export function useOverlayInteractionLifecycleEffect(
   }, [collapseState])
 }
 
-export function useOverlayBootstrapCollapseEffect(
-  collapseState: CollapseState,
-  autoCollapse: boolean,
-) {
-  useEffect(() => {
-    if (!autoCollapse) {
-      return
-    }
-
-    collapseState.pointerInsideRef.current = false
-    collapseState.childWindowOpenRef.current = false
-    scheduleOverlayCollapse(collapseState)
-
-    return collapseState.clearTimer
-  }, [autoCollapse, collapseState])
-}
-
 export function useOverlayVisibilityEffect(
   adapter: OverlayWindowAdapter | null | undefined,
   focusState: FocusState,

@@ -8,7 +8,7 @@ use crate::services::{SurfaceLabel, WindowNavigationState};
 
 use super::window_dimensions::{WindowDimensionContract, CONTENT_WINDOW_DIMENSIONS};
 
-const CONTENT_WINDOW_GAP: i64 = 8;
+const CONTENT_WINDOW_GAP: f64 = 8.0;
 
 fn window_size_constraints(dimensions: WindowDimensionContract) -> WindowSizeConstraints {
     WindowSizeConstraints {
@@ -30,8 +30,7 @@ pub(super) fn content_window<R: Runtime>(
     surface: SurfaceLabel,
 ) -> Result<WebviewWindow<R>, AppError> {
     let label = match surface {
-        SurfaceLabel::Tasks => "tasks",
-        SurfaceLabel::Settings => "settings",
+        SurfaceLabel::Tasks | SurfaceLabel::Settings => "tasks",
         SurfaceLabel::Overlay => return overlay_window(app),
     };
 
@@ -39,18 +38,47 @@ pub(super) fn content_window<R: Runtime>(
         .ok_or_else(|| AppError::integration_unavailable("The content window could not be opened."))
 }
 
+fn stacked_content_dimensions(overlay_height: f64) -> WindowDimensionContract {
+    let stacked_height = |content_height| overlay_height + CONTENT_WINDOW_GAP + content_height;
+
+    WindowDimensionContract {
+        preferred: super::window_dimensions::WindowSize {
+            width: CONTENT_WINDOW_DIMENSIONS.preferred.width,
+            height: stacked_height(CONTENT_WINDOW_DIMENSIONS.preferred.height),
+        },
+        minimum: super::window_dimensions::WindowSize {
+            width: CONTENT_WINDOW_DIMENSIONS.minimum.width,
+            height: stacked_height(CONTENT_WINDOW_DIMENSIONS.minimum.height),
+        },
+        maximum: super::window_dimensions::WindowSize {
+            width: CONTENT_WINDOW_DIMENSIONS.maximum.width,
+            height: stacked_height(CONTENT_WINDOW_DIMENSIONS.maximum.height),
+        },
+    }
+}
+
 pub(super) fn configure_content_window<R: Runtime>(
+    overlay: &WebviewWindow<R>,
     window: &WebviewWindow<R>,
 ) -> Result<(), AppError> {
+    let overlay_size = overlay
+        .inner_size()
+        .map_err(|_| AppError::integration_unavailable("The overlay size is unavailable."))?;
+    let scale_factor = overlay
+        .scale_factor()
+        .map_err(|_| AppError::integration_unavailable("The overlay scale is unavailable."))?;
+    let overlay_height = overlay_size.to_logical::<f64>(scale_factor).height;
+    let dimensions = stacked_content_dimensions(overlay_height);
+
     window
-        .set_size_constraints(window_size_constraints(CONTENT_WINDOW_DIMENSIONS))
+        .set_size_constraints(window_size_constraints(dimensions))
         .map_err(|_| {
             AppError::integration_unavailable("The content window could not be resized.")
         })?;
     window
         .set_size(LogicalSize::new(
-            CONTENT_WINDOW_DIMENSIONS.preferred.width,
-            CONTENT_WINDOW_DIMENSIONS.preferred.height,
+            dimensions.preferred.width,
+            dimensions.preferred.height,
         ))
         .map_err(|_| AppError::integration_unavailable("The content window could not be resized."))
 }
@@ -66,12 +94,10 @@ fn preferred_content_position(
     content_size: PhysicalSize<u32>,
 ) -> PhysicalPosition<i32> {
     let overlay_center_x = i64::from(overlay_position.x) + i64::from(overlay_size.width) / 2;
-    let position_y =
-        i64::from(overlay_position.y) + i64::from(overlay_size.height) + CONTENT_WINDOW_GAP;
 
     PhysicalPosition::new(
         (overlay_center_x - i64::from(content_size.width) / 2) as i32,
-        position_y as i32,
+        overlay_position.y,
     )
 }
 
@@ -141,6 +167,14 @@ pub(super) fn position_content_window<R: Runtime>(
     content.set_position(position).map_err(|_| {
         AppError::integration_unavailable("The content window could not be positioned.")
     })
+}
+
+pub(super) fn activate_content_window<R: Runtime>(
+    overlay: &WebviewWindow<R>,
+    content: &WebviewWindow<R>,
+) -> Result<(), AppError> {
+    configure_content_window(overlay, content)?;
+    position_content_window(overlay, content)
 }
 
 fn capture_window_placement<R: Runtime>(
@@ -219,4 +253,43 @@ pub(super) async fn persist_window_placement<R: Runtime>(
 pub(super) fn is_allowed_release_url(url: &str) -> bool {
     let trimmed = url.trim();
     trimmed == url && trimmed.starts_with("https://") && trimmed["https://".len()..].contains('.')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stacked_dimensions_include_the_dashboard_and_gap() {
+        let dimensions = stacked_content_dimensions(253.0);
+
+        assert_eq!(dimensions.preferred.width, 800.0);
+        assert_eq!(dimensions.preferred.height, 811.0);
+        assert_eq!(dimensions.minimum.height, 741.0);
+        assert_eq!(dimensions.maximum.height, 811.0);
+    }
+
+    #[test]
+    fn content_is_aligned_with_the_overlay_top_edge() {
+        let position = preferred_content_position(
+            PhysicalPosition::new(600, 38),
+            PhysicalSize::new(620, 253),
+            PhysicalSize::new(800, 811),
+        );
+
+        assert_eq!(position, PhysicalPosition::new(510, 38));
+    }
+
+    #[test]
+    fn content_position_is_clamped_to_the_monitor_work_area() {
+        let position = stacked_content_position(
+            PhysicalPosition::new(1850, 38),
+            PhysicalSize::new(620, 253),
+            PhysicalSize::new(800, 811),
+            PhysicalPosition::new(0, 0),
+            PhysicalSize::new(1920, 1080),
+        );
+
+        assert_eq!(position, PhysicalPosition::new(1120, 38));
+    }
 }

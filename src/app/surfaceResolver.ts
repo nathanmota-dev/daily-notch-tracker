@@ -7,11 +7,7 @@ import { getTauriWindowLabel, isTauriRuntime } from "../lib/desktop/tauri"
 import {
   parseTasksWindowIntent,
 } from "../lib/desktop/window-intent"
-import {
-  OVERLAY_AUTO_COLLAPSE_QUERY_PARAMETER,
-  OVERLAY_CHILD_OPEN_QUERY_PARAMETER,
-  OVERLAY_PRESENTATION_QUERY_PARAMETER,
-} from "../lib/desktop/window-navigation-contracts"
+import { OVERLAY_PRESENTATION_QUERY_PARAMETER } from "../lib/desktop/window-navigation-contracts"
 
 export const SURFACE_QUERY_PARAMETER = "surface"
 export const DEFAULT_SURFACE: SurfaceLabel = "overlay"
@@ -111,23 +107,6 @@ export function resolvePresentationMode({
   )
     ? candidate
     : fallback
-}
-
-export function resolveOverlayRuntimeBootstrap(search = "") {
-  const parameters = new URLSearchParams(search)
-
-  return {
-    autoCollapse:
-      parameters.get(OVERLAY_AUTO_COLLAPSE_QUERY_PARAMETER) === "true",
-    childWindowOpen:
-      parameters.get(OVERLAY_CHILD_OPEN_QUERY_PARAMETER) === "true",
-  }
-}
-
-export function getRuntimeOverlayBootstrap() {
-  return resolveOverlayRuntimeBootstrap(
-    typeof window === "undefined" ? "" : window.location.search,
-  )
 }
 
 export function getRuntimePresentationMode(

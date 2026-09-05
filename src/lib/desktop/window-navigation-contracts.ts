@@ -3,8 +3,6 @@ import { isSurfaceLabel, type SurfaceLabel, type TasksWindowIntent } from "./con
 export type OverlayPresentationMode = "collapsed" | "peek" | "expanded"
 
 export const OVERLAY_PRESENTATION_QUERY_PARAMETER = "presentation"
-export const OVERLAY_CHILD_OPEN_QUERY_PARAMETER = "childOpen"
-export const OVERLAY_AUTO_COLLAPSE_QUERY_PARAMETER = "autoCollapse"
 
 export type TasksWindowOrigin = {
   presentationMode: OverlayPresentationMode

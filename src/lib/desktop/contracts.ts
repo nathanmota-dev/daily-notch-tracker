@@ -1,4 +1,5 @@
 import type { StartFocusInput } from "./focus-contracts"
+import type { TauriUnitResult } from "./command-result-contracts"
 import type {
   OverlayChildWindowChangedPayload,
   SurfaceChangedPayload,
@@ -209,27 +210,27 @@ export type DesktopCommandMap = {
       intent: TasksWindowIntent | null
       origin: TasksWindowOrigin | null
     }
-    result: void
+    result: TauriUnitResult
   }
   close_tasks_window: {
     args: undefined
-    result: void
+    result: TauriUnitResult
   }
   open_settings_window: {
     args: undefined
-    result: void
+    result: TauriUnitResult
   }
   close_settings_window: {
     args: undefined
-    result: void
+    result: TauriUnitResult
   }
   return_to_tasks_window: {
     args: undefined
-    result: void
+    result: TauriUnitResult
   }
   open_external_release: {
     args: { url: string }
-    result: void
+    result: TauriUnitResult
   }
 }
 
