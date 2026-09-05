@@ -1,4 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { vi } from "vitest"
 
@@ -77,6 +84,16 @@ function renderStandaloneTasks(
   )
 
   return { applySnapshot, controller, refreshSnapshot }
+}
+
+function getActiveTasksSurface() {
+  const surface = document.querySelector<HTMLElement>('[data-surface="tasks"]')
+
+  if (!surface) {
+    throw new Error("Tasks surface is missing")
+  }
+
+  return within(surface)
 }
 
 describe("Tasks surface", () => {
@@ -159,15 +176,17 @@ describe("Tasks surface", () => {
     const controller = createMockDesktopApi({ snapshot })
 
     render(<AppForTasks api={controller.api} />)
+    await screen.findByRole("heading", { name: "Tasks" })
+    const tasksSurface = getActiveTasksSurface()
 
-    expect(await screen.findByText("Day task")).toBeInTheDocument()
-    expect(screen.queryByText("Unscheduled task")).not.toBeInTheDocument()
+    expect(await tasksSurface.findByText("Day task")).toBeInTheDocument()
+    expect(tasksSurface.queryByText("Unscheduled task")).not.toBeInTheDocument()
 
     await userEvent.setup().click(
       screen.getByRole("tab", { name: "Unscheduled" }),
     )
-    expect(await screen.findByText("Unscheduled task")).toBeInTheDocument()
-    expect(screen.queryByText("Day task")).not.toBeInTheDocument()
+    expect(await tasksSurface.findByText("Unscheduled task")).toBeInTheDocument()
+    expect(tasksSurface.queryByText("Day task")).not.toBeInTheDocument()
 
     await userEvent.setup().click(screen.getByRole("tab", { name: "Day" }))
     const otherDayButton = document.querySelector(
@@ -175,8 +194,8 @@ describe("Tasks surface", () => {
     )
     expect(otherDayButton).toBeInTheDocument()
     fireEvent.click(otherDayButton!)
-    expect(await screen.findByText("Other day task")).toBeInTheDocument()
-    expect(screen.queryByText("Day task")).not.toBeInTheDocument()
+    expect(await tasksSurface.findByText("Other day task")).toBeInTheDocument()
+    expect(tasksSurface.queryByText("Day task")).not.toBeInTheDocument()
   })
 
   it("preserves the selected day and bucket order after a newer snapshot", async () => {
@@ -243,6 +262,7 @@ describe("Tasks surface", () => {
 
     render(<AppForTasks api={controller.api} />)
     await screen.findByRole("heading", { name: "Tasks" })
+    const tasksSurface = getActiveTasksSurface()
     const user = userEvent.setup()
 
     await user.click(screen.getByRole("button", { name: "Add task" }))
@@ -253,7 +273,7 @@ describe("Tasks surface", () => {
     await user.click(screen.getByRole("button", { name: "Add task" }))
 
     await waitFor(() => expect(addTask).toHaveBeenCalledOnce())
-    expect(await screen.findByText("Created task")).toBeInTheDocument()
+    expect(await tasksSurface.findByText("Created task")).toBeInTheDocument()
   })
 
   it("creates an unscheduled task from the Unscheduled bucket", async () => {
@@ -285,7 +305,8 @@ describe("Tasks surface", () => {
     await user.click(screen.getByRole("button", { name: "Add task" }))
 
     await waitFor(() => expect(addTask).toHaveBeenCalledOnce())
-    expect(await screen.findByText("Unscheduled task")).toBeInTheDocument()
+    const tasksSurface = getActiveTasksSurface()
+    expect(await tasksSurface.findByText("Unscheduled task")).toBeInTheDocument()
     expect(screen.getByRole("tab", { name: "Unscheduled" })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -328,7 +349,8 @@ describe("Tasks surface", () => {
     await waitFor(() => expect(updateTask).toHaveBeenCalledOnce())
     expect(screen.getByLabelText("Title")).toHaveValue("Updated task")
     await user.click(screen.getByRole("button", { name: "Back to list" }))
-    expect(await screen.findByText("Updated task")).toBeInTheDocument()
+    const tasksSurface = getActiveTasksSurface()
+    expect(await tasksSurface.findByText("Updated task")).toBeInTheDocument()
     expect(
       screen.getByRole("checkbox", { name: "Mark Updated task as complete" }),
     ).not.toBeChecked()
@@ -417,8 +439,9 @@ describe("Tasks surface", () => {
     await user.click(screen.getByRole("button", { name: "Cancel" }))
 
     expect(updateTask).not.toHaveBeenCalled()
-    expect(await screen.findByText("Original task")).toBeInTheDocument()
-    expect(screen.queryByText("Discarded task")).not.toBeInTheDocument()
+    const tasksSurface = getActiveTasksSurface()
+    expect(await tasksSurface.findByText("Original task")).toBeInTheDocument()
+    expect(tasksSurface.queryByText("Discarded task")).not.toBeInTheDocument()
   })
 
   it("keeps scheduling controls out of the compact add form", async () => {

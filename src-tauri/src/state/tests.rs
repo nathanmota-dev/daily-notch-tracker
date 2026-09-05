@@ -109,6 +109,17 @@ fn update_input(
     }
 }
 
+fn snapshot_tasks_for_date(
+    snapshot: &crate::domain::AppSnapshot,
+    scheduled_date: NaiveDate,
+) -> Vec<&crate::domain::Task> {
+    snapshot
+        .tasks
+        .iter()
+        .filter(|task| task.scheduled_date == Some(scheduled_date))
+        .collect()
+}
+
 fn assert_invalid_estimate_update(
     state: &mut AppState,
     input: UpdateTaskInput,
@@ -548,11 +559,7 @@ fn reorder_same_bucket_requires_a_complete_permutation_and_is_atomic() {
             destination: TaskBucket::for_date("2026-08-31"),
         })
         .expect("complete permutation should reorder");
-    let tasks = snapshot
-        .tasks
-        .iter()
-        .filter(|task| task.scheduled_date == Some(date(2026, 8, 31)))
-        .collect::<Vec<_>>();
+    let tasks = snapshot_tasks_for_date(&snapshot, date(2026, 8, 31));
     assert_eq!(tasks[0].id, second_id);
     assert_eq!(tasks[0].sort_order, 0);
     assert_eq!(tasks[1].id, first_id);
@@ -595,16 +602,8 @@ fn moving_between_buckets_updates_only_source_and_destination_orders() {
         })
         .expect("cross-bucket move should succeed");
 
-    let source_tasks = snapshot
-        .tasks
-        .iter()
-        .filter(|task| task.scheduled_date == Some(date(2026, 8, 31)))
-        .collect::<Vec<_>>();
-    let destination_tasks = snapshot
-        .tasks
-        .iter()
-        .filter(|task| task.scheduled_date == Some(date(2026, 9, 1)))
-        .collect::<Vec<_>>();
+    let source_tasks = snapshot_tasks_for_date(&snapshot, date(2026, 8, 31));
+    let destination_tasks = snapshot_tasks_for_date(&snapshot, date(2026, 9, 1));
 
     assert_eq!(source_tasks.len(), 1);
     assert_eq!(source_tasks[0].id, source_first);

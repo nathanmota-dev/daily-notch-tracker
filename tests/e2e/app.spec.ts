@@ -26,6 +26,11 @@ const expandedFixtures = [
 
 const OVERLAY_COLLAPSE_DELAY_MS = 400
 
+const stackedContentViewports = [
+  { width: 800, height: 811 },
+  { width: 760, height: 741 },
+] as const
+
 const expandedTasks = {
   first: {
     id: "expanded-task-1",
@@ -225,7 +230,7 @@ test.describe("DailyNotch surface router", () => {
     )
   })
 
-  test("renders a Monday-first seven-column heatmap through today", async ({
+  test("renders a Monday-first full-month heatmap with future days", async ({
     page,
   }) => {
     await page.goto("/?surface=overlay&fixture=expanded")
@@ -254,8 +259,9 @@ test.describe("DailyNotch surface router", () => {
     const activityCells = cellMetadata.filter(
       (cell) => cell.state === "activity",
     )
-    const emptyCells = cellMetadata.filter(
-      (cell) => cell.state !== "activity",
+    const futureCells = cellMetadata.filter((cell) => cell.state === "future")
+    const outsideMonthCells = cellMetadata.filter(
+      (cell) => cell.state === "outside-month",
     )
 
     expect(activityCells.length).toBeGreaterThan(0)
@@ -264,7 +270,8 @@ test.describe("DailyNotch surface router", () => {
         ["0", "1", "2", "3", "4"].includes(cell.intensity ?? ""),
       ),
     ).toBe(true)
-    expect(emptyCells.every((cell) => cell.intensity === null)).toBe(true)
+    expect(futureCells.every((cell) => cell.intensity === "0")).toBe(true)
+    expect(outsideMonthCells.every((cell) => cell.intensity === null)).toBe(true)
 
     const firstDay = cellMetadata.find((cell) => cell.day === "1")
     const month = await heatmap.getAttribute("data-month")
@@ -313,10 +320,7 @@ test.describe("DailyNotch surface router", () => {
   })
 
   test("keeps the Tasks window compact at reference sizes", async ({ page }) => {
-    for (const size of [
-      { width: 800, height: 550 },
-      { width: 760, height: 480 },
-    ]) {
+    for (const size of stackedContentViewports) {
       await page.setViewportSize(size)
       await loadTasksFixture(page, "expanded", "list")
 
@@ -347,7 +351,7 @@ test.describe("DailyNotch surface router", () => {
   test("stacks Tasks content without horizontal overflow in a compact viewport", async ({
     page,
   }) => {
-    const size = { width: 600, height: 900 }
+    const size = { width: 620, height: 900 }
     await page.setViewportSize(size)
     await loadTasksFixture(page, "expanded", "list")
 
@@ -865,10 +869,16 @@ test.describe("DailyNotch surface router", () => {
     await page.goto("/")
     await leaveOverlay(page)
 
-    await expect(
-      page.getByRole("button", { name: "Open focus dashboard" }),
-    ).toBeVisible()
-    await page.getByRole("button", { name: "Open focus dashboard" }).click()
+    const collapsedNotch = page.locator('[data-slot="collapsed-notch"]')
+    if (await collapsedNotch.isVisible()) {
+      await collapsedNotch.hover()
+    }
+
+    const collapsedWidget = page.locator(
+      '[data-slot="collapsed-focus-widget"]',
+    )
+    await expect(collapsedWidget).toHaveAttribute("data-state", "idle")
+    await collapsedWidget.dispatchEvent("click")
     await expect(page.locator('[data-surface="overlay"]')).toHaveAttribute(
       "data-presentation-mode",
       "expanded",
@@ -880,7 +890,9 @@ test.describe("DailyNotch surface router", () => {
 
     await page.getByLabel("Title").fill("Browser flow task")
     await page.getByRole("button", { name: "Add task" }).click()
-    await expect(page.getByText("Browser flow task")).toBeVisible()
+    await expect(
+      page.locator('[data-surface="tasks"]').getByText("Browser flow task"),
+    ).toBeVisible()
 
     await page
       .getByRole("button", { name: "Start focus for Browser flow task" })
@@ -900,7 +912,9 @@ test.describe("DailyNotch surface router", () => {
 
     await page.getByRole("button", { name: "Close Tasks" }).click()
     await expect(page.locator('[data-surface="overlay"]')).toBeVisible()
-    await leaveOverlay(page)
+    await expect(
+      page.locator('[data-surface="overlay"]'),
+    ).toHaveAttribute("data-presentation-mode", "peek")
     await expect(
       page.locator('[data-slot="collapsed-focus-widget"]'),
     ).toHaveAttribute("data-state", "running")
@@ -944,16 +958,15 @@ test.describe("DailyNotch surface router", () => {
   test("keeps Settings inside its responsive dimension contract", async ({
     page,
   }) => {
-    for (const size of [
-      { width: 800, height: 550 },
-      { width: 760, height: 480 },
-    ]) {
+    for (const size of stackedContentViewports) {
       await page.setViewportSize(size)
       await page.goto("/?surface=settings")
       await expect(page.getByRole("heading", { name: "Diagnostics" })).toBeVisible()
 
       const surface = page.locator('[data-surface="settings"]')
+      const stackedBody = page.locator('[data-slot="stacked-content-body"]')
       const box = await surface.boundingBox()
+      const stackedBodyBox = await stackedBody.boundingBox()
       const documentSize = await page.evaluate(() => ({
         height: document.documentElement.scrollHeight,
         width: document.documentElement.scrollWidth,
@@ -964,7 +977,8 @@ test.describe("DailyNotch surface router", () => {
       }))
 
       expect(box?.width ?? 0).toBe(Math.min(size.width, 800))
-      expect(box?.height ?? 0).toBe(Math.min(size.height, 550))
+      expect(box?.y ?? 0).toBeCloseTo(stackedBodyBox?.y ?? 0)
+      expect(box?.height ?? 0).toBeCloseTo(stackedBodyBox?.height ?? 0)
       expect(documentSize.width).toBeLessThanOrEqual(size.width)
       expect(documentSize.height).toBeLessThanOrEqual(size.height)
       expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight)
