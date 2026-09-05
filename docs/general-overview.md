@@ -1,0 +1,400 @@
+# Visão geral do DailyNotch Linux
+
+Este documento reúne a documentação geral do comportamento atual do aplicativo
+desktop: ciclo de vida, integrações Linux, contrato entre React e Rust,
+superfícies da interface, preview web e distribuição.
+
+Ele complementa os demais documentos do repositório:
+
+- [README](../README.md): requisitos, setup, desenvolvimento e comandos rápidos.
+- [PRD técnico](PRD-TAURI.md): escopo funcional e decisões de arquitetura.
+- [Plano de implementação](PRD.md): roadmap do MVP e critérios de aceite.
+- [Dimensões das janelas](window-dimensions.md): contrato de layout nativo.
+
+## Ciclo de vida no desktop
+
+Ao iniciar, o app cria a WebviewWindow nativa transparente `overlay` e mantém  
+`tasks` e `settings` pré-carregadas, ocultas e transparentes. Cada comando de  
+navegação exibe a janela de conteúdo correspondente abaixo do overlay, preserva  
+a origem do dashboard e publica eventos tipados somente para a WebviewWindow  
+que precisa atualizar. O aplicativo usa single-instance: se um segundo launch  
+for solicitado, esse processo é encerrado e a primeira instância traz a janela  
+`overlay` para frente. Os argumentos e o diretório do segundo launch são  
+ignorados.
+
+Fechar `Tasks` ou `Settings` oculta a janela de conteúdo e retorna o foco ao  
+overlay, preservando o estado, um foco em andamento e seu scheduler. `Quit` é a  
+saída explícita da aplicação pelo menu nativo do tray e marca o processo como  
+encerrando antes de cancelar o scheduler e sair.
+
+## Tray e menu nativo
+
+Quando a sessão gráfica oferece suporte, o DailyNotch cria um ícone nativo com o  
+menu contextual: `Open Tasks`, `Start focus` ou `Stop focus`, `Settings`, o  
+status resumido do hotkey, `About / Update` com a versão instalada e  
+`Quit DailyNotch`. O item de foco acompanha imediatamente os estados `idle`,  
+`running` e `paused`, e usa as mesmas regras do foco acionadas pelas janelas.  
+`Hotkey` e `About / Update` são informativos e permanecem desabilitados; o  
+update checker ainda não faz parte deste MVP.
+
+O caminho principal é abrir o menu contextual do ícone (normalmente com o  
+clique direito); nenhuma ação depende de clique esquerdo. Em X11, Wayland e  
+ambientes que oferecem AppIndicator o menu usa a integração nativa disponível.  
+No GNOME sem uma extensão de tray/AppIndicator, ou quando o compositor não  
+oferece essa integração, o diagnóstico aparece como `Unavailable` ou `Error`,  
+mas a aplicação continua utilizável pelas views `Tasks`, `Settings` e `Overlay`  
+quando a janela nativa estiver disponível.
+
+Wayland e alguns compositores podem limitar transparência, posicionamento ou  
+`always-on-top` da janela. Falhas do ícone, do AppIndicator ou do ambiente  
+gráfico não encerram o processo nem interrompem o timer.
+
+## Atalho global
+
+O DailyNotch registra `Ctrl+Shift+Space` automaticamente quando a sessão  
+desktop permite a integração. O atalho é somente leitura neste MVP e alterna  
+o foco: em `idle`, inicia um bloco; em `running` ou `paused`, encerra o bloco.  
+Ele não é um comando de pause/resume. O botão de foco em `Tasks` e a ação de  
+foco do tray continuam disponíveis como fallbacks.
+
+O diagnóstico de Settings e o item informativo do tray mostram um destes  
+estados:
+
+- `registered`: o atalho foi registrado pelo processo atual.
+- `unavailable`: não há uma sessão desktop gráfica disponível para tentar o  
+registro.
+- `error`: o registro falhou, por exemplo porque a combinação já está ocupada  
+ou porque o backend da sessão não a suporta.
+
+O registro é tentado novamente em uma nova inicialização. Falhas do atalho são  
+não fatais: não encerram o focus engine, não cancelam o scheduler e não  
+impedem o uso das views `Tasks`, `Settings` ou do tray quando essas integrações  
+estiverem disponíveis. O app expõe somente o estado resumido e uma mensagem  
+sanitizada; detalhes brutos do plugin e dados pessoais não atravessam o IPC.
+
+No Linux, a implementação nativa depende do backend X11 (incluindo Xwayland).  
+Uma sessão Wayland pura, sem `DISPLAY`, aparece como `unavailable`; quando  
+Xwayland está disponível, o atalho pode ser registrado normalmente. WebKitGTK e  
+AppIndicator também dependem do compositor e da distribuição: limitações de transparência,  
+posicionamento, tray ou menu não alteram o timer, e as views `Tasks` e  
+`Settings` continuam disponíveis na janela única.
+
+Uma instalação empacotada pode ser iniciada pelo menu do sistema ou por um  
+launcher, sem manter um terminal aberto. No Linux, o single-instance depende de  
+uma sessão D-Bus do usuário; ambientes desktop normalmente fornecem essa sessão  
+automaticamente, mas uma execução fora dela precisa disponibilizar  
+`DBUS_SESSION_BUS_ADDRESS` e um session bus funcional.
+
+## Autostart no Linux
+
+O controle `Launch at login` usa o plugin oficial de autostart do Tauri. Ao  
+ativar, ele cria a entrada XDG `dailynotch.desktop` no diretório de autostart  
+do usuário (normalmente `~/.config/autostart/`); ao desativar, a entrada é  
+removida. O launcher recebe `--autostart`, e o processo iniciado por ele cria  
+somente a janela `overlay` e o tray. `Tasks` e `Settings` continuam sendo views  
+da mesma janela, e o single-instance evita processos duplicados.
+
+O nome estável da entrada é `dailynotch`. Em um AppImage, o launcher usa o  
+caminho da imagem informado pelo runtime; em um pacote `.deb`, usa o executável  
+instalado. Assim, o campo `Exec` permanece apontando para o artefato correto  
+nos dois formatos.
+
+O toggle mostra o estado efetivo retornado por `is_enabled`, mesmo que o campo  
+legado `settings.launchAtLogin` tenha outro valor. A operação de autostart não  
+altera esse campo, não grava o arquivo local e não emite eventos de store. Se a  
+sessão gráfica, o diretório XDG ou as permissões não estiverem disponíveis, o  
+diagnóstico informa a falha de forma sanitizada; o app manual continua podendo  
+usar o overlay, o tray e as janelas sob demanda.
+
+Se o arquivo ainda não existir, o diretório é criado e o app começa com um  
+payload vazio. JSON inválido ou um `schema_version` desconhecido inicia um  
+estado vazio recuperável, preserva o arquivo original e registra um diagnóstico  
+interno. Antes da primeira gravação desse estado recuperado, o backend cria  
+`dailynotch.json.recovery-<uuid>.bak` no mesmo diretório. O comando  
+`get_app_diagnostics` expõe somente a versão, o caminho real do arquivo e o  
+estado resumido das integrações; títulos, notas e erros brutos de persistência  
+não atravessam o IPC. O status do atalho global é runtime-only e não é salvo no  
+arquivo local; o estado efetivo do autostart é consultado no backend nativo a  
+cada leitura de diagnostics e também não é salvo no arquivo. O comando temporário  
+`greet` continua coberto pelo teste Rust do scaffold, mas não é registrado na aplicação.
+
+Ao executar somente a UI no navegador, o shell usa um snapshot mockado,  
+determinístico e sem persistência; esse mock não lê nem escreve o arquivo do  
+desktop. Testes e futuras superfícies podem criar outros snapshots ou falhas com  
+`createMockDesktopApi`.
+
+Para executar o teste E2E da interface no navegador, instale o navegador do  
+Playwright uma vez e rode:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+O teste sobe o servidor Vite automaticamente e valida o shell com o snapshot  
+mockado do navegador.
+
+## Distribuição Linux
+
+A MVP-030 habilita somente os targets `appimage` e `deb`. O bundler do Tauri  
+gera os ícones, metadados e o desktop entry do aplicativo automaticamente; não  
+há um template `.desktop` mantido pelo projeto. O workflow da MVP-031 roda no  
+Ubuntu 22.04 x64 após pushes em `main` e também pode ser disparado manualmente.
+
+### Baseline e dependências
+
+Ubuntu 22.04 x64 é a baseline escolhida para gerar e validar os artefatos. Ela  
+fornece os pacotes WebKitGTK 4.1 necessários ao Tauri 2. Sistemas mais novos  
+podem produzir artefatos que exigem uma versão mais recente de glibc; para  
+suportar uma distribuição mais antiga, gere o bundle na base mais antiga que  
+você pretende suportar.
+
+Além de Node.js 20.19+, npm e Rust/Cargo, instale as dependências Linux  
+descritas em [Pré-requisitos do Tauri](https://v2.tauri.app/start/prerequisites/):
+
+```bash
+sudo apt update
+sudo apt install \
+  libwebkit2gtk-4.1-dev \
+  build-essential \
+  curl \
+  wget \
+  file \
+  libxdo-dev \
+  libssl-dev \
+  libdbus-1-dev \
+  libayatana-appindicator3-dev \
+  librsvg2-dev \
+  patchelf \
+  pkg-config
+```
+
+O pacote `.deb` declara as dependências de runtime necessárias para WebKitGTK,  
+GTK e AppIndicator. O AppImage é executável sem instalação, mas ainda depende  
+de uma base Linux compatível e pode ser afetado por diferenças de glibc,  
+WebKitGTK ou compositor.
+
+### Build e execução
+
+Gere os dois artefatos a partir da raiz do repositório:
+
+```bash
+npm ci
+npm test
+cargo test --manifest-path src-tauri/Cargo.toml --locked
+npm run tauri:build
+```
+
+`npm run tauri:build` usa o CLI Tauri 2 instalado pelo projeto e executa o  
+`beforeBuildCommand` configurado, que gera o build de produção do frontend  
+antes do empacotamento.
+
+Os arquivos são gravados em:
+
+```text
+src-tauri/target/release/bundle/appimage/*.AppImage
+src-tauri/target/release/bundle/deb/*.deb
+```
+
+No CI, os arquivos são publicados como dois artefatos separados, com retenção  
+de 14 dias:
+
+- `dailynotch-linux-appimage-ubuntu-22.04-x64-<commit>`
+- `dailynotch-linux-deb-ubuntu-22.04-x64-<commit>`
+
+O resumo do run informa os caminhos, tamanhos, hashes SHA-256 e links para  
+download. Esta etapa publica artefatos do workflow; ela não cria uma GitHub  
+Release nem assina os pacotes.
+
+Para executar o AppImage, torne-o executável e inicie o arquivo:
+
+```bash
+chmod +x src-tauri/target/release/bundle/appimage/*.AppImage
+src-tauri/target/release/bundle/appimage/*.AppImage
+```
+
+Para instalar o `.deb` e iniciar a versão empacotada pelo menu do sistema:
+
+```bash
+sudo apt install ./src-tauri/target/release/bundle/deb/*.deb
+```
+
+O desktop entry instalado aparece como `DailyNotch Linux`. Em ambientes sem  
+menu gráfico, o executável instalado pode ser iniciado pelo nome `dailynotch`.  
+Para remover somente o pacote e preservar os dados locais, use o gerenciador  
+de pacotes, por exemplo:
+
+```bash
+package_name="$(dpkg-deb -f src-tauri/target/release/bundle/deb/*.deb Package)"
+sudo apt remove "$package_name"
+```
+
+Remover o `.deb` não apaga silenciosamente `dailynotch.json`. O arquivo fica  
+fora do pacote em `app_data_dir()/dailynotch.json`; no Linux, o caminho padrão  
+é `~/.local/share/com.dailynotch.linux/dailynotch.json` (ou o diretório  
+correspondente definido por `XDG_DATA_HOME`). O caminho efetivo também aparece  
+em `Settings > Diagnostics`. Upgrade, reinstalação e troca do AppImage preservam  
+esse arquivo; apague-o somente como uma ação explícita de remoção dos dados do  
+usuário.
+
+O controle `Launch at login` cria `~/.config/autostart/dailynotch.desktop`.  
+Depois de ativá-lo, verifique o `Exec` gerado: no AppImage ele aponta para o  
+caminho da imagem e no `.deb` para o executável instalado. O autostart inicia  
+somente o overlay e o tray; o single-instance evita processos duplicados.
+
+O tray, a transparência, o posicionamento e o `always-on-top` dependem da  
+sessão gráfica. X11 oferece o caminho mais previsível; em Wayland puro,  
+Xwayland ou ambientes sem AppIndicator, o tray e o atalho global podem ficar  
+`Unavailable`/`Error`, e o compositor pode limitar a janela. Essas limitações  
+não interrompem o timer nem impedem o uso das views `Tasks` e `Settings`.
+
+## Contrato desktop
+
+O entrypoint `src/lib/desktopApi.ts` expõe os tipos compartilhados, os comandos  
+camelCase e as assinaturas tipadas dos eventos do MVP. O transport Tauri traduz  
+essa API para os nomes snake_case dos comandos Rust; o transport mock permite  
+injetar snapshots, respostas, falhas e eventos sem depender do webview.
+
+Cada mutação bem-sucedida retorna e emite um `AppSnapshot` completo com uma  
+`revision` monotônica. Tarefas emitem `store-changed`, settings emitem  
+`store-changed` e `settings-changed`, e as transições mínimas de foco emitem  
+`focus-changed`. Todas as superfícies assinam esses eventos e  
+`shortcut-changed`; revisões duplicadas ou atrasadas são ignoradas. A troca de  
+view nativa usa `surface-changed`, com `surface`, `intent` e  
+`presentationMode`; o evento `window-placement-changed` já faz parte do  
+contrato para a integração futura.
+
+Componentes React não devem importar `invoke` ou `listen` diretamente. O ESLint  
+protege essa fronteira para que payloads e erros sejam normalizados em um único  
+lugar.
+
+## Superfícies
+
+O bundle compartilhado renderiza `overlay`, `tasks` ou `settings` como views. No  
+Tauri, `overlay` é a janela transparente persistente; `tasks` e `settings` são  
+webviews nativos pré-carregados e ocultos, exibidos pelo backend abaixo do  
+overlay quando a navegação é solicitada. No navegador, a mesma seleção pode ser  
+testada com `?surface=overlay`, `?surface=tasks` ou `?surface=settings`; sem o  
+parâmetro, o shell usa `overlay`.
+
+### Posicionamento do overlay
+
+No desktop, o overlay é centralizado no monitor primário e posicionado 6 px  
+abaixo do início da `workArea`, usando coordenadas físicas e a escala informada  
+pelo Tauri. Quando o compositor não fornece uma `workArea` válida, o cálculo  
+usa o topo do monitor, uma altura estimada de painel de 32 px e a mesma margem  
+de 6 px. Mudanças de escala, resolução, conexão ou monitor primário são  
+detectadas pelo evento de escala e por uma consulta periódica.
+
+Wayland e alguns compositores podem atrasar ou rejeitar a alteração de posição  
+de uma janela sempre no topo, ou não expor métricas completas durante uma  
+reconfiguração. Nesses casos, o app mantém a posição atual e continua  
+funcionando. Em sessões Wayland com XWayland disponível, o app usa o backend  
+X11 para preservar o posicionamento absoluto do overlay; sem XWayland, a  
+limitação do compositor continua valendo. O estado `idle` mantém uma área  
+preta compacta de aproximadamente 204 x 32 px visível para que o hover e o  
+teclado tenham um alvo estável; estados  
+`running` e `paused` expandem essa mesma janela para o timer recolhido.
+
+### Interação do overlay
+
+Ao entrar com o ponteiro, o overlay mostra primeiro o widget compacto. Um clique  
+abre o dashboard completo. Depois que o ponteiro sai, o dashboard volta ao  
+widget após 1 s e o widget volta ao notch idle após 3 s; novas entradas cancelam  
+o recolhimento pendente. Enquanto Tasks ou Settings estiver aberto, um evento  
+de ciclo de vida mantém o dashboard expandido visível. Menus e popovers também  
+podem manter o overlay expandido com o contrato reutilizável  
+`useOverlayHold(isHeld)`.
+
+No navegador, a janela nativa não existe, mas os estados idle, compacto e  
+expandido continuam sendo renderizados. Em Tauri, o overlay permanece `visible`  
+e o resize acompanha esses estados. Tasks e Settings usam janelas nativas  
+separadas, alinhadas horizontalmente ao overlay e posicionadas abaixo dele com  
+uma margem de 8 px; seus limites são fixados em 760–800 × 480–550 px.
+
+Durante o desenvolvimento, o widget pode ser renderizado com uma fixture pelo  
+parâmetro `?fixture=`. As opções recolhidas são `running`, `paused`, `no-task`,  
+`long-title`, `minimal`, `timeline-off` e `rgb`. O dashboard expandido usa  
+`expanded`, `expanded-empty`, `expanded-one`, `expanded-overflow`,  
+`expanded-completed` e `expanded-long-title`; por exemplo:
+
+```text
+http://localhost:5173/?surface=overlay&fixture=running
+http://localhost:5173/?surface=overlay&fixture=expanded
+http://localhost:5173/?surface=overlay&fixture=expanded-overflow
+```
+
+Para visualizar a mesma fixture no webview Tauri enquanto a UI final ainda está  
+em construção, use `VITE_WIDGET_FIXTURE=running npm run tauri:dev`. Esse  
+override é habilitado apenas no modo de desenvolvimento.
+
+Os MVPs-006 e 007 reproduzem a apresentação do dashboard com snapshots e  
+atividade mockados. A partir do MVP-015, o dashboard expandido seleciona do  
+`AppSnapshot` apenas as tarefas agendadas para o dia local, e suas ações de  
+conclusão, foco e reorder enviam mutações reais pelo `desktopApi`; a resposta  
+do Rust é a fonte de verdade da UI. O dashboard exibe um heatmap mensal  
+Monday-first alimentado pelo histórico real de sessões: cada sessão é contada  
+uma vez pela data local de `startedAt`, incluindo sessões concluídas e  
+interrompidas, e o streak pode terminar hoje ou ontem. A grade é limitada ao  
+dia atual e não mostra dados futuros. O resize ancorado da janela Tauri  
+acompanha as mudanças de apresentação, e o drag-and-drop do resumo já reordena  
+o bucket do dia.  
+A view `Tasks` usa a mesma janela nativa com tamanho de conteúdo preferido de  
+800 x 550 px, tamanho mínimo de 760 x 480 px e limites máximos de 800 x 550 px.  
+A view `Settings` compartilha esse contrato. Ambas preenchem o webview e têm  
+seus próprios cabeçalhos e rolagem; os comandos de abrir, fechar e voltar  
+mostram ou ocultam as janelas nativas correspondentes e preservam a origem do  
+dashboard. `Settings` permite ajustar a  
+duração padrão de foco, alertas, timeline, RGB e modo mínimo; alterações são  
+persistidas pelo Rust e refletidas nas outras views sem reiniciar o app. A seção  
+de diagnostics mostra somente a versão, o caminho do arquivo local e o estado  
+resumido de atalhos e autostart. Quando uma integração ainda não está  
+disponível, o controle fica desabilitado e a mensagem pode ser novamente  
+carregada; o estado salvo de preferência não é tratado como confirmação de  
+autostart efetivo. `Tasks` é a superfície funcional descrita abaixo.
+
+A seção estrutural `Calendar` reutiliza o seletor de data atual. A lista mantém  
+as tarefas visíveis durante a criação inline, mostra duração/data e oferece  
+ações diretas de foco, edição e exclusão. Eventos ainda não são exibidos porque  
+a integração ICS pertence a uma etapa posterior.
+
+O focus engine é autoritativo no Rust: iniciar, pausar, retomar, parar e  
+alternar um bloco persistem cada transição relevante, e `endAt` é a fonte de  
+verdade para concluir o bloco mesmo quando o WebView atrasa, a máquina é  
+bloqueada ou volta de suspend. O tempo é acumulado somente nos intervalos em  
+que o foco está `running`; uma sessão concluída recebe `completed: true`, uma  
+interrompida recebe `completed: false`, e o tempo de uma execução atrasada é  
+limitado ao seu deadline. O scheduler cancelável mantém no máximo um callback  
+vigente por vez, e tokens de geração descartam callbacks obsoletos.
+
+Na janela `Tasks`, o CRUD é persistido pelo Rust: a lista separa os buckets  
+`Day` e `Unscheduled`, permite escolher a data, mantém pendentes antes de  
+concluídas e envia a permutação completa do bucket ao reordenar pelo handle.  
+O formulário também permite editar título, notas, duração, data e conclusão,  
+além de iniciar, pausar e retomar o foco da tarefa selecionada. Os intents  
+`list`, `add` e `task` chegam pela query string no preview web e, no desktop,  
+como o campo `intent` do evento `surface-changed`; são transitórios e não entram  
+no arquivo persistido. Concluir a tarefa ativa finaliza sua sessão como concluída,  
+soma o tempo e marca a tarefa como feita na mesma mutação atômica. Excluir a  
+tarefa ativa finaliza a sessão como interrompida e, quando houver tempo válido,  
+preserva o registro como sessão standalone sem atribuí-lo à tarefa removida.
+
+Iniciar o foco abre um seletor da sessão atual com minutos e segundos. A  
+duração aceita `00:01` até `180:00`, é usada somente nessa execução e não altera  
+o campo de estimativa da tarefa. `Esc`, Cancel, clique externo e os controles de  
+teclado fecham ou ajustam o seletor.
+
+### Rotas do preview web
+
+O preview do navegador usa a mesma composição de superfícies e um mock em  
+memória. `surface` seleciona `overlay`, `tasks` ou `settings`; `intent` aceita  
+`list`, `add` ou `task&taskId=<id>` na superfície Tasks; e `fixture` habilita  
+somente dados visuais de desenvolvimento, como `running` ou `expanded`.
+
+Exemplos:
+
+```text
+http://localhost:5173/?surface=tasks&intent=list
+http://localhost:5173/?surface=tasks&intent=add
+http://localhost:5173/?surface=overlay&fixture=expanded
+```

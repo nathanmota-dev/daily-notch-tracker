@@ -9,7 +9,7 @@ Install dependencies and generate fresh coverage before running the metric compa
 ```sh
 npm ci
 npm run test:coverage:ci
-node --test scripts/quality-gate.test.js
+node --test scripts/quality-gate.test.js scripts/pr-report.test.js
 node scripts/quality-gate.js
 ```
 
@@ -21,8 +21,16 @@ npm run build
 npm run lint -- --max-warnings=0
 npm run typecheck
 cargo fmt --manifest-path src-tauri/Cargo.toml --all -- --check
-cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --all-features -- -D warnings
+cargo clippy --manifest-path src-tauri/Cargo.toml --locked --all-targets --all-features --message-format=json -- -D warnings -D clippy::too_many_lines
 cargo test --manifest-path src-tauri/Cargo.toml --locked
+```
+
+The workflow also collects blocking Tauri coverage with `cargo llvm-cov` after
+installing the nightly toolchain and the `cargo-llvm-cov` subcommand:
+
+```sh
+cargo llvm-cov --manifest-path src-tauri/Cargo.toml --locked --all-features \
+  --branch --json --output-path coverage/tauri/coverage.json
 ```
 
 `quality-gate.js` generates ESLint and JSCPD reports, validates that coverage contains every production TypeScript file, compares the result with `scripts/baseline.json`, and writes:
