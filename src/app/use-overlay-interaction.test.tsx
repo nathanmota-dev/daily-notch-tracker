@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { useEffect } from "react"
+import { StrictMode, useEffect } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { OverlayWindowAdapter } from "../lib/desktop/overlay-window"
@@ -307,6 +307,18 @@ describe("useOverlayInteraction", () => {
 
     rerender(<InteractionHarness adapter={adapter} focusState="paused" />)
     expect(adapter.show).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not show before initial placement during strict effect replay", () => {
+    const adapter = createAdapter()
+
+    render(
+      <StrictMode>
+        <InteractionHarness adapter={adapter} focusState="idle" />
+      </StrictMode>,
+    )
+
+    expect(adapter.show).not.toHaveBeenCalled()
   })
 
   it("absorbs native visibility failures", () => {

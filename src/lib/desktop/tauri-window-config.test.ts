@@ -41,6 +41,7 @@ describe("Tauri overlay window configuration", () => {
       "core:window:allow-hide",
       "core:window:allow-start-dragging",
       "core:window:allow-available-monitors",
+      "core:window:allow-primary-monitor",
       "notification:default",
       "autostart:default",
       "global-shortcut:allow-register",

@@ -1,4 +1,5 @@
 import { act, render } from "@testing-library/react"
+import { StrictMode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
@@ -216,6 +217,24 @@ describe("useOverlayResize", () => {
     expect(adapter.show.mock.invocationCallOrder[0]).toBeGreaterThan(
       adapter.setPosition.mock.invocationCallOrder[0] ?? 0,
     )
+    expect(adapter.setPosition.mock.invocationCallOrder.at(-1)).toBeGreaterThan(
+      adapter.show.mock.invocationCallOrder[0] ?? 0,
+    )
+  })
+
+  it("retries initial placement after strict effect replay", async () => {
+    const adapter = createAdapter()
+
+    render(
+      <StrictMode>
+        <OverlayResizeHarness adapter={adapter} presentationMode="collapsed" />
+      </StrictMode>,
+    )
+    await settleAsyncWork()
+
+    expect(adapter.show).toHaveBeenCalledOnce()
+    expect(adapter.setPosition).toHaveBeenLastCalledWith({ x: 780, y: 38 })
+    expect(animationFrame.pending()).toBe(0)
   })
 
   it("resizes on mode changes while preserving the current center and top", async () => {

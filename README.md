@@ -319,8 +319,11 @@ detectadas pelo evento de escala e por uma consulta periódica.
 Wayland e alguns compositores podem atrasar ou rejeitar a alteração de posição
 de uma janela sempre no topo, ou não expor métricas completas durante uma
 reconfiguração. Nesses casos, o app mantém a posição atual e continua
-funcionando. O estado `idle` mantém uma área preta compacta de aproximadamente
-204 x 32 px visível para que o hover e o teclado tenham um alvo estável; estados
+funcionando. Em sessões Wayland com XWayland disponível, o app usa o backend
+X11 para preservar o posicionamento absoluto do overlay; sem XWayland, a
+limitação do compositor continua valendo. O estado `idle` mantém uma área
+preta compacta de aproximadamente 204 x 32 px visível para que o hover e o
+teclado tenham um alvo estável; estados
 `running` e `paused` expandem essa mesma janela para o timer recolhido.
 
 ### Interação do overlay

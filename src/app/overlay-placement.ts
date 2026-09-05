@@ -20,6 +20,7 @@ export type OverlayPlacementRuntime = {
   cancelAnimation: () => void
   finishTransition: (id: number) => void
   setIsResizing: (isResizing: boolean) => void
+  onInitialPlacementSuccess: () => void
   onInitialPlacementFailure: () => void
 }
 
@@ -32,11 +33,9 @@ function currentPosition(
   }
 }
 
-function showOverlayWindow(adapter: OverlayWindowAdapter) {
+async function showOverlayWindow(adapter: OverlayWindowAdapter) {
   try {
-    const visibilityOperation = adapter.show()
-
-    void visibilityOperation.catch(() => undefined)
+    await adapter.show()
   } catch {
     // Native visibility failures should not interrupt initial placement.
   }
@@ -76,19 +75,33 @@ export function startInitialOverlayPlacement(
       runtime.operationQueue.enqueue(geometry)
       void runtime.operationQueue
         .whenIdle()
-        .then(() => {
+        .then(async () => {
           if (!runtime.isActive() || id !== runtime.getTransitionId()) {
             return
           }
 
-          showOverlayWindow(runtime.windowAdapter)
+          await showOverlayWindow(runtime.windowAdapter)
+          if (!runtime.isActive() || id !== runtime.getTransitionId()) {
+            return
+          }
+
+          // Some compositors remap a hidden window at their default location.
+          // Reapplying the geometry after show keeps the first visible frame on
+          // the selected monitor without changing later resize transitions.
+          runtime.operationQueue.enqueue(geometry)
+          await runtime.operationQueue.whenIdle()
+          if (!runtime.isActive() || id !== runtime.getTransitionId()) {
+            return
+          }
+
+          runtime.onInitialPlacementSuccess()
           runtime.finishTransition(id)
         })
     },
     () => {
       if (runtime.isActive() && id === runtime.getTransitionId()) {
         runtime.onInitialPlacementFailure()
-        showOverlayWindow(runtime.windowAdapter)
+        void showOverlayWindow(runtime.windowAdapter)
         runtime.setIsResizing(false)
       }
     },
